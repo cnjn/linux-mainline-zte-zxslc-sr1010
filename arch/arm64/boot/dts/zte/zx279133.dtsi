@@ -23,11 +23,33 @@
 		clock-frequency = <100000000>;
 	};
 
+	clk50m: clock-50m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <50000000>;
+		clock-output-names = "clk50m";
+	};
+
 	/* Temporary fixed-rate model until the TOPCRM divider tree is added. */
 	clk125m: clock-125m {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
 		clock-frequency = <125000000>;
+	};
+
+	/* Runtime-confirmed parent rates until the full PLL/mux tree is modeled. */
+	sys_aclk: clock-sys-aclk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <250000000>;
+		clock-output-names = "sys_aclk";
+	};
+
+	cci_aclk: clock-cci-aclk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <500000000>;
+		clock-output-names = "cci_aclk";
 	};
 
 	clk32k: clock-32k {
@@ -91,19 +113,39 @@
 
 		topcrm: clock-controller@10e10000 {
 			compatible = "zte,zx279133-topcrm", "syscon";
-			reg = <0x0 0x10e10000 0x0 0x10000>;
-			clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>;
-			clock-names = "clk100m", "clk25m", "pclk", "clk32k";
+			reg = <0x0 0x10e10000 0x0 0x60>;
+			clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>,
+				 <&clk50m>, <&clk125m>, <&cci_aclk>, <&sys_aclk>;
+			clock-names = "clk100m", "clk25m", "pclk", "clk32k",
+				      "clk50m", "sys_pclk", "cci_aclk", "sys_aclk";
 			#clock-cells = <1>;
 		};
 
+		top_reset: reset-controller@10e10060 {
+			compatible = "zte,zx296718-reset";
+			reg = <0x0 0x10e10060 0x0 0x4>;
+			#reset-cells = <1>;
+		};
+
+		local_reset: reset-controller@10e10070 {
+			compatible = "zte,zx296718-reset";
+			reg = <0x0 0x10e10070 0x0 0x8>;
+			#reset-cells = <1>;
+		};
+
+		topcrm_wdt: syscon@10e10208 {
+			compatible = "zte,zx279133-wdt-reset", "syscon";
+			reg = <0x0 0x10e10208 0x0 0x4>;
+		};
+
 		lsp0_clk: clock-controller@10d00000 {
-			compatible = "zte,zx279133-lsp-clk";
+			compatible = "zte,zx279133-lsp-clk", "syscon";
 			reg = <0x0 0x10d00000 0x0 0x100>;
 			clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP0_PCLK>,
 				 <&topcrm ZX279133_TOPCRM_CLK_LSP0_25M>,
-				 <&topcrm ZX279133_TOPCRM_CLK_LSP0_100M>;
-			clock-names = "pclk", "wclk25", "wclk100";
+				 <&topcrm ZX279133_TOPCRM_CLK_LSP0_100M>,
+				 <&topcrm ZX279133_TOPCRM_CLK_SPIFC_WCLK>;
+			clock-names = "pclk", "wclk25", "wclk100", "spifc_wclk";
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 		};
@@ -125,6 +167,169 @@
 			status = "disabled";
 		};
 
+		pvt: temperature-sensor@10e70000 {
+			compatible = "zte,zx279133-pvt";
+			reg = <0x0 0x10e70000 0x0 0x10000>;
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK>;
+			clock-names = "wclk";
+			#thermal-sensor-cells = <0>;
+			status = "disabled";
+		};
+
+		pinctrl: pinctrl@10e20000 {
+			compatible = "zte,zx279133-pinctrl";
+			reg = <0x0 0x10e20000 0x0 0x1000>;
+
+			spifc_pins: spifc-pins {
+				function = "spifc";
+				pins = "p3-9", "p3-10", "p3-11", "p3-12",
+				       "p4-0", "p4-1";
+			};
+		};
+
+		gpio0: gpio@10d10000 {
+			compatible = "zte,zx279133-gpio";
+			reg = <0x0 0x10d10000 0x0 0x40>;
+			interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl 0 14 1>, <&pinctrl 1 0 14>,
+				      <&pinctrl 15 15 1>;
+			ngpios = <16>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		gpio1: gpio@10d10040 {
+			compatible = "zte,zx279133-gpio";
+			reg = <0x0 0x10d10040 0x0 0x40>;
+			interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl 0 16 9>, <&pinctrl 9 66 4>,
+				      <&pinctrl 13 25 3>;
+			ngpios = <16>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		gpio2: gpio@10d10080 {
+			compatible = "zte,zx279133-gpio";
+			reg = <0x0 0x10d10080 0x0 0x40>;
+			interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl 0 28 16>;
+			ngpios = <16>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		gpio3: gpio@10d100c0 {
+			compatible = "zte,zx279133-gpio";
+			reg = <0x0 0x10d100c0 0x0 0x40>;
+			interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl 0 44 16>;
+			ngpios = <16>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		gpio4: gpio@10d10100 {
+			compatible = "zte,zx279133-gpio";
+			reg = <0x0 0x10d10100 0x0 0x40>;
+			interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl 0 60 6>;
+			ngpios = <6>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		spifc: spi@10d0f000 {
+			compatible = "zte,zx279133-sfc";
+			reg = <0x0 0x10d0f000 0x0 0x1000>;
+			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&lsp0_clk ZX279133_LSP_CLK_SPIFC_PCLK>,
+				 <&lsp0_clk ZX279133_LSP_CLK_SPIFC_WCLK>;
+			clock-names = "pclk", "wclk";
+			resets = <&lsp0_clk ZX279133_LSP_RESET_SPIFC>;
+			zte,spi-chipselect = <&lsp0_clk 0x2c 0x20000000>;
+			spi-max-frequency = <100000000>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spifc_pins>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			flash@0 {
+				compatible = "spi-nand";
+				reg = <0>;
+				spi-max-frequency = <100000000>;
+
+				partitions {
+					compatible = "fixed-partitions";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					partition@0 {
+						label = "bootloader";
+						reg = <0x000000 0x100000>;
+						read-only;
+					};
+
+					partition@100000 {
+						label = "tags";
+						reg = <0x100000 0x100000>;
+					};
+
+					partition@200000 {
+						label = "usercfg";
+						reg = <0x200000 0x200000>;
+						read-only;
+					};
+
+					partition@400000 {
+						label = "defcfg";
+						reg = <0x400000 0x200000>;
+						read-only;
+					};
+
+					partition@600000 {
+						label = "firmware-slot1";
+						reg = <0x600000 0x2900000>;
+						read-only;
+					};
+
+					partition@2f00000 {
+						label = "firmware-slot2";
+						reg = <0x2f00000 0x2900000>;
+						read-only;
+					};
+
+					partition@5800000 {
+						label = "Plugin";
+						reg = <0x5800000 0x2800000>;
+						read-only;
+					};
+				};
+			};
+		};
+
+		usb3: usb3@15010000 {
+			compatible = "generic-xhci";
+			reg = <0x0 0x15010000 0x0 0x4000>;
+			interrupts = <GIC_SPI 65 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_USB_ACLK>,
+				 <&topcrm ZX279133_TOPCRM_CLK_USB_PCLK>;
+			clock-names = "core", "reg";
+			dma-coherent;
+			status = "disabled";
+		};
+
 		lsp1_clk: clock-controller@14f00000 {
 			compatible = "zte,zx279133-lsp1-clk";
 			reg = <0x0 0x14f00000 0x0 0x100>;
@@ -140,8 +345,8 @@
 			clocks = <&lsp1_clk ZX279133_LSP1_CLK_WDT0_PCLK>,
 				 <&lsp1_clk ZX279133_LSP1_CLK_WDT0_WCLK>;
 			clock-names = "pclk", "wdtclk";
-			zte,reset-controller = <&topcrm>;
-			zte,reset-offset = <0x208>;
+			zte,reset-controller = <&topcrm_wdt>;
+			zte,reset-offset = <0x0>;
 			zte,reset-mask = <0x10>;
 			zte,restart-watchdog;
 			timeout-sec = <10>;
@@ -154,8 +359,8 @@
 			clocks = <&lsp1_clk ZX279133_LSP1_CLK_WDT1_PCLK>,
 				 <&lsp1_clk ZX279133_LSP1_CLK_WDT1_WCLK>;
 			clock-names = "pclk", "wdtclk";
-			zte,reset-controller = <&topcrm>;
-			zte,reset-offset = <0x208>;
+			zte,reset-controller = <&topcrm_wdt>;
+			zte,reset-offset = <0x0>;
 			zte,reset-mask = <0x20>;
 			timeout-sec = <10>;
 			status = "disabled";

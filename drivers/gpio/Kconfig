@@ -862,6 +862,17 @@ config GPIO_ZEVIO
 	help
 	  Say yes here to support the GPIO controller in LSI ZEVIO SoCs.
 
+config GPIO_ZX279133
+	bool "ZTE ZX279133 GPIO support"
+	depends on ARM64 || COMPILE_TEST
+	depends on OF_GPIO
+	select GPIOLIB_IRQCHIP
+	help
+	  Say yes here to support the five 16-bit GPIO controller banks in
+	  the ZTE ZX279133 SoC. Each bank has a cascaded interrupt controller
+	  and integrates with the SoC pin controller through GPIO ranges. The
+	  fifth bank exposes the six pins implemented by the hardware.
+
 config GPIO_ZYNQ
 	tristate "Xilinx Zynq GPIO support"
 	depends on ARCH_ZYNQ || ARCH_ZYNQMP || COMPILE_TEST

@@ -28404,6 +28404,28 @@ F:	include/linux/zswap.h
 F:	mm/zswap.c
 F:	tools/testing/selftests/cgroup/test_zswap.c
 
+ZTE ZX279133 SOC SUPPORT
+M:	cnjn <1779895255@qq.com>
+L:	linux-arm-kernel@lists.infradead.org
+S:	Maintained
+F:	Documentation/devicetree/bindings/clock/zte,zx279133-*.yaml
+F:	Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml
+F:	Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
+F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
+F:	Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
+F:	Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
+F:	Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
+F:	Documentation/devicetree/bindings/watchdog/zte,zx279133-watchdog.yaml
+F:	arch/arm64/boot/dts/zte/zx279133*
+F:	drivers/clk/clk-zx279133.c
+F:	drivers/gpio/gpio-zx279133.c
+F:	drivers/hwmon/zx279133-pvt.c
+F:	drivers/pinctrl/pinctrl-zx279133.c
+F:	drivers/spi/spi-zx279133-sfc.c
+F:	drivers/watchdog/zx279133_wdt.c
+F:	include/dt-bindings/clock/zte,zx279133-*.h
+F:	include/dt-bindings/reset/zte,zx279133-lsp.h
+
 SENARYTECH AUDIO CODEC DRIVER
 M:	bo liu <bo.liu@senarytech.com>
 S:	Maintained

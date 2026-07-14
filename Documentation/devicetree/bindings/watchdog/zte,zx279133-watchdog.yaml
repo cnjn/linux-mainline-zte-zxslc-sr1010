@@ -31,11 +31,13 @@ properties:
 
   zte,reset-controller:
     $ref: /schemas/types.yaml#/definitions/phandle
-    description: TOPCRM system controller containing the watchdog reset route
+    description: System controller register block containing this watchdog's
+      reset route
 
   zte,reset-offset:
     $ref: /schemas/types.yaml#/definitions/uint32
-    description: Offset of the watchdog reset route register in TOPCRM
+    description: Offset of the watchdog reset route register in the system
+      controller block
 
   zte,reset-mask:
     $ref: /schemas/types.yaml#/definitions/uint32
@@ -64,8 +66,8 @@ examples:
         reg = <0x14f09000 0x1000>;
         clocks = <&lsp1_clk 0>, <&lsp1_clk 1>;
         clock-names = "pclk", "wdtclk";
-        zte,reset-controller = <&topcrm>;
-        zte,reset-offset = <0x208>;
+        zte,reset-controller = <&wdt_reset>;
+        zte,reset-offset = <0x0>;
         zte,reset-mask = <0x10>;
         zte,restart-watchdog;
         timeout-sec = <10>;

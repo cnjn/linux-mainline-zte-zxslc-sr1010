@@ -642,6 +642,17 @@ config PINCTRL_ZYNQ
 	help
 	  This selects the pinctrl driver for Xilinx Zynq.
 
+config PINCTRL_ZX279133
+	bool "ZTE ZX279133 pin controller support"
+	depends on ARM64 || COMPILE_TEST
+	select GENERIC_PINCONF
+	select PINMUX
+	help
+	  Say yes here to support GPIO muxing for the 70 pins in the ZTE
+	  ZX279133 SoC. Existing firmware-selected peripheral muxes are left
+	  unchanged until a pin is requested for GPIO use. The driver also
+	  provides the pin group used by the SPI flash controller.
+
 config PINCTRL_ZYNQMP
 	tristate "Pinctrl driver for Xilinx ZynqMP"
 	depends on ZYNQMP_FIRMWARE

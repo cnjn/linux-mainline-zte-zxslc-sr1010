@@ -1288,6 +1288,17 @@ config SPI_XTENSA_XTFPGA
 	  16 bit words in SPI mode 0, automatically asserting CS on transfer
 	  start and deasserting on end.
 
+config SPI_ZX279133_SFC
+	tristate "ZTE ZX279133 SPI flash controller"
+	depends on (ARM64 && OF) || COMPILE_TEST
+	depends on SPI_MEM
+	select MFD_SYSCON
+	help
+	  Enable the SPI-MEM controller used by the ZTE ZX279133 SR1010
+	  SPI-NAND. The controller is driven through its 64-byte FIFO in PIO
+	  mode and supports single-, dual-, and quad-lane address and data
+	  phases. The external chip-select route is configured through syscon.
+
 config SPI_ZYNQ_QSPI
 	tristate "Xilinx Zynq QSPI controller"
 	depends on ARCH_ZYNQ || COMPILE_TEST

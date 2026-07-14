@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/gpio/zte,zx279133-gpio.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE ZX279133 GPIO controller
+
+maintainers:
+  - ZTE Linux Team <zte.linux@gmail.com>
+
+description: |
+  The ZX279133 has five GPIO banks with 16-bit registers and one cascaded
+  interrupt per bank. Four banks expose 16 lines and the final bank exposes
+  six lines, for 70 GPIOs in total.
+
+properties:
+  $nodename:
+    pattern: "^gpio@[0-9a-f]+$"
+
+  compatible:
+    const: zte,zx279133-gpio
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+
+  gpio-controller: true
+
+  '#gpio-cells':
+    const: 2
+
+  gpio-ranges:
+    minItems: 1
+    maxItems: 3
+
+  ngpios:
+    enum: [6, 16]
+
+  interrupt-controller: true
+
+  '#interrupt-cells':
+    const: 2
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - gpio-controller
+  - '#gpio-cells'
+  - gpio-ranges
+  - ngpios
+  - interrupt-controller
+  - '#interrupt-cells'
+
+additionalProperties: false
+
+examples:
+  - |
+    gpio@10d10080 {
+        compatible = "zte,zx279133-gpio";
+        reg = <0x10d10080 0x40>;
+        interrupts = <0 36 4>;
+        gpio-controller;
+        #gpio-cells = <2>;
+        gpio-ranges = <&pinctrl 0 28 16>;
+        ngpios = <16>;
+        interrupt-controller;
+        #interrupt-cells = <2>;
+    };

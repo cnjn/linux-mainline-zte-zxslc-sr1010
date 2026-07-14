@@ -12,12 +12,15 @@ maintainers:
 description:
   The low-speed peripheral (LSP) clock controller supplies bus and working
   clocks to UART, timer, and flash controller peripherals. The UART working
-  clock has a mux selecting either the 25 MHz or 100 MHz LSP source, followed
-  by a gate. The UART bus clock has a separate gate.
+  clock has a mux selecting either the 25 MHz or 100 MHz LSP source. The
+  SPI flash controller working clock has a divider, and both peripherals have
+  separate working and bus clock gates.
 
 properties:
   compatible:
-    const: zte,zx279133-lsp-clk
+    items:
+      - const: zte,zx279133-lsp-clk
+      - const: syscon
 
   reg:
     maxItems: 1
@@ -27,12 +30,14 @@ properties:
       - description: LSP peripheral bus clock
       - description: 25 MHz LSP working clock
       - description: 100 MHz LSP working clock
+      - description: SPI flash controller working clock
 
   clock-names:
     items:
       - const: pclk
       - const: wclk25
       - const: wclk100
+      - const: spifc_wclk
 
   '#clock-cells':
     const: 1
@@ -57,12 +62,13 @@ examples:
     #include <dt-bindings/clock/zte,zx279133-topcrm.h>
 
     clock-controller@10d00000 {
-        compatible = "zte,zx279133-lsp-clk";
+        compatible = "zte,zx279133-lsp-clk", "syscon";
         reg = <0x10d00000 0x100>;
         clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP0_PCLK>,
                  <&topcrm ZX279133_TOPCRM_CLK_LSP0_25M>,
-                 <&topcrm ZX279133_TOPCRM_CLK_LSP0_100M>;
-        clock-names = "pclk", "wclk25", "wclk100";
+                 <&topcrm ZX279133_TOPCRM_CLK_LSP0_100M>,
+                 <&topcrm ZX279133_TOPCRM_CLK_SPIFC_WCLK>;
+        clock-names = "pclk", "wclk25", "wclk100", "spifc_wclk";
         #clock-cells = <1>;
         #reset-cells = <1>;
     };

@@ -10,9 +10,11 @@ maintainers:
   - cnjn <1779895255@qq.com>
 
 description:
-  The top clock and reset manager (TOPCRM) gates clocks supplied to the
-  ZX279133 low-speed peripheral clock controllers. The current binding exposes
-  the subset needed for the UART and watchdog timers.
+  The top clock and reset manager (TOPCRM) supplies clocks to the ZX279133
+  low-speed peripheral controllers, SPI flash controller, PVT temperature
+  sensor, and USB host controller. The PVT working clock uses a read-only
+  divider followed by a gate. The USB clocks are gate3 outputs with fixed-rate
+  system and CCI parent inputs until the full PLL/mux tree is modeled.
 
 properties:
   compatible:
@@ -29,6 +31,10 @@ properties:
       - description: 25 MHz oscillator
       - description: 125 MHz system peripheral bus clock
       - description: 32.768 kHz LSP working clock source
+      - description: 50 MHz PVT divider source
+      - description: 125 MHz system peripheral clock parent for USB
+      - description: 500 MHz CCI clock parent for USB
+      - description: 250 MHz system AXI clock parent for USB
 
   clock-names:
     items:
@@ -36,6 +42,10 @@ properties:
       - const: clk25m
       - const: pclk
       - const: clk32k
+      - const: clk50m
+      - const: sys_pclk
+      - const: cci_aclk
+      - const: sys_aclk
 
   '#clock-cells':
     const: 1
@@ -55,9 +65,11 @@ examples:
   - |
     clock-controller@10e10000 {
         compatible = "zte,zx279133-topcrm", "syscon";
-        reg = <0x10e10000 0x10000>;
-        clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>;
-        clock-names = "clk100m", "clk25m", "pclk", "clk32k";
+        reg = <0x10e10000 0x60>;
+        clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>, <&clk50m>,
+                 <&clk125m>, <&cci_aclk>, <&sys_aclk>;
+        clock-names = "clk100m", "clk25m", "pclk", "clk32k", "clk50m",
+                      "sys_pclk", "cci_aclk", "sys_aclk";
         #clock-cells = <1>;
     };
 

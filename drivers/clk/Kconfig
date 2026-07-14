@@ -358,6 +358,7 @@ config COMMON_CLK_ZX279133
 	bool "Clock driver for the ZTE ZX279133 SoC"
 	depends on ARM64 || COMPILE_TEST
 	select RESET_CONTROLLER
+	select RESET_SIMPLE
 	help
 	  Support the top-level and low-speed peripheral clocks on the ZTE
 	  ZX279133 SoC.
