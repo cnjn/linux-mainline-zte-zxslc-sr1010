@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/arm/zte.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE platforms
+
+maintainers:
+  - ZTE Linux Team <zte.linux@gmail.com>
+
+properties:
+  $nodename:
+    const: '/'
+
+  compatible:
+    oneOf:
+      - description: ZTE ZXSLC SR1010
+        items:
+          - const: zte,zx279133-sr1010
+          - const: zte,zx279133
+
+additionalProperties: true
+
+...

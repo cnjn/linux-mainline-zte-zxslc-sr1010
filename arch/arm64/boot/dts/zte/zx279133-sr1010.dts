@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+/dts-v1/;
+
+#include "zx279133.dtsi"
+
+/ {
+	model = "ZTE ZXSLC SR1010";
+	compatible = "zte,zx279133-sr1010", "zte,zx279133";
+
+	aliases {
+		serial0 = &uart0;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x20000000>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
