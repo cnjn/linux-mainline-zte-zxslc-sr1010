@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/clock/zte,zx279133-lsp-clk.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE ZX279133 low-speed peripheral clock controller
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+description:
+  The low-speed peripheral (LSP) clock controller supplies bus and working
+  clocks to UART, timer, and flash controller peripherals. The UART working
+  clock has a mux selecting either the 25 MHz or 100 MHz LSP source, followed
+  by a gate. The UART bus clock has a separate gate.
+
+properties:
+  compatible:
+    const: zte,zx279133-lsp-clk
+
+  reg:
+    maxItems: 1
+
+  clocks:
+    items:
+      - description: LSP peripheral bus clock
+      - description: 25 MHz LSP working clock
+      - description: 100 MHz LSP working clock
+
+  clock-names:
+    items:
+      - const: pclk
+      - const: wclk25
+      - const: wclk100
+
+  '#clock-cells':
+    const: 1
+    description:
+      See include/dt-bindings/clock/zte,zx279133-lsp.h for valid indices.
+
+  '#reset-cells':
+    const: 1
+
+required:
+  - compatible
+  - reg
+  - clocks
+  - clock-names
+  - '#clock-cells'
+  - '#reset-cells'
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/clock/zte,zx279133-topcrm.h>
+
+    clock-controller@10d00000 {
+        compatible = "zte,zx279133-lsp-clk";
+        reg = <0x10d00000 0x100>;
+        clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP0_PCLK>,
+                 <&topcrm ZX279133_TOPCRM_CLK_LSP0_25M>,
+                 <&topcrm ZX279133_TOPCRM_CLK_LSP0_100M>;
+        clock-names = "pclk", "wclk25", "wclk100";
+        #clock-cells = <1>;
+        #reset-cells = <1>;
+    };

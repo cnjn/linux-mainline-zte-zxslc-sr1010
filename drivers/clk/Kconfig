@@ -354,6 +354,14 @@ config COMMON_CLK_XGENE
 	help
 	  Support for the APM X-Gene SoC reference, PLL, and device clocks.
 
+config COMMON_CLK_ZX279133
+	bool "Clock driver for the ZTE ZX279133 SoC"
+	depends on ARM64 || COMPILE_TEST
+	select RESET_CONTROLLER
+	help
+	  Support the top-level and low-speed peripheral clocks on the ZTE
+	  ZX279133 SoC.
+
 config COMMON_CLK_LOCHNAGAR
 	tristate "Cirrus Logic Lochnagar clock driver"
 	depends on MFD_LOCHNAGAR

@@ -1,0 +1,7 @@
+/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
+#ifndef _DT_BINDINGS_RESET_ZTE_ZX279133_LSP_H
+#define _DT_BINDINGS_RESET_ZTE_ZX279133_LSP_H
+
+#define ZX279133_LSP_RESET_UART0	0
+
+#endif
