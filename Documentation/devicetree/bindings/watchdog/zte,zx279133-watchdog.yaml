@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/watchdog/zte,zx279133-watchdog.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE ZX279133 watchdog
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+allOf:
+  - $ref: watchdog.yaml#
+
+properties:
+  compatible:
+    const: zte,zx279133-watchdog
+
+  reg:
+    maxItems: 1
+
+  clocks:
+    items:
+      - description: Peripheral bus clock
+      - description: Watchdog counter clock
+
+  clock-names:
+    items:
+      - const: pclk
+      - const: wdtclk
+
+  zte,reset-controller:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: TOPCRM system controller containing the watchdog reset route
+
+  zte,reset-offset:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description: Offset of the watchdog reset route register in TOPCRM
+
+  zte,reset-mask:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description: Bit enabling this watchdog's reset output
+    minimum: 1
+
+  zte,restart-watchdog:
+    type: boolean
+    description: Use this watchdog as the system restart handler
+
+required:
+  - compatible
+  - reg
+  - clocks
+  - clock-names
+  - zte,reset-controller
+  - zte,reset-offset
+  - zte,reset-mask
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    watchdog@14f09000 {
+        compatible = "zte,zx279133-watchdog";
+        reg = <0x14f09000 0x1000>;
+        clocks = <&lsp1_clk 0>, <&lsp1_clk 1>;
+        clock-names = "pclk", "wdtclk";
+        zte,reset-controller = <&topcrm>;
+        zte,reset-offset = <0x208>;
+        zte,reset-mask = <0x10>;
+        zte,restart-watchdog;
+        timeout-sec = <10>;
+    };
+
+...

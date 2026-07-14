@@ -510,6 +510,14 @@ config CADENCE_WATCHDOG
 	  Say Y here if you want to include support for the watchdog
 	  timer in the Xilinx Zynq.
 
+config ZX279133_WATCHDOG
+	tristate "ZTE ZX279133 watchdog"
+	depends on ARM64 || COMPILE_TEST
+	select MFD_SYSCON
+	select WATCHDOG_CORE
+	help
+	  Support for the watchdog timers in the ZTE ZX279133 SoC.
+
 config 21285_WATCHDOG
 	tristate "DC21285 watchdog"
 	depends on FOOTBRIDGE
