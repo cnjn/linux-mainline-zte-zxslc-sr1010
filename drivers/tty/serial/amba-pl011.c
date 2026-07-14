@@ -38,6 +38,7 @@
 #include <linux/types.h>
 #include <linux/of.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/reset.h>
 #include <linux/sizes.h>
 #include <linux/io.h>
 #include <linux/acpi.h>
@@ -214,6 +215,38 @@ static struct vendor_data vendor_st = {
 	.always_enabled		= false,
 	.fixed_options		= false,
 	.get_fifosize		= get_fifosize_st,
+};
+
+static const u16 pl011_zte_offsets[REG_ARRAY_SIZE] = {
+	[REG_DR] = ZX_UART011_DR,
+	[REG_FR] = ZX_UART011_FR,
+	[REG_LCRH_RX] = ZX_UART011_LCRH,
+	[REG_LCRH_TX] = ZX_UART011_LCRH,
+	[REG_IBRD] = ZX_UART011_IBRD,
+	[REG_FBRD] = ZX_UART011_FBRD,
+	[REG_CR] = ZX_UART011_CR,
+	[REG_IFLS] = ZX_UART011_IFLS,
+	[REG_IMSC] = ZX_UART011_IMSC,
+	[REG_RIS] = ZX_UART011_RIS,
+	[REG_MIS] = ZX_UART011_MIS,
+	[REG_ICR] = ZX_UART011_ICR,
+	[REG_DMACR] = ZX_UART011_DMACR,
+};
+
+static unsigned int get_fifosize_zte(struct amba_device *dev)
+{
+	return 16;
+}
+
+static struct vendor_data vendor_zte = {
+	.reg_offset		= pl011_zte_offsets,
+	.ifls			= UART011_IFLS_RX4_8 | UART011_IFLS_TX4_8,
+	.fr_busy		= ZX_UART01x_FR_BUSY,
+	.fr_dsr			= ZX_UART01x_FR_DSR,
+	.fr_cts			= ZX_UART01x_FR_CTS,
+	.fr_ri			= ZX_UART011_FR_RI,
+	.access_32b		= true,
+	.get_fifosize		= get_fifosize_zte,
 };
 
 /* Deals with DMA transactions */
@@ -2655,6 +2688,21 @@ static void pl011_early_write(struct console *con, const char *s, unsigned int n
 	uart_console_write(&dev->port, s, n, pl011_putc);
 }
 
+static void zte_pl011_early_putc(struct uart_port *port, unsigned char c)
+{
+	/* The vendor early output path only waits for transmit FIFO space. */
+	while (readl(port->membase + ZX_UART011_FR) & UART01x_FR_TXFF)
+		cpu_relax();
+	writel(c, port->membase + ZX_UART011_DR);
+}
+
+static void zte_pl011_early_write(struct console *con, const char *s, unsigned int n)
+{
+	struct earlycon_device *dev = con->data;
+
+	uart_console_write(&dev->port, s, n, zte_pl011_early_putc);
+}
+
 #ifdef CONFIG_CONSOLE_POLL
 static int pl011_getc(struct uart_port *port)
 {
@@ -2710,9 +2758,28 @@ static int __init pl011_early_console_setup(struct earlycon_device *device,
 	return 0;
 }
 
+static int __init zte_pl011_early_console_setup(struct earlycon_device *device,
+						const char *opt)
+{
+	if (!device->port.membase)
+		return -ENODEV;
+
+	device->con->write = zte_pl011_early_write;
+	return 0;
+}
+
 OF_EARLYCON_DECLARE(pl011, "arm,pl011", pl011_early_console_setup);
 
 OF_EARLYCON_DECLARE(pl011, "arm,sbsa-uart", pl011_early_console_setup);
+
+/* Keep this after the fallbacks: this object emits the table in reverse order. */
+OF_EARLYCON_DECLARE(zteuart, "zte,zx279133-uart", zte_pl011_early_console_setup);
+
+/*
+ * Name without a trailing digit: earlycon derives the console index from
+ * trailing numerals, so "ztepl011" would print as "ztepl11" (index 11).
+ */
+EARLYCON_DECLARE(zteuart, zte_pl011_early_console_setup);
 
 /*
  * On Qualcomm Datacenter Technologies QDF2400 SOCs affected by
@@ -2878,6 +2945,7 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 {
 	struct uart_amba_port *uap;
 	struct vendor_data *vendor = id->data;
+	struct reset_control *rst;
 	int portnr, ret;
 	u32 val;
 
@@ -2889,6 +2957,17 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 			   GFP_KERNEL);
 	if (!uap)
 		return -ENOMEM;
+
+	/*
+	 * ZX279133 supplies arm,primecell-periphid, bypassing
+	 * amba_read_periphid() and its shared-reset deassertion.
+	 */
+	if (vendor == &vendor_zte) {
+		rst = devm_reset_control_get_shared_deasserted(&dev->dev, NULL);
+		if (IS_ERR(rst))
+			return dev_err_probe(&dev->dev, PTR_ERR(rst),
+					     "failed to deassert reset\n");
+	}
 
 	uap->clk = devm_clk_get(&dev->dev, NULL);
 	if (IS_ERR(uap->clk))
@@ -3080,6 +3159,11 @@ static const struct amba_id pl011_ids[] = {
 		.id	= 0x00380802,
 		.mask	= 0x00ffffff,
 		.data	= &vendor_st,
+	},
+	{
+		.id	= 0x001feffe,
+		.mask	= 0x00ffffff,
+		.data	= &vendor_zte,
 	},
 	{ 0, 0 },
 };

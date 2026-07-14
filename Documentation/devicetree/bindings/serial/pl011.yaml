@@ -12,6 +12,18 @@ maintainers:
 allOf:
   - $ref: /schemas/arm/primecell.yaml#
   - $ref: serial.yaml#
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: zte,zx279133-uart
+    then:
+      properties:
+        arm,primecell-periphid:
+          const: 0x001feffe
+      required:
+        - arm,primecell-periphid
+        - resets
 
 # Need a custom select here or 'arm,primecell' will match on lots of nodes
 select:
@@ -25,9 +37,14 @@ select:
 
 properties:
   compatible:
-    items:
-      - const: arm,pl011
-      - const: arm,primecell
+    oneOf:
+      - items:
+          - const: arm,pl011
+          - const: arm,primecell
+      - items:
+          - const: zte,zx279133-uart
+          - const: arm,pl011
+          - const: arm,primecell
 
   reg:
     maxItems: 1
