@@ -25,10 +25,13 @@ properties:
     maxItems: 1
 
   clocks:
-    maxItems: 1
+    items:
+      - description: Peripheral register clock
+      - description: Temperature conversion working clock
 
   clock-names:
     items:
+      - const: pclk
       - const: wclk
 
   nvmem-cells:
@@ -55,8 +58,8 @@ examples:
     pvt@10e70000 {
         compatible = "zte,zx279133-pvt";
         reg = <0x10e70000 0x10000>;
-        clocks = <&topcrm 5>;
-        clock-names = "wclk";
+        clocks = <&topcrm 10>, <&topcrm 5>;
+        clock-names = "pclk", "wclk";
         #thermal-sensor-cells = <0>;
         status = "disabled";
     };

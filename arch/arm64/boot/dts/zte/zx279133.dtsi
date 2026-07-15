@@ -52,6 +52,14 @@
 		clock-output-names = "cci_aclk";
 	};
 
+	/* Temporary fixed-rate model until the PLL divider tree is added. */
+	clk172m: clock-172m032 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <172032000>;
+		clock-output-names = "clk172m";
+	};
+
 	clk32k: clock-32k {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
@@ -115,9 +123,11 @@
 			compatible = "zte,zx279133-topcrm", "syscon";
 			reg = <0x0 0x10e10000 0x0 0x60>;
 			clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>,
-				 <&clk50m>, <&clk125m>, <&cci_aclk>, <&sys_aclk>;
+				 <&clk50m>, <&clk125m>, <&cci_aclk>, <&sys_aclk>,
+				 <&clk172m>;
 			clock-names = "clk100m", "clk25m", "pclk", "clk32k",
-				      "clk50m", "sys_pclk", "cci_aclk", "sys_aclk";
+				      "clk50m", "sys_pclk", "cci_aclk", "sys_aclk",
+				      "clk172m";
 			#clock-cells = <1>;
 		};
 
@@ -170,8 +180,9 @@
 		pvt: temperature-sensor@10e70000 {
 			compatible = "zte,zx279133-pvt";
 			reg = <0x0 0x10e70000 0x0 0x10000>;
-			clocks = <&topcrm ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK>;
-			clock-names = "wclk";
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_PVT_PCLK>,
+				 <&topcrm ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK>;
+			clock-names = "pclk", "wclk";
 			#thermal-sensor-cells = <0>;
 			status = "disabled";
 		};

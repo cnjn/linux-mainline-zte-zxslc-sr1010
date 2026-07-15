@@ -29,6 +29,8 @@
 #define ZX279133_WDT_WCLK_DIV_SHIFT	11
 #define ZX279133_WDT_WCLK_DIV_WIDTH	10
 #define ZX279133_WDT_CLK_FLAGS	CLK_IGNORE_UNUSED
+#define ZX279133_TOPCRM_PVT_PCLK_GATE_CTRL	0x30
+#define ZX279133_TOPCRM_PVT_PCLK_GATE	12
 #define ZX279133_TOPCRM_PVT_DIV_CTRL	0x58
 #define ZX279133_TOPCRM_PVT_GATE_CTRL	0x40
 #define ZX279133_TOPCRM_SPIFC_GATE_CTRL	0x38
@@ -102,6 +104,10 @@ static const struct clk_parent_data topcrm_clk32k_parent = {
 	.fw_name = "clk32k",
 };
 
+static const struct clk_parent_data topcrm_clk172m_parent = {
+	.fw_name = "clk172m",
+};
+
 static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
 	[ZX279133_TOPCRM_CLK_LSP0_100M] = {
 		.name = "lsp0_100m",
@@ -171,6 +177,13 @@ static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
 		.flags = ZX279133_TOPCRM_USB_GATE_FLAGS,
 		.reg_offset = ZX279133_TOPCRM_USB_GATE_CTRL,
 		.bit_idx = 6,
+	},
+	[ZX279133_TOPCRM_CLK_PVT_PCLK] = {
+		.name = "pvt_pclk",
+		.parent = &topcrm_clk172m_parent,
+		.flags = 0,
+		.reg_offset = ZX279133_TOPCRM_PVT_PCLK_GATE_CTRL,
+		.bit_idx = ZX279133_TOPCRM_PVT_PCLK_GATE,
 	},
 };
 

@@ -46,9 +46,15 @@ struct zx279133_pvt_coeff {
 	s64 a0;
 };
 
+enum zx279133_pvt_clk {
+	ZX279133_PVT_CLK_PCLK,
+	ZX279133_PVT_CLK_WCLK,
+	ZX279133_PVT_NUM_CLKS,
+};
+
 struct zx279133_pvt {
 	void __iomem *base;
-	struct clk *wclk;
+	struct clk_bulk_data clks[ZX279133_PVT_NUM_CLKS];
 	struct zx279133_pvt_coeff coeff;
 	struct mutex lock; /* Serializes one-shot conversions. */
 	u8 trim;
@@ -179,6 +185,13 @@ static int zx279133_pvt_get_trim(struct device *dev,
 	return 0;
 }
 
+static void zx279133_pvt_disable_clks(void *data)
+{
+	struct zx279133_pvt *pvt = data;
+
+	clk_bulk_disable_unprepare(ZX279133_PVT_NUM_CLKS, pvt->clks);
+}
+
 static int zx279133_pvt_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -197,12 +210,21 @@ static int zx279133_pvt_probe(struct platform_device *pdev)
 		return PTR_ERR(pvt->base);
 	mutex_init(&pvt->lock);
 
-	pvt->wclk = devm_clk_get_enabled(dev, "wclk");
-	if (IS_ERR(pvt->wclk))
-		return dev_err_probe(dev, PTR_ERR(pvt->wclk),
-				    "failed to enable working clock\n");
+	pvt->clks[ZX279133_PVT_CLK_PCLK].id = "pclk";
+	pvt->clks[ZX279133_PVT_CLK_WCLK].id = "wclk";
+	ret = devm_clk_bulk_get(dev, ZX279133_PVT_NUM_CLKS, pvt->clks);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to get clocks\n");
 
-	rate = clk_get_rate(pvt->wclk);
+	ret = clk_bulk_prepare_enable(ZX279133_PVT_NUM_CLKS, pvt->clks);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to enable clocks\n");
+
+	ret = devm_add_action_or_reset(dev, zx279133_pvt_disable_clks, pvt);
+	if (ret)
+		return ret;
+
+	rate = clk_get_rate(pvt->clks[ZX279133_PVT_CLK_WCLK].clk);
 	if (!rate)
 		return dev_err_probe(dev, -EINVAL, "working clock has zero rate\n");
 

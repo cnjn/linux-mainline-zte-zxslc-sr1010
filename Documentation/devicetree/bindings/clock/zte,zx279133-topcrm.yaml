@@ -13,8 +13,11 @@ description:
   The top clock and reset manager (TOPCRM) supplies clocks to the ZX279133
   low-speed peripheral controllers, SPI flash controller, PVT temperature
   sensor, and USB host controller. The PVT working clock uses a read-only
-  divider followed by a gate. The USB clocks are gate3 outputs with fixed-rate
-  system and CCI parent inputs until the full PLL/mux tree is modeled.
+  divider followed by a gate. The PVT peripheral clock gate consumes the
+  observed 172.032 MHz PLL output, modeled as a fixed-rate input until the full
+  PLL tree is implemented.
+  The USB clocks are gate3 outputs with fixed-rate system and CCI parent inputs
+  until the full PLL/mux tree is modeled.
 
 properties:
   compatible:
@@ -35,6 +38,7 @@ properties:
       - description: 125 MHz system peripheral clock parent for USB
       - description: 500 MHz CCI clock parent for USB
       - description: 250 MHz system AXI clock parent for USB
+      - description: 172.032 MHz PLL-derived PVT peripheral clock source
 
   clock-names:
     items:
@@ -46,6 +50,7 @@ properties:
       - const: sys_pclk
       - const: cci_aclk
       - const: sys_aclk
+      - const: clk172m
 
   '#clock-cells':
     const: 1
@@ -67,9 +72,9 @@ examples:
         compatible = "zte,zx279133-topcrm", "syscon";
         reg = <0x10e10000 0x60>;
         clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>, <&clk50m>,
-                 <&clk125m>, <&cci_aclk>, <&sys_aclk>;
+                 <&clk125m>, <&cci_aclk>, <&sys_aclk>, <&clk172m>;
         clock-names = "clk100m", "clk25m", "pclk", "clk32k", "clk50m",
-                      "sys_pclk", "cci_aclk", "sys_aclk";
+                      "sys_pclk", "cci_aclk", "sys_aclk", "clk172m";
         #clock-cells = <1>;
     };
 
