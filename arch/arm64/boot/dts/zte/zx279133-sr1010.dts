@@ -76,3 +76,20 @@
 &pvt {
 	status = "okay";
 };
+
+&spifc {
+	/* Keep SFC timing conservative until it is characterized on hardware. */
+	spi-max-frequency = <25000000>;
+	status = "okay";
+
+	flash@0 {
+		read-only;
+		spi-max-frequency = <25000000>;
+
+		partitions {
+			partition@100000 {
+				read-only;
+			};
+		};
+	};
+};
