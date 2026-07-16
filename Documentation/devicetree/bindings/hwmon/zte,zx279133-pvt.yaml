@@ -12,7 +12,7 @@ maintainers:
 description: |
   The ZX279133 CLN22ULP PVT block contains a one-shot die temperature
   converter.  The driver starts a conversion for each read and exposes only
-  the standard read-only hwmon temperature input.  The optional ttrim NVMEM
+  the standard read-only hwmon temperature input.  The required ttrim NVMEM
   cell is a five-bit calibration value from the ZX279133 efuse controller.
   Thermal trips and cooling policy are described by separate thermal-zone
   nodes and are intentionally not part of this binding.
@@ -49,6 +49,8 @@ required:
   - reg
   - clocks
   - clock-names
+  - nvmem-cells
+  - nvmem-cell-names
   - '#thermal-sensor-cells'
 
 additionalProperties: false
@@ -60,6 +62,8 @@ examples:
         reg = <0x10e70000 0x10000>;
         clocks = <&topcrm 10>, <&topcrm 5>;
         clock-names = "pclk", "wclk";
+        nvmem-cells = <&pvt_ttrim>;
+        nvmem-cell-names = "ttrim";
         #thermal-sensor-cells = <0>;
         status = "disabled";
     };
