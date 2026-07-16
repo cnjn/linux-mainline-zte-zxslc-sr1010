@@ -124,8 +124,15 @@ static const struct xhci_plat_priv xhci_plat_brcm = {
 	.quirks = XHCI_RESET_ON_RESUME | XHCI_SUSPEND_RESUME_CLKS,
 };
 
+static const struct xhci_plat_priv xhci_plat_zx279133 = {
+	.extra_clk_name = "cci",
+};
+
 static const struct of_device_id usb_xhci_of_match[] = {
 	{
+		.compatible = "zte,zx279133-xhci",
+		.data = &xhci_plat_zx279133,
+	}, {
 		.compatible = "generic-xhci",
 	}, {
 		.compatible = "xhci-platform",
@@ -153,6 +160,20 @@ static const struct of_device_id usb_xhci_of_match[] = {
 MODULE_DEVICE_TABLE(of, usb_xhci_of_match);
 #endif
 
+static int xhci_plat_enable_extra_clk(struct xhci_hcd *xhci)
+{
+	struct xhci_plat_priv *priv = xhci_to_priv(xhci);
+
+	return clk_prepare_enable(priv->extra_clk);
+}
+
+static void xhci_plat_disable_extra_clk(struct xhci_hcd *xhci)
+{
+	struct xhci_plat_priv *priv = xhci_to_priv(xhci);
+
+	clk_disable_unprepare(priv->extra_clk);
+}
+
 int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const struct xhci_plat_priv *priv_match)
 {
 	const struct hc_driver	*driver;
@@ -162,7 +183,7 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
 	struct usb_hcd		*hcd, *usb3_hcd;
 	int			ret;
 	int			irq;
-	struct xhci_plat_priv	*priv = NULL;
+	struct xhci_plat_priv	*priv;
 	const struct of_device_id *of_match;
 
 	if (usb_disabled())
@@ -203,6 +224,9 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
 	hcd->rsrc_len = resource_size(res);
 
 	xhci = hcd_to_xhci(hcd);
+	priv = hcd_to_xhci_priv(hcd);
+	if (priv_match)
+		*priv = *priv_match;
 
 	xhci->allow_single_roothub = 1;
 
@@ -222,6 +246,17 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
 		goto put_hcd;
 	}
 
+	if (priv->extra_clk_name) {
+		priv->extra_clk = devm_clk_get(&pdev->dev,
+					       priv->extra_clk_name);
+		if (IS_ERR(priv->extra_clk)) {
+			ret = dev_err_probe(&pdev->dev, PTR_ERR(priv->extra_clk),
+					    "failed to get %s clock\n",
+					    priv->extra_clk_name);
+			goto put_hcd;
+		}
+	}
+
 	xhci->reset = devm_reset_control_array_get_optional_shared(&pdev->dev);
 	if (IS_ERR(xhci->reset)) {
 		ret = PTR_ERR(xhci->reset);
@@ -232,19 +267,17 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
 	if (ret)
 		goto put_hcd;
 
-	ret = clk_prepare_enable(xhci->reg_clk);
+	ret = xhci_plat_enable_extra_clk(xhci);
 	if (ret)
 		goto err_reset;
+
+	ret = clk_prepare_enable(xhci->reg_clk);
+	if (ret)
+		goto disable_extra_clk;
 
 	ret = clk_prepare_enable(xhci->clk);
 	if (ret)
 		goto disable_reg_clk;
-
-	if (priv_match) {
-		priv = hcd_to_xhci_priv(hcd);
-		/* Just copy data for now */
-		*priv = *priv_match;
-	}
 
 	device_set_wakeup_capable(&pdev->dev, true);
 
@@ -379,6 +412,9 @@ disable_clk:
 disable_reg_clk:
 	clk_disable_unprepare(xhci->reg_clk);
 
+disable_extra_clk:
+	xhci_plat_disable_extra_clk(xhci);
+
 err_reset:
 	reset_control_assert(xhci->reset);
 
@@ -457,6 +493,7 @@ void xhci_plat_remove(struct platform_device *dev)
 
 	clk_disable_unprepare(clk);
 	clk_disable_unprepare(reg_clk);
+	xhci_plat_disable_extra_clk(xhci);
 	reset_control_assert(xhci->reset);
 	usb_put_hcd(hcd);
 
@@ -489,6 +526,7 @@ static int xhci_plat_suspend_common(struct device *dev)
 	if (!device_may_wakeup(dev) && (xhci->quirks & XHCI_SUSPEND_RESUME_CLKS)) {
 		clk_disable_unprepare(xhci->clk);
 		clk_disable_unprepare(xhci->reg_clk);
+		xhci_plat_disable_extra_clk(xhci);
 	}
 
 	return 0;
@@ -521,13 +559,20 @@ static int xhci_plat_resume_common(struct device *dev, bool power_lost)
 	int ret;
 
 	if (!device_may_wakeup(dev) && (xhci->quirks & XHCI_SUSPEND_RESUME_CLKS)) {
-		ret = clk_prepare_enable(xhci->clk);
+		ret = xhci_plat_enable_extra_clk(xhci);
 		if (ret)
 			return ret;
+
+		ret = clk_prepare_enable(xhci->clk);
+		if (ret) {
+			xhci_plat_disable_extra_clk(xhci);
+			return ret;
+		}
 
 		ret = clk_prepare_enable(xhci->reg_clk);
 		if (ret) {
 			clk_disable_unprepare(xhci->clk);
+			xhci_plat_disable_extra_clk(xhci);
 			return ret;
 		}
 	}
@@ -554,6 +599,7 @@ disable_clks:
 	if (!device_may_wakeup(dev) && (xhci->quirks & XHCI_SUSPEND_RESUME_CLKS)) {
 		clk_disable_unprepare(xhci->clk);
 		clk_disable_unprepare(xhci->reg_clk);
+		xhci_plat_disable_extra_clk(xhci);
 	}
 
 	return ret;
