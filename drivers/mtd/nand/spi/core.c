@@ -1830,6 +1830,7 @@ static int spinand_probe(struct spi_mem *mem)
 	struct device_node *partitions;
 	struct mtd_info *mtd;
 	bool fixed_partitions = false;
+	bool partitions_only;
 	int ret;
 
 	spinand = devm_kzalloc(&mem->spi->dev, sizeof(*spinand),
@@ -1840,6 +1841,8 @@ static int spinand_probe(struct spi_mem *mem)
 	spinand->spimem = mem;
 	spinand->strict_read_only =
 		device_property_read_bool(&mem->spi->dev, "read-only");
+	partitions_only = spinand->strict_read_only ||
+		device_property_read_bool(&mem->spi->dev, "partitions-only");
 	spi_mem_set_drvdata(mem, spinand);
 	spinand_set_of_node(spinand, mem->spi->dev.of_node);
 	mutex_init(&spinand->lock);
@@ -1850,7 +1853,7 @@ static int spinand_probe(struct spi_mem *mem)
 	if (ret)
 		return ret;
 
-	if (spinand->strict_read_only) {
+	if (partitions_only) {
 		partitions = of_get_child_by_name(mem->spi->dev.of_node,
 						  "partitions");
 		if (partitions)
@@ -1859,7 +1862,7 @@ static int spinand_probe(struct spi_mem *mem)
 		of_node_put(partitions);
 		if (!fixed_partitions) {
 			dev_err(&mem->spi->dev,
-				"strict read-only mode requires fixed partitions\n");
+				"partitions-only mode requires fixed partitions\n");
 			ret = -EINVAL;
 			goto err_spinand_cleanup;
 		}
