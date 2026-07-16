@@ -69,6 +69,10 @@
 	status = "okay";
 };
 
+&usb3 {
+	status = "okay";
+};
+
 &pvt {
 	status = "okay";
 };
