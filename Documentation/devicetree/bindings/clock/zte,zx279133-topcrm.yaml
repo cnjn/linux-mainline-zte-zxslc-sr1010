@@ -35,7 +35,7 @@ properties:
       - description: 125 MHz system peripheral bus clock
       - description: 32.768 kHz LSP working clock source
       - description: 50 MHz PVT divider source
-      - description: 125 MHz system peripheral clock parent for USB
+      - description: 125 MHz system peripheral clock parent for LSP1 and USB
       - description: 500 MHz CCI clock parent for USB
       - description: 250 MHz system AXI clock parent for USB
       - description: 172.032 MHz PLL-derived PVT peripheral clock source

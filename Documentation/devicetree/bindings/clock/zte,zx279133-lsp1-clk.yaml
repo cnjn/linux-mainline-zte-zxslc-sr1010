@@ -11,8 +11,9 @@ maintainers:
 
 description:
   The LSP1 clock controller supplies bus and working clocks to the ZX279133
-  watchdog timers. Each watchdog working clock has a 10-bit linear divider
-  followed by a gate.
+  watchdog timers and efuse controller. Each watchdog working clock has a
+  10-bit linear divider followed by a gate. The efuse peripheral and working
+  clocks each have a gate.
 
 properties:
   compatible:
@@ -25,11 +26,13 @@ properties:
     items:
       - description: LSP1 peripheral bus clock
       - description: 32.768 kHz watchdog working clock
+      - description: 25 MHz efuse working clock
 
   clock-names:
     items:
       - const: pclk
       - const: wclk32k
+      - const: wclk25m
 
   '#clock-cells':
     const: 1
@@ -53,8 +56,9 @@ examples:
         compatible = "zte,zx279133-lsp1-clk";
         reg = <0x14f00000 0x100>;
         clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP1_PCLK>,
-                 <&topcrm ZX279133_TOPCRM_CLK_LSP1_32K>;
-        clock-names = "pclk", "wclk32k";
+                 <&topcrm ZX279133_TOPCRM_CLK_LSP1_32K>,
+                 <&topcrm ZX279133_TOPCRM_CLK_LSP1_25M>;
+        clock-names = "pclk", "wclk32k", "wclk25m";
         #clock-cells = <1>;
     };
 
