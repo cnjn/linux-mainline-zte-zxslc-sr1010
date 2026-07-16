@@ -17,53 +17,34 @@
 		clock-frequency = <25000000>;
 	};
 
-	clk100m: clock-100m {
+	/* Firmware leaves these PLL roots fixed during the mainline handoff. */
+	pll_lsp: clock-pll-lsp-2000m {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
-		clock-frequency = <100000000>;
+		clock-frequency = <2000000000>;
+		clock-output-names = "pll_lsp_2000m";
 	};
 
-	clk50m: clock-50m {
+	pll_1376m: clock-pll-1376m256 {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
-		clock-frequency = <50000000>;
-		clock-output-names = "clk50m";
+		clock-frequency = <1376256000>;
+		clock-output-names = "pll_1376m_clk";
 	};
 
-	/* Temporary fixed-rate model until the TOPCRM divider tree is added. */
-	clk125m: clock-125m {
+	pll_fpp: clock-pll-fpp-2500m {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
-		clock-frequency = <125000000>;
+		clock-frequency = <2500000000>;
+		clock-output-names = "pll_fpp_2500m_clk";
 	};
 
-	/* Runtime-confirmed parent rates until the full PLL/mux tree is modeled. */
-	sys_aclk: clock-sys-aclk {
+	/* Keep the CPU PLL read-only until safe voltage scaling is implemented. */
+	pll_cpu: clock-pll-cpu-2000m {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
-		clock-frequency = <250000000>;
-		clock-output-names = "sys_aclk";
-	};
-
-	cci_aclk: clock-cci-aclk {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <500000000>;
-		clock-output-names = "cci_aclk";
-	};
-
-	/* Temporary fixed-rate model until the PLL divider tree is added. */
-	clk172m: clock-172m032 {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <172032000>;
-		clock-output-names = "clk172m";
-	};
-
-	clk32k: clock-32k {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <32768>;
+		clock-frequency = <2000000000>;
+		clock-output-names = "pll_2000m_clk";
 	};
 
 	cpus {
@@ -74,6 +55,7 @@
 			compatible = "arm,cortex-a53";
 			device_type = "cpu";
 			reg = <0x0 0x0>;
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_A53_MCLK>;
 			enable-method = "psci";
 		};
 
@@ -81,6 +63,7 @@
 			compatible = "arm,cortex-a53";
 			device_type = "cpu";
 			reg = <0x0 0x1>;
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_A53_MCLK>;
 			enable-method = "psci";
 		};
 	};
@@ -122,12 +105,10 @@
 		topcrm: clock-controller@10e10000 {
 			compatible = "zte,zx279133-topcrm", "syscon";
 			reg = <0x0 0x10e10000 0x0 0x60>;
-			clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>,
-				 <&clk50m>, <&clk125m>, <&cci_aclk>, <&sys_aclk>,
-				 <&clk172m>;
-			clock-names = "clk100m", "clk25m", "pclk", "clk32k",
-				      "clk50m", "sys_pclk", "cci_aclk", "sys_aclk",
-				      "clk172m";
+			clocks = <&osc25m>, <&pll_lsp>, <&pll_1376m>, <&pll_fpp>,
+				 <&pll_cpu>;
+			clock-names = "osc25m", "pll-lsp", "pll-1376m",
+				      "pll-fpp", "pll-cpu";
 			#clock-cells = <1>;
 		};
 
