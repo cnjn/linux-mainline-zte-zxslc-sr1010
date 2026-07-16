@@ -183,6 +183,8 @@
 			clocks = <&topcrm ZX279133_TOPCRM_CLK_PVT_PCLK>,
 				 <&topcrm ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK>;
 			clock-names = "pclk", "wclk";
+			nvmem-cells = <&pvt_ttrim>;
+			nvmem-cell-names = "ttrim";
 			#thermal-sensor-cells = <0>;
 			status = "disabled";
 		};
@@ -346,9 +348,30 @@
 			compatible = "zte,zx279133-lsp1-clk";
 			reg = <0x0 0x14f00000 0x0 0x100>;
 			clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP1_PCLK>,
-				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_32K>;
-			clock-names = "pclk", "wclk32k";
+				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_32K>,
+				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_25M>;
+			clock-names = "pclk", "wclk32k", "wclk25m";
 			#clock-cells = <1>;
+		};
+
+		efuse: efuse@14f11000 {
+			compatible = "zte,zx279133-efuse";
+			reg = <0x0 0x14f11000 0x0 0x1000>;
+			clocks = <&lsp1_clk ZX279133_LSP1_CLK_EFUSE_PCLK>,
+				 <&lsp1_clk ZX279133_LSP1_CLK_EFUSE_WCLK>;
+			clock-names = "pclk", "wclk";
+			read-only;
+
+			nvmem-layout {
+				compatible = "fixed-layout";
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				pvt_ttrim: calibration@44 {
+					reg = <0x44 0x4>;
+					bits = <10 5>;
+				};
+			};
 		};
 
 		watchdog0: watchdog@14f09000 {
