@@ -19,6 +19,15 @@
 
 #define W25N04KV_STATUS_ECC_5_8_BITFLIPS	(3 << 4)
 
+#define W25N01KV_CFG_HOLD_DISABLE	BIT(0)
+#define W25N01KV_CFG_READ_MASK		(CFG_OTP_ENABLE | CFG_ECC_ENABLE | \
+					 WINBOND_CFG_BUF_READ | \
+					 W25N01KV_CFG_HOLD_DISABLE)
+#define W25N01KV_CFG_READ_STATE		(CFG_ECC_ENABLE | \
+					 WINBOND_CFG_BUF_READ | \
+					 W25N01KV_CFG_HOLD_DISABLE)
+#define W25N01KV_PROTECTION_RESET	GENMASK(6, 2)
+
 #define W25N0XJW_SR4			0xD0
 #define W25N0XJW_SR4_HS			BIT(2)
 
@@ -175,6 +184,81 @@ static const struct mtd_ooblayout_ops w25n02kv_ooblayout = {
 	.ecc = w25n02kv_ooblayout_ecc,
 	.free = w25n02kv_ooblayout_free,
 };
+
+static int w25n01kv_prepare_read_only(struct spinand_device *spinand)
+{
+	struct spi_mem_op enable_reset =
+		SPI_MEM_OP(SPI_MEM_OP_CMD(0x66, 1),
+			   SPI_MEM_OP_NO_ADDR,
+			   SPI_MEM_OP_NO_DUMMY,
+			   SPI_MEM_OP_NO_DATA);
+	struct spi_mem_op reset = SPI_MEM_OP(SPI_MEM_OP_CMD(0x99, 1),
+					     SPI_MEM_OP_NO_ADDR,
+					     SPI_MEM_OP_NO_DUMMY,
+					     SPI_MEM_OP_NO_DATA);
+	u8 status;
+	int ret;
+
+	ret = spinand_read_reg_op(spinand, REG_STATUS, &status);
+	if (ret)
+		return ret;
+	if (status & STATUS_BUSY)
+		return -EBUSY;
+	if (status & STATUS_WEL)
+		return -EROFS;
+
+	ret = spi_mem_exec_op(spinand->spimem, &enable_reset);
+	if (ret)
+		return ret;
+
+	ret = spi_mem_exec_op(spinand->spimem, &reset);
+	if (ret)
+		return ret;
+
+	return spinand_wait(spinand, SPINAND_RESET_INITIAL_DELAY_US,
+			    SPINAND_RESET_POLL_DELAY_US, NULL);
+}
+
+static int w25n01kv_check_read_only(struct spinand_device *spinand)
+{
+	struct device *dev = &spinand->spimem->spi->dev;
+	u8 cfg = spinand->cfg_cache[0];
+	u8 protection, status;
+	int ret;
+
+	if ((cfg & W25N01KV_CFG_READ_MASK) != W25N01KV_CFG_READ_STATE) {
+		dev_err(dev, "unsafe configuration state 0x%02x\n", cfg);
+		return -EROFS;
+	}
+
+	ret = spinand_read_reg_op(spinand, REG_BLOCK_LOCK, &protection);
+	if (ret)
+		return ret;
+
+	if (protection != W25N01KV_PROTECTION_RESET) {
+		dev_err(dev, "unsafe protection state 0x%02x\n", protection);
+		return -EROFS;
+	}
+
+	ret = spinand_read_reg_op(spinand, REG_STATUS, &status);
+	if (ret)
+		return ret;
+
+	if (status & STATUS_BUSY) {
+		dev_err(dev, "device is busy after reset\n");
+		return -EBUSY;
+	}
+
+	if (status & STATUS_WEL) {
+		dev_err(dev, "write enable latch is set\n");
+		return -EROFS;
+	}
+	dev_info(dev,
+		 "strict read-only state: cfg=0x%02x protection=0x%02x status=0x%02x\n",
+		 cfg, protection, status);
+
+	return 0;
+}
 
 static int w25n01jw_ooblayout_ecc(struct mtd_info *mtd, int section,
 				  struct mtd_oob_region *region)
@@ -456,7 +540,9 @@ static const struct spinand_info winbond_spinand_table[] = {
 					      &write_cache_variants,
 					      &update_cache_variants),
 		     0,
-		     SPINAND_ECCINFO(&w25n01kv_ooblayout, w25n02kv_ecc_get_status)),
+		     SPINAND_ECCINFO(&w25n01kv_ooblayout, w25n02kv_ecc_get_status),
+		     SPINAND_PREPARE_READ_ONLY(w25n01kv_prepare_read_only),
+		     SPINAND_CHECK_READ_ONLY(w25n01kv_check_read_only)),
 	SPINAND_INFO("W35N01JW", /* 1.8V */
 		     SPINAND_ID(SPINAND_READID_METHOD_OPCODE_DUMMY, 0xdc, 0x21),
 		     NAND_MEMORG(1, 4096, 128, 64, 512, 10, 1, 1, 1),
@@ -551,15 +637,21 @@ static int winbond_spinand_init(struct spinand_device *spinand)
 {
 	struct nand_device *nand = spinand_to_nand(spinand);
 	unsigned int i;
+	int ret;
 
 	/*
 	 * Make sure all dies are in buffer read mode and not continuous read
 	 * mode.
 	 */
 	for (i = 0; i < nand->memorg.ntargets; i++) {
-		spinand_select_target(spinand, i);
-		spinand_upd_cfg(spinand, WINBOND_CFG_BUF_READ,
-				WINBOND_CFG_BUF_READ);
+		ret = spinand_select_target(spinand, i);
+		if (ret)
+			return ret;
+
+		ret = spinand_upd_cfg(spinand, WINBOND_CFG_BUF_READ,
+				      WINBOND_CFG_BUF_READ);
+		if (ret)
+			return ret;
 	}
 
 	return 0;
