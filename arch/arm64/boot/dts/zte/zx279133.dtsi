@@ -331,12 +331,13 @@
 		};
 
 		usb3: usb3@15010000 {
-			compatible = "generic-xhci";
+			compatible = "zte,zx279133-xhci";
 			reg = <0x0 0x15010000 0x0 0x4000>;
 			interrupts = <GIC_SPI 65 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&topcrm ZX279133_TOPCRM_CLK_USB_ACLK>,
-				 <&topcrm ZX279133_TOPCRM_CLK_USB_PCLK>;
-			clock-names = "core", "reg";
+				 <&topcrm ZX279133_TOPCRM_CLK_USB_PCLK>,
+				 <&topcrm ZX279133_TOPCRM_CLK_USB_CCI_ACLK>;
+			clock-names = "core", "reg", "cci";
 			dma-coherent;
 			status = "disabled";
 		};
