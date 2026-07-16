@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/nvmem/zte,zx279133-efuse.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE ZX279133 eFuse shadow registers
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+description: |
+  The ZX279133 eFuse controller provides 32 read-only, factory-programmed
+  shadow words at offsets 0x00 through 0x7c.  The register at offset 0x80 and
+  the remainder of the controller resource are control registers and are not
+  part of the NVMEM address space.
+
+allOf:
+  - $ref: nvmem.yaml#
+
+properties:
+  compatible:
+    const: zte,zx279133-efuse
+
+  reg:
+    maxItems: 1
+
+  clocks:
+    items:
+      - description: Peripheral register clock
+      - description: eFuse shadow working clock
+
+  clock-names:
+    items:
+      - const: pclk
+      - const: wclk
+
+  wp-gpios: false
+
+required:
+  - compatible
+  - reg
+  - clocks
+  - clock-names
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    efuse@14f11000 {
+        compatible = "zte,zx279133-efuse";
+        reg = <0x14f11000 0x1000>;
+        clocks = <&lsp1_clk 4>, <&lsp1_clk 5>;
+        clock-names = "pclk", "wclk";
+        read-only;
+
+        nvmem-layout {
+            compatible = "fixed-layout";
+            #address-cells = <1>;
+            #size-cells = <1>;
+
+            pvt_ttrim: calibration@44 {
+                reg = <0x44 0x4>;
+                bits = <10 5>;
+            };
+        };
+    };
+
+...
