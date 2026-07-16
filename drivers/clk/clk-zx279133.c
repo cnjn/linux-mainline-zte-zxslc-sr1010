@@ -37,6 +37,11 @@
 #define ZX279133_TOPCRM_SPIFC_GATE_BIT	16
 #define ZX279133_TOPCRM_USB_GATE_CTRL	0x3c
 #define ZX279133_TOPCRM_USB_GATE_FLAGS	0
+/*
+ * generic-xhci does not manage the USB-to-CCI bridge clock. Firmware leaves
+ * it enabled, so keep late unused-clock pruning from breaking xHCI DMA.
+ */
+#define ZX279133_TOPCRM_USB_CCI_GATE_FLAGS	CLK_IGNORE_UNUSED
 #define ZX279133_LSP_SPIFC_CLK_CTRL	0x2c
 #define ZX279133_LSP_SPIFC_PCLK_GATE	0
 #define ZX279133_LSP_SPIFC_WCLK_GATE	1
@@ -167,7 +172,7 @@ static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
 	[ZX279133_TOPCRM_CLK_USB_CCI_ACLK] = {
 		.name = "usb_cci_aclk",
 		.parent = &topcrm_cci_aclk_parent,
-		.flags = ZX279133_TOPCRM_USB_GATE_FLAGS,
+		.flags = ZX279133_TOPCRM_USB_CCI_GATE_FLAGS,
 		.reg_offset = ZX279133_TOPCRM_USB_GATE_CTRL,
 		.bit_idx = 5,
 	},
