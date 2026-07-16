@@ -29,6 +29,10 @@
 #define ZX279133_WDT_WCLK_DIV_SHIFT	11
 #define ZX279133_WDT_WCLK_DIV_WIDTH	10
 #define ZX279133_WDT_CLK_FLAGS	CLK_IGNORE_UNUSED
+#define ZX279133_EFUSE_CLK_CTRL	0x54
+#define ZX279133_EFUSE_PCLK_GATE	0
+#define ZX279133_EFUSE_WCLK_GATE	1
+#define ZX279133_LSP1_NUM_CLKS	(ZX279133_LSP1_CLK_EFUSE_WCLK + 1)
 #define ZX279133_TOPCRM_PVT_PCLK_GATE_CTRL	0x30
 #define ZX279133_TOPCRM_PVT_PCLK_GATE	12
 #define ZX279133_TOPCRM_PVT_DIV_CTRL	0x58
@@ -70,7 +74,7 @@ struct zx279133_lsp_clk {
 };
 
 struct zx279133_lsp1_clk {
-	spinlock_t lock; /* Protects the shared watchdog clock registers. */
+	spinlock_t lock; /* Protects the LSP1 clock control registers. */
 	struct clk_divider wdt_dividers[2];
 	struct clk_gate wdt_gates[2];
 	struct clk_hw_onecell_data data;
@@ -133,16 +137,23 @@ static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
 	[ZX279133_TOPCRM_CLK_LSP1_32K] = {
 		.name = "lsp1_32k",
 		.parent = &topcrm_clk32k_parent,
-		.flags = ZX279133_TOPCRM_GATE_FLAGS,
+		.flags = 0,
 		.reg_offset = ZX279133_TOPCRM_GATE_CTRL,
-		.bit_idx = 21,
+		.bit_idx = 22,
 	},
 	[ZX279133_TOPCRM_CLK_LSP1_PCLK] = {
 		.name = "lsp1_pclk",
-		.parent = &topcrm_pclk_parent,
-		.flags = ZX279133_TOPCRM_GATE_FLAGS,
+		.parent = &topcrm_sys_pclk_parent,
+		.flags = 0,
 		.reg_offset = ZX279133_TOPCRM_GATE_CTRL,
-		.bit_idx = 22,
+		.bit_idx = 23,
+	},
+	[ZX279133_TOPCRM_CLK_LSP1_25M] = {
+		.name = "lsp1_25m",
+		.parent = &topcrm_clk25m_parent,
+		.flags = 0,
+		.reg_offset = ZX279133_TOPCRM_GATE_CTRL,
+		.bit_idx = 21,
 	},
 	[ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK] = {
 		.name = "tempsensor_wclk",
@@ -356,12 +367,16 @@ static const struct clk_parent_data spifc_wclk_parent = {
 	.fw_name = "spifc_wclk",
 };
 
-static const struct clk_parent_data wdt_pclk_parent = {
+static const struct clk_parent_data lsp1_pclk_parent = {
 	.fw_name = "pclk",
 };
 
-static const struct clk_parent_data wdt_wclk_parent = {
+static const struct clk_parent_data lsp1_wclk32k_parent = {
 	.fw_name = "wclk32k",
+};
+
+static const struct clk_parent_data lsp1_wclk25m_parent = {
+	.fw_name = "wclk25m",
 };
 
 static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
@@ -376,11 +391,13 @@ static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct zx279133_lsp1_clk *priv;
 	struct clk_hw_onecell_data *data;
+	struct clk_hw *hw;
 	void __iomem *base;
+	void __iomem *reg;
 	unsigned int index;
 	int ret;
 
-	priv = devm_kzalloc(dev, struct_size(priv, data.hws, 4), GFP_KERNEL);
+	priv = devm_kzalloc(dev, struct_size(priv, data.hws, ZX279133_LSP1_NUM_CLKS), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
 
@@ -392,11 +409,10 @@ static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
 	for (index = 0; index < ARRAY_SIZE(offsets); index++) {
 		struct clk_divider *divider = &priv->wdt_dividers[index];
 		struct clk_gate *gate = &priv->wdt_gates[index];
-		struct clk_hw *hw;
-		void __iomem *reg = base + offsets[index];
 
+		reg = base + offsets[index];
 		hw = devm_clk_hw_register_gate_parent_data(dev, names[index][0],
-							   &wdt_pclk_parent,
+							   &lsp1_pclk_parent,
 							   ZX279133_WDT_CLK_FLAGS,
 							   reg, ZX279133_WDT_PCLK_GATE,
 							   0, &priv->lock);
@@ -415,7 +431,7 @@ static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
 		gate->lock = &priv->lock;
 
 		hw = devm_clk_hw_register_composite_pdata(dev, names[index][1],
-							  &wdt_wclk_parent, 1,
+							  &lsp1_wclk32k_parent, 1,
 							  NULL, NULL,
 							  &divider->hw,
 							  &clk_divider_ops,
@@ -428,14 +444,33 @@ static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
 		priv->data.hws[index * 2 + 1] = hw;
 	}
 
-	priv->data.num = 4;
+	reg = base + ZX279133_EFUSE_CLK_CTRL;
+	hw = devm_clk_hw_register_gate_parent_data(dev, "efuse_pclk",
+						   &lsp1_pclk_parent, 0, reg,
+						   ZX279133_EFUSE_PCLK_GATE, 0,
+						   &priv->lock);
+	if (IS_ERR(hw))
+		return dev_err_probe(dev, PTR_ERR(hw),
+				     "failed to register efuse PCLK\n");
+	priv->data.hws[ZX279133_LSP1_CLK_EFUSE_PCLK] = hw;
+
+	hw = devm_clk_hw_register_gate_parent_data(dev, "efuse_wclk",
+						   &lsp1_wclk25m_parent, 0, reg,
+						   ZX279133_EFUSE_WCLK_GATE, 0,
+						   &priv->lock);
+	if (IS_ERR(hw))
+		return dev_err_probe(dev, PTR_ERR(hw),
+				     "failed to register efuse WCLK\n");
+	priv->data.hws[ZX279133_LSP1_CLK_EFUSE_WCLK] = hw;
+
+	priv->data.num = ZX279133_LSP1_NUM_CLKS;
 	data = &priv->data;
 
 	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, data);
 	if (ret)
 		return ret;
 
-	dev_info(dev, "registered 4 watchdog clocks\n");
+	dev_info(dev, "registered %u LSP1 clocks\n", priv->data.num);
 
 	return 0;
 }
