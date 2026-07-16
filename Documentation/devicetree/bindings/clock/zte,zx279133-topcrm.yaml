@@ -12,12 +12,12 @@ maintainers:
 description:
   The top clock and reset manager (TOPCRM) supplies clocks to the ZX279133
   low-speed peripheral controllers, SPI flash controller, PVT temperature
-  sensor, and USB host controller. The PVT working clock uses a read-only
-  divider followed by a gate. The PVT peripheral clock gate consumes the
-  observed 172.032 MHz PLL output, modeled as a fixed-rate input until the full
-  PLL tree is implemented.
-  The USB clocks are gate3 outputs with fixed-rate system and CCI parent inputs
-  until the full PLL/mux tree is modeled.
+  sensor, USB host controller, interconnect, and Cortex-A53 CPUs. Fixed PLL
+  roots feed fixed-factor branches followed by read-only system, CCI, and CPU
+  muxes. The system HCLK and PCLK use read-only even dividers. This preserves
+  the firmware-selected boot topology without allowing Linux to reprogram a
+  PLL, mux, or system divider. The PVT working clock uses a separate read-only
+  divider followed by a gate.
 
 properties:
   compatible:
@@ -30,27 +30,19 @@ properties:
 
   clocks:
     items:
-      - description: 100 MHz LSP working clock source
       - description: 25 MHz oscillator
-      - description: 125 MHz system peripheral bus clock
-      - description: 32.768 kHz LSP working clock source
-      - description: 50 MHz PVT divider source
-      - description: 125 MHz system peripheral clock parent for LSP1 and USB
-      - description: 500 MHz CCI clock parent for USB
-      - description: 250 MHz system AXI clock parent for USB
-      - description: 172.032 MHz PLL-derived PVT peripheral clock source
+      - description: Fixed 2 GHz low-speed peripheral PLL root
+      - description: Fixed 1.376256 GHz PLL root
+      - description: Fixed 2.5 GHz FPP PLL root
+      - description: Firmware-configured 2 GHz CPU PLL root
 
   clock-names:
     items:
-      - const: clk100m
-      - const: clk25m
-      - const: pclk
-      - const: clk32k
-      - const: clk50m
-      - const: sys_pclk
-      - const: cci_aclk
-      - const: sys_aclk
-      - const: clk172m
+      - const: osc25m
+      - const: pll-lsp
+      - const: pll-1376m
+      - const: pll-fpp
+      - const: pll-cpu
 
   '#clock-cells':
     const: 1
@@ -71,10 +63,9 @@ examples:
     clock-controller@10e10000 {
         compatible = "zte,zx279133-topcrm", "syscon";
         reg = <0x10e10000 0x60>;
-        clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>, <&clk50m>,
-                 <&clk125m>, <&cci_aclk>, <&sys_aclk>, <&clk172m>;
-        clock-names = "clk100m", "clk25m", "pclk", "clk32k", "clk50m",
-                      "sys_pclk", "cci_aclk", "sys_aclk", "clk172m";
+        clocks = <&osc25m>, <&pll_lsp>, <&pll_1376m>, <&pll_fpp>, <&pll_cpu>;
+        clock-names = "osc25m", "pll-lsp", "pll-1376m", "pll-fpp",
+                      "pll-cpu";
         #clock-cells = <1>;
     };
 
