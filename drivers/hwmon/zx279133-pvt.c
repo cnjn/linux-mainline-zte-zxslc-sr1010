@@ -33,7 +33,6 @@
 
 #define ZX279133_PVT_POLL_US		5
 #define ZX279133_PVT_TIMEOUT_US		500000
-#define ZX279133_PVT_DEFAULT_TRIM	15
 
 /* The vendor DTS coefficients, with the vendor's 1e6 coefficient multiple. */
 #define ZX279133_PVT_MC_DIV		1000000000000LL
@@ -58,7 +57,6 @@ struct zx279133_pvt {
 	struct zx279133_pvt_coeff coeff;
 	struct mutex lock; /* Serializes one-shot conversions. */
 	u8 trim;
-	bool trim_from_nvmem;
 };
 
 static const struct zx279133_pvt_coeff zx279133_pvt_cln22ulp_coeff = {
@@ -160,28 +158,19 @@ static const struct hwmon_chip_info zx279133_pvt_chip_info = {
 static int zx279133_pvt_get_trim(struct device *dev,
 				 struct zx279133_pvt *pvt)
 {
-	u8 trim;
+	u32 trim;
 	int ret;
 
-	ret = nvmem_cell_read_u8(dev, "ttrim", &trim);
-	if (!ret) {
-		if (trim > 0x1f)
-			return dev_err_probe(dev, -ERANGE,
-					    "ttrim value %u exceeds 5-bit field\n",
-					    trim);
-		pvt->trim = trim;
-		pvt->trim_from_nvmem = true;
-		return 0;
-	}
-
-	/* The vendor driver falls back to 15 when no efuse value is available. */
-	if (ret != -ENOENT && ret != -EOPNOTSUPP)
+	ret = nvmem_cell_read_variable_le_u32(dev, "ttrim", &trim);
+	if (ret)
 		return dev_err_probe(dev, ret, "failed to read ttrim NVMEM cell\n");
 
-	pvt->trim = ZX279133_PVT_DEFAULT_TRIM;
-	dev_warn(dev,
-		 "ttrim NVMEM cell unavailable; using vendor fallback %u (uncalibrated)\n",
-		 pvt->trim);
+	if (trim > 0x1f)
+		return dev_err_probe(dev, -ERANGE,
+				     "ttrim value %u exceeds 5-bit field\n",
+				     trim);
+
+	pvt->trim = trim;
 	return 0;
 }
 
@@ -251,9 +240,9 @@ static int zx279133_pvt_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, PTR_ERR(hwmon),
 				    "failed to register hwmon device\n");
 
-	dev_info(dev, "ready: raw=%u temp=%ld mC clock=%lu Hz%s\n", raw,
-		 zx279133_pvt_calc_temp(pvt, raw), rate,
-		 pvt->trim_from_nvmem ? "" : " (fallback trim)");
+	dev_info(dev,
+		 "ready: ttrim=%u source=nvmem raw=%u temp=%ld mC clock=%lu Hz\n",
+		 pvt->trim, raw, zx279133_pvt_calc_temp(pvt, raw), rate);
 	return 0;
 }
 
