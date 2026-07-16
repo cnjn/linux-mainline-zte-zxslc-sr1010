@@ -12,6 +12,21 @@ maintainers:
 allOf:
   - $ref: nand-chip.yaml#
   - $ref: /schemas/spi/spi-peripheral-props.yaml#
+  - if:
+      anyOf:
+        - required:
+            - read-only
+        - required:
+            - partitions-only
+    then:
+      required:
+        - partitions
+      properties:
+        partitions:
+          properties:
+            compatible:
+              contains:
+                const: fixed-partitions
 
 properties:
   compatible:
@@ -30,7 +45,16 @@ properties:
       are not. Probe succeeds only if the post-reset feature state already
       permits reliable on-die-ECC-protected main-array and bad block marker
       reads. Raw reads that would require disabling on-die ECC are not
-      supported.
+      supported. A fixed partition map is required and only its partitions are
+      registered, so parser failure cannot expose the whole chip.
+
+  partitions-only:
+    type: boolean
+    description:
+      The firmware requires that only explicitly described fixed partitions
+      are exposed. Initialization fails if the map is missing or cannot be
+      parsed, instead of exposing the whole flash device. This permits a
+      writable chip to expose only explicitly described partitions.
 
 required:
   - compatible
