@@ -452,6 +452,18 @@ config NVMEM_VF610_OCOTP
 	  This driver can also be build as a module. If so, the module will
 	  be called nvmem-vf610-ocotp.
 
+config NVMEM_ZX279133_EFUSE
+	tristate "ZTE ZX279133 eFuse support"
+	depends on ARM64 || COMPILE_TEST
+	depends on HAS_IOMEM
+	help
+	  Enable read-only access to the factory-programmed eFuse shadow words
+	  in the ZTE ZX279133 SoC. Consumers should access only the named cells
+	  that describe their hardware configuration or calibration data.
+
+	  This driver can also be built as a module. If so, the module will be
+	  called nvmem-zx279133-efuse.
+
 config NVMEM_ZYNQMP
 	tristate "Xilinx ZYNQMP SoC nvmem firmware support"
 	depends on ARCH_ZYNQMP
