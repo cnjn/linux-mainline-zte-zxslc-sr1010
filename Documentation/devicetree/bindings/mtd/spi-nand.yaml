@@ -21,6 +21,17 @@ properties:
     description: Encode the chip-select line on the SPI bus
     maxItems: 1
 
+  read-only:
+    type: boolean
+    description:
+      Operate the chip in strict read-only mode. Reset and commands needed to
+      identify and read the device are permitted, but commands that alter
+      feature registers, protection state, OTP data, or the main NAND array
+      are not. Probe succeeds only if the post-reset feature state already
+      permits reliable on-die-ECC-protected main-array and bad block marker
+      reads. Raw reads that would require disabling on-die ECC are not
+      supported.
+
 required:
   - compatible
   - reg
