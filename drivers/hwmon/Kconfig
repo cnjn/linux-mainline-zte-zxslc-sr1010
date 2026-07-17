@@ -2650,17 +2650,17 @@ config SENSORS_XGENE
 	  and power sensors for APM X-Gene SoC.
 
 config SENSORS_ZX279133_PVT
-	tristate "ZTE ZX279133 PVT temperature sensor"
+	tristate "ZTE ZX279133 PVT sensor"
 	depends on OF
 	depends on COMMON_CLK
 	depends on NVMEM
 	depends on THERMAL_OF
 	help
 	  If you say yes here you get read-only hwmon support for the
-	  CLN22ULP temperature converter in the ZTE ZX279133 SoC. The sensor
-	  is calibrated from its required ttrim NVMEM cell, sampled on demand,
-	  and exports a single temperature input. It does not expose threshold,
-	  alarm, or other writable controls.
+	  CLN22ULP process, voltage and temperature monitor in the ZTE ZX279133
+	  SoC. The driver exports the calibrated die temperature and the supply
+	  voltage observed by the PVT macro. It does not identify that supply
+	  with a board rail or expose threshold, alarm, or writable controls.
 
 config SENSORS_INTEL_M10_BMC_HWMON
 	tristate "Intel MAX10 BMC Hardware Monitoring"

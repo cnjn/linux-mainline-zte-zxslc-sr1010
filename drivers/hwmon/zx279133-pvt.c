@@ -2,9 +2,9 @@
 /*
  * ZTE ZX279133 CLN22ULP process/voltage/temperature sensor.
  *
- * The hardware exposes one temperature conversion channel.  The vendor
- * implementation starts a conversion for each read. This driver keeps the
- * same one-shot behavior and exposes no writable hwmon files.
+ * The hardware exposes temperature and supply-voltage conversion channels.
+ * The vendor implementation starts a conversion for each read. This driver
+ * keeps the same one-shot behavior and exposes no writable hwmon files.
  */
 
 #include <linux/clk.h>
@@ -22,7 +22,8 @@
 #define ZX279133_PVT_CTRL		0x00
 #define ZX279133_PVT_TRIM		0x04
 #define ZX279133_PVT_STATUS		0x08
-#define ZX279133_PVT_DATA		0x10
+#define ZX279133_PVT_TEMP_DATA		0x10
+#define ZX279133_PVT_VOLT_DATA		0x14
 #define ZX279133_PVT_CONFIG		0x20
 
 #define ZX279133_PVT_READY		BIT(10)
@@ -30,12 +31,18 @@
 #define ZX279133_PVT_CONFIG_MASK		GENMASK(7, 4)
 #define ZX279133_PVT_TRIM_MASK		GENMASK(4, 0)
 #define ZX279133_PVT_TEMP_CTRL		0x13
+#define ZX279133_PVT_VOLT_CTRL		0x33
 
 #define ZX279133_PVT_POLL_US		5
 #define ZX279133_PVT_TIMEOUT_US		500000
 
 /* The vendor DTS coefficients, with the vendor's 1e6 coefficient multiple. */
 #define ZX279133_PVT_MC_DIV		1000000000000LL
+
+/* The vendor voltage conversion reports millivolts. */
+#define ZX279133_PVT_VOLT_SLOPE		79397LL
+#define ZX279133_PVT_VOLT_OFFSET	45605000LL
+#define ZX279133_PVT_VOLT_DIV		100000LL
 
 struct zx279133_pvt_coeff {
 	s64 a4;
@@ -82,7 +89,14 @@ static long zx279133_pvt_calc_temp(const struct zx279133_pvt *pvt, u32 raw)
 	return div64_s64(value, ZX279133_PVT_MC_DIV);
 }
 
-static int zx279133_pvt_sample(struct zx279133_pvt *pvt, u32 *raw)
+static long zx279133_pvt_calc_voltage(u32 raw)
+{
+	return div64_s64(raw * ZX279133_PVT_VOLT_SLOPE +
+			 ZX279133_PVT_VOLT_OFFSET, ZX279133_PVT_VOLT_DIV);
+}
+
+static int zx279133_pvt_sample(struct zx279133_pvt *pvt, u32 control,
+			       u32 data_offset, bool apply_trim, u32 *raw)
 {
 	u32 status;
 	int ret;
@@ -92,9 +106,10 @@ static int zx279133_pvt_sample(struct zx279133_pvt *pvt, u32 *raw)
 	/* This is the one-shot sequence used by the vendor driver. */
 	writel(0, pvt->base + ZX279133_PVT_CTRL);
 	fsleep(10);
-	writel(pvt->trim & ZX279133_PVT_TRIM_MASK,
-	       pvt->base + ZX279133_PVT_TRIM);
-	writel(ZX279133_PVT_TEMP_CTRL, pvt->base + ZX279133_PVT_CTRL);
+	if (apply_trim)
+		writel(pvt->trim & ZX279133_PVT_TRIM_MASK,
+		       pvt->base + ZX279133_PVT_TRIM);
+	writel(control, pvt->base + ZX279133_PVT_CTRL);
 	fsleep(10);
 
 	ret = readl_poll_timeout(pvt->base + ZX279133_PVT_STATUS, status,
@@ -103,7 +118,7 @@ static int zx279133_pvt_sample(struct zx279133_pvt *pvt, u32 *raw)
 	if (ret)
 		goto out_unlock;
 
-	*raw = readl(pvt->base + ZX279133_PVT_DATA) & ZX279133_PVT_DATA_MASK;
+	*raw = readl(pvt->base + data_offset) & ZX279133_PVT_DATA_MASK;
 
 out_unlock:
 	mutex_unlock(&pvt->lock);
@@ -118,14 +133,24 @@ static int zx279133_pvt_read(struct device *dev,
 	u32 raw;
 	int ret;
 
-	if (type != hwmon_temp || attr != hwmon_temp_input || channel != 0)
+	if (channel != 0)
 		return -EOPNOTSUPP;
 
-	ret = zx279133_pvt_sample(pvt, &raw);
+	if (type == hwmon_temp && attr == hwmon_temp_input)
+		ret = zx279133_pvt_sample(pvt, ZX279133_PVT_TEMP_CTRL,
+					  ZX279133_PVT_TEMP_DATA, true, &raw);
+	else if (type == hwmon_in && attr == hwmon_in_input)
+		ret = zx279133_pvt_sample(pvt, ZX279133_PVT_VOLT_CTRL,
+					  ZX279133_PVT_VOLT_DATA, false, &raw);
+	else
+		return -EOPNOTSUPP;
 	if (ret)
 		return ret;
 
-	*val = zx279133_pvt_calc_temp(pvt, raw);
+	if (type == hwmon_temp)
+		*val = zx279133_pvt_calc_temp(pvt, raw);
+	else
+		*val = zx279133_pvt_calc_voltage(raw);
 	return 0;
 }
 
@@ -133,7 +158,9 @@ static umode_t zx279133_pvt_is_visible(const void *data,
 				       enum hwmon_sensor_types type,
 				       u32 attr, int channel)
 {
-	if (type == hwmon_temp && attr == hwmon_temp_input && channel == 0)
+	if (channel == 0 &&
+	    ((type == hwmon_temp && attr == hwmon_temp_input) ||
+	     (type == hwmon_in && attr == hwmon_in_input)))
 		return 0444;
 
 	return 0;
@@ -142,6 +169,7 @@ static umode_t zx279133_pvt_is_visible(const void *data,
 static const struct hwmon_channel_info * const zx279133_pvt_info[] = {
 	HWMON_CHANNEL_INFO(chip, HWMON_C_REGISTER_TZ),
 	HWMON_CHANNEL_INFO(temp, HWMON_T_INPUT),
+	HWMON_CHANNEL_INFO(in, HWMON_I_INPUT),
 	NULL,
 };
 
@@ -227,7 +255,8 @@ static int zx279133_pvt_probe(struct platform_device *pdev)
 	       pvt->base + ZX279133_PVT_CONFIG);
 
 	/* Fail probe if the sensor cannot complete a first conversion. */
-	ret = zx279133_pvt_sample(pvt, &raw);
+	ret = zx279133_pvt_sample(pvt, ZX279133_PVT_TEMP_CTRL,
+				  ZX279133_PVT_TEMP_DATA, true, &raw);
 	if (ret)
 		return dev_err_probe(dev, ret, "initial conversion timed out\n");
 
@@ -261,5 +290,5 @@ static struct platform_driver zx279133_pvt_driver = {
 };
 module_platform_driver(zx279133_pvt_driver);
 
-MODULE_DESCRIPTION("ZTE ZX279133 CLN22ULP PVT temperature sensor");
+MODULE_DESCRIPTION("ZTE ZX279133 CLN22ULP PVT sensor");
 MODULE_LICENSE("GPL");

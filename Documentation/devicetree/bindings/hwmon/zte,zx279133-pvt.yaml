@@ -4,16 +4,18 @@
 $id: http://devicetree.org/schemas/hwmon/zte,zx279133-pvt.yaml#
 $schema: http://devicetree.org/meta-schemas/core.yaml#
 
-title: ZTE ZX279133 CLN22ULP PVT temperature sensor
+title: ZTE ZX279133 CLN22ULP PVT sensor
 
 maintainers:
   - cnjn <1779895255@qq.com>
 
 description: |
-  The ZX279133 CLN22ULP PVT block contains a one-shot die temperature
-  converter.  The driver starts a conversion for each read and exposes only
-  the standard read-only hwmon temperature input.  The required ttrim NVMEM
-  cell is a five-bit calibration value from the ZX279133 efuse controller.
+  The ZX279133 CLN22ULP PVT block contains one-shot die-temperature and
+  supply-voltage converters.  The driver starts a conversion for each read
+  and exposes standard read-only hwmon temperature and voltage inputs.  The
+  required ttrim NVMEM cell is a five-bit temperature calibration value from
+  the ZX279133 efuse controller.  The voltage input measures the PVT macro's
+  supply; the binding does not identify that supply with a board-level rail.
   Thermal trips and cooling policy are described by separate thermal-zone
   nodes and are intentionally not part of this binding.
 
