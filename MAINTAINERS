@@ -28415,6 +28415,8 @@ F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
 F:	Documentation/devicetree/bindings/nvmem/zte,zx279133-efuse.yaml
 F:	Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
 F:	Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
+F:	Documentation/devicetree/bindings/soc/zte,zx279133-pwm-audit.yaml
+F:	drivers/soc/zte/
 F:	Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
 F:	Documentation/devicetree/bindings/usb/zte,zx279133-xhci.yaml
 F:	Documentation/devicetree/bindings/watchdog/zte,zx279133-watchdog.yaml
