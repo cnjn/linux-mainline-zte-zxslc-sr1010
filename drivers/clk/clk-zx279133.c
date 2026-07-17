@@ -266,11 +266,11 @@ static struct clk_hw *
 zx279133_register_mux(struct device *dev, const char *name,
 		      const struct clk_parent_data *parents,
 		      unsigned int num_parents, void __iomem *reg,
-		      u8 shift, u8 width, spinlock_t *lock)
+		      u8 shift, u8 width, u8 mux_flags, spinlock_t *lock)
 {
 	return devm_clk_hw_register_mux_parent_data_table(dev, name, parents,
 			num_parents, CLK_GET_RATE_NOCACHE, reg, shift, width,
-			CLK_MUX_READ_ONLY, NULL, lock);
+			mux_flags, NULL, lock);
 }
 
 static struct clk_hw *
@@ -328,7 +328,7 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
 	hw = zx279133_register_mux(dev, "sys_aclk", sys_aclk_parents,
 				   ARRAY_SIZE(sys_aclk_parents),
 				   base + ZX279133_TOPCRM_SYS_MUX_CTRL,
-				   0, 2, &priv->lock);
+				   0, 2, CLK_MUX_READ_ONLY, &priv->lock);
 	if (IS_ERR(hw))
 		return dev_err_probe(dev, PTR_ERR(hw),
 				     "failed to register sys_aclk mux\n");
@@ -364,7 +364,7 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
 	hw = zx279133_register_mux(dev, "cci_aclk", cci_aclk_parents,
 				   ARRAY_SIZE(cci_aclk_parents),
 				   base + ZX279133_TOPCRM_CPU_CCI_MUX_CTRL,
-				   4, 3, &priv->lock);
+				   4, 3, CLK_MUX_READ_ONLY, &priv->lock);
 	if (IS_ERR(hw))
 		return dev_err_probe(dev, PTR_ERR(hw),
 				     "failed to register cci_aclk mux\n");
@@ -382,7 +382,10 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
 	hw = zx279133_register_mux(dev, "a53_mclk", a53_mclk_parents,
 				   ARRAY_SIZE(a53_mclk_parents),
 				   base + ZX279133_TOPCRM_CPU_CCI_MUX_CTRL,
-				   0, 3, &priv->lock);
+				   0, 3,
+				   IS_ENABLED(CONFIG_ZTE_ZX279133_CPUFREQ_PROBE) ?
+					0 : CLK_MUX_READ_ONLY,
+				   &priv->lock);
 	if (IS_ERR(hw))
 		return dev_err_probe(dev, PTR_ERR(hw),
 				     "failed to register a53_mclk mux\n");

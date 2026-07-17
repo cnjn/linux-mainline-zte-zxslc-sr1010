@@ -363,6 +363,16 @@ config COMMON_CLK_ZX279133
 	  Support the top-level and low-speed peripheral clocks on the ZTE
 	  ZX279133 SoC.
 
+config ZTE_ZX279133_CPUFREQ_PROBE
+	bool "Allow isolated ZX279133 CPU clock parent switching"
+	depends on COMMON_CLK_ZX279133
+	depends on CPU_FREQ && CPUFREQ_DT
+	help
+	  Allow a53_mclk to switch only between firmware-enabled, fixed-rate
+	  parents for an isolated RAM-only CPU frequency probe. The probe does
+	  not control the CPU voltage, reprogram a PLL, or change bus clocks.
+	  This option must remain disabled in normal builds.
+
 config COMMON_CLK_LOCHNAGAR
 	tristate "Cirrus Logic Lochnagar clock driver"
 	depends on MFD_LOCHNAGAR
