@@ -335,6 +335,16 @@
 			#clock-cells = <1>;
 		};
 
+		pwm: pwm@14f10000 {
+			compatible = "zte,zx279133-pwm";
+			reg = <0x0 0x14f10000 0x0 0x1000>;
+			clocks = <&lsp1_clk ZX279133_LSP1_CLK_PWM_PCLK>,
+				 <&lsp1_clk ZX279133_LSP1_CLK_PWM_WCLK>;
+			clock-names = "pclk", "wclk";
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
 		efuse: efuse@14f11000 {
 			compatible = "zte,zx279133-efuse";
 			reg = <0x0 0x14f11000 0x0 0x1000>;
