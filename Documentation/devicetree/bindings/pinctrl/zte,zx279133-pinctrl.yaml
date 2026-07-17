@@ -11,8 +11,9 @@ maintainers:
 
 description: |
   The ZX279133 pin controller contains 70 pins in six physical pin banks.
-  This binding describes GPIO muxing and the SPI flash controller pins.
-  Other peripheral mux selections established by firmware remain unchanged.
+  This binding describes GPIO muxing, the SPI flash controller pins, and the
+  PWM outputs. Other peripheral mux selections established by firmware remain
+  unchanged.
 
 properties:
   compatible:
@@ -29,7 +30,7 @@ patternProperties:
 
     properties:
       function:
-        enum: [gpio, spifc]
+        enum: [gpio, pwm, spifc]
 
       pins:
         minItems: 1
@@ -117,6 +118,15 @@ patternProperties:
             pins:
               items:
                 enum: [p3-9, p3-10, p3-11, p3-12, p4-0, p4-1]
+      - if:
+          properties:
+            function:
+              const: pwm
+        then:
+          properties:
+            pins:
+              items:
+                enum: [p0-8, p0-9, p0-12, p0-13]
 
     required:
       - function
