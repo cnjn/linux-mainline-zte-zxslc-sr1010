@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/net/zte,zx279133-mdio.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE ZX279133 MDIO controller
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+description:
+  The ZX279133 contains two independent MDIO controllers supporting native
+  Clause 22 and Clause 45 transactions.
+
+allOf:
+  - $ref: mdio.yaml#
+
+properties:
+  compatible:
+    const: zte,zx279133-mdio
+
+  reg:
+    maxItems: 1
+
+  clocks:
+    items:
+      - description: Peripheral register interface clock
+      - description: MDIO working clock
+
+  clock-names:
+    items:
+      - const: pclk
+      - const: wclk
+
+  resets:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+  - clocks
+  - clock-names
+  - resets
+  - '#address-cells'
+  - '#size-cells'
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/clock/zte,zx279133-lsp.h>
+    #include <dt-bindings/reset/zte,zx279133-lsp.h>
+
+    mdio@14f01000 {
+        compatible = "zte,zx279133-mdio";
+        reg = <0x14f01000 0x1000>;
+        clocks = <&lsp1_clk ZX279133_LSP1_CLK_MDIO0_PCLK>,
+                 <&lsp1_clk ZX279133_LSP1_CLK_MDIO0_WCLK>;
+        clock-names = "pclk", "wclk";
+        resets = <&lsp1_clk ZX279133_LSP1_RESET_MDIO0>;
+        #address-cells = <1>;
+        #size-cells = <0>;
+    };
+
+...
