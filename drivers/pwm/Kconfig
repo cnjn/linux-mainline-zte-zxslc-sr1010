@@ -819,4 +819,12 @@ config PWM_XILINX
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-xilinx.
 
+config PWM_ZX279133
+	bool "ZTE ZX279133 PWM support"
+	depends on ARM64 || COMPILE_TEST
+	depends on COMMON_CLK
+	help
+	  Generic PWM framework driver for the four-channel PWM controller
+	  found on ZTE ZX279133 SoCs.
+
 endif
