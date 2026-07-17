@@ -62,9 +62,14 @@ static const char * const zx279133_spifc_groups[] = {
 	"p3-9", "p3-10", "p3-11", "p3-12", "p4-0", "p4-1",
 };
 
+static const char * const zx279133_pwm_groups[] = {
+	"p0-8", "p0-9", "p0-12", "p0-13",
+};
+
 enum zx279133_mux_function {
 	ZX279133_MUX_GPIO,
 	ZX279133_MUX_SPIFC,
+	ZX279133_MUX_PWM,
 };
 
 static const struct pinfunction zx279133_functions[] = {
@@ -72,6 +77,8 @@ static const struct pinfunction zx279133_functions[] = {
 				 ARRAY_SIZE(zx279133_group_names)),
 	PINCTRL_PINFUNCTION("spifc", zx279133_spifc_groups,
 			    ARRAY_SIZE(zx279133_spifc_groups)),
+	PINCTRL_PINFUNCTION("pwm", zx279133_pwm_groups,
+			    ARRAY_SIZE(zx279133_pwm_groups)),
 };
 
 static const struct zx279133_mux_range zx279133_mux_ranges[][6] = {
@@ -214,6 +221,12 @@ static int zx279133_set_mux(struct pinctrl_dev *pctldev,
 		if (group < 52 || group > 57)
 			return -EINVAL;
 		return zx279133_set_pin_mux(pctldev, group, 1);
+	case ZX279133_MUX_PWM:
+		if (group == 8 || group == 9)
+			return zx279133_set_pin_mux(pctldev, group, 1);
+		if (group == 12 || group == 13)
+			return zx279133_set_pin_mux(pctldev, group, 2);
+		return -EINVAL;
 	default:
 		return -EINVAL;
 	}
