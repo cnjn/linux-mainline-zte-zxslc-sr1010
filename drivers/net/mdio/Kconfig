@@ -104,6 +104,15 @@ config MDIO_HISI_FEMAC
 	  This module provides a driver for the MDIO busses found in the
 	  Hisilicon SoC that have an Fast Ethernet MAC.
 
+config MDIO_ZX279133
+	bool "ZTE ZX279133 MDIO bus controller"
+	depends on (ARM64 || COMPILE_TEST) && OF_MDIO && COMMON_CLK
+	help
+	  This driver supports the independent Clause 22 and Clause 45 MDIO
+	  controllers in the ZTE ZX279133 SoC. Each controller uses separate
+	  peripheral and working clocks and provides bounded polling for both
+	  native transaction formats.
+
 config MDIO_I2C
 	tristate
 	depends on I2C
