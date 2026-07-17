@@ -18,7 +18,7 @@
 #define ZX279133_TOPCRM_SYS_MUX_CTRL	0x00
 #define ZX279133_TOPCRM_CPU_CCI_MUX_CTRL	0x04
 #define ZX279133_TOPCRM_BUS_DIV_CTRL	0x5c
-#define ZX279133_TOPCRM_NUM_CLKS	(ZX279133_TOPCRM_CLK_A53_MCLK + 1)
+#define ZX279133_TOPCRM_NUM_CLKS	(ZX279133_TOPCRM_CLK_LSP1_100M + 1)
 #define ZX279133_UART0_CLK_CTRL	0x24
 #define ZX279133_UART_PCLK_GATE	0
 #define ZX279133_UART_WCLK_GATE	1
@@ -40,7 +40,17 @@
 #define ZX279133_PWM_PCLK_GATE	0
 #define ZX279133_PWM_WCLK_GATE	1
 #define ZX279133_PWM_CLK_FLAGS	CLK_IGNORE_UNUSED
-#define ZX279133_LSP1_NUM_CLKS	(ZX279133_LSP1_CLK_PWM_WCLK + 1)
+#define ZX279133_MDIO0_CLK_CTRL	0x04
+#define ZX279133_MDIO1_CLK_CTRL	0x08
+#define ZX279133_MDIO_PCLK_GATE	0
+#define ZX279133_MDIO_WCLK_GATE	1
+#define ZX279133_MDIO_RESET	4
+#define ZX279133_MDIO_WCLK_DIV_SHIFT	11
+#define ZX279133_MDIO_WCLK_DIV_WIDTH	7
+#define ZX279133_MDIO_CLK_FLAGS	CLK_IGNORE_UNUSED
+#define ZX279133_MDIO_RESET_DELAY_MIN_US	300
+#define ZX279133_MDIO_RESET_DELAY_MAX_US	400
+#define ZX279133_LSP1_NUM_CLKS	(ZX279133_LSP1_CLK_MDIO1_WCLK + 1)
 #define ZX279133_TOPCRM_PVT_PCLK_GATE_CTRL	0x30
 #define ZX279133_TOPCRM_PVT_PCLK_GATE	12
 #define ZX279133_TOPCRM_PVT_DIV_CTRL	0x58
@@ -108,6 +118,10 @@ struct zx279133_lsp1_clk {
 	spinlock_t lock; /* Protects the LSP1 clock control registers. */
 	struct clk_divider wdt_dividers[2];
 	struct clk_gate wdt_gates[2];
+	struct clk_divider mdio_dividers[2];
+	struct clk_gate mdio_gates[2];
+	struct reset_controller_dev rcdev;
+	void __iomem *mdio_regs[2];
 	struct clk_hw_onecell_data data;
 };
 
@@ -427,6 +441,16 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
 		priv->data.hws[index] = hw;
 	}
 
+	hw = devm_clk_hw_register_gate_parent_hw(dev, "lsp1_100m",
+						 priv->parents[ZX279133_PARENT_CLK100M],
+						 ZX279133_TOPCRM_GATE_FLAGS,
+						 base + ZX279133_TOPCRM_GATE_CTRL,
+						 20, 0, &priv->lock);
+	if (IS_ERR(hw))
+		return dev_err_probe(dev, PTR_ERR(hw),
+				     "failed to register lsp1_100m gate\n");
+	priv->data.hws[ZX279133_TOPCRM_CLK_LSP1_100M] = hw;
+
 	priv->data.num = ZX279133_TOPCRM_NUM_CLKS;
 	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get,
 					  &priv->data);
@@ -555,6 +579,87 @@ static const struct clk_parent_data lsp1_wclk25m_parent = {
 	.fw_name = "wclk25m",
 };
 
+static const struct clk_parent_data lsp1_wclk100m_parent = {
+	.fw_name = "wclk100m",
+};
+
+static int zx279133_lsp1_reset_update(struct reset_controller_dev *rcdev,
+				      unsigned long id, bool deassert)
+{
+	struct zx279133_lsp1_clk *priv =
+		container_of(rcdev, struct zx279133_lsp1_clk, rcdev);
+	unsigned long flags;
+	u32 value;
+
+	if (id >= ARRAY_SIZE(priv->mdio_regs))
+		return -EINVAL;
+
+	spin_lock_irqsave(&priv->lock, flags);
+	value = readl(priv->mdio_regs[id]);
+	if (deassert)
+		value |= BIT(ZX279133_MDIO_RESET);
+	else
+		value &= ~BIT(ZX279133_MDIO_RESET);
+	writel(value, priv->mdio_regs[id]);
+	spin_unlock_irqrestore(&priv->lock, flags);
+
+	return 0;
+}
+
+static int zx279133_lsp1_reset_assert(struct reset_controller_dev *rcdev,
+				      unsigned long id)
+{
+	return zx279133_lsp1_reset_update(rcdev, id, false);
+}
+
+static int zx279133_lsp1_reset_deassert(struct reset_controller_dev *rcdev,
+					unsigned long id)
+{
+	return zx279133_lsp1_reset_update(rcdev, id, true);
+}
+
+static int zx279133_lsp1_reset_reset(struct reset_controller_dev *rcdev,
+				     unsigned long id)
+{
+	int ret;
+
+	ret = zx279133_lsp1_reset_assert(rcdev, id);
+	if (ret)
+		return ret;
+
+	/* Match the vendor driver's assertion and post-deassertion delays. */
+	usleep_range(ZX279133_MDIO_RESET_DELAY_MIN_US,
+		     ZX279133_MDIO_RESET_DELAY_MAX_US);
+
+	ret = zx279133_lsp1_reset_deassert(rcdev, id);
+	if (ret)
+		return ret;
+
+	usleep_range(ZX279133_MDIO_RESET_DELAY_MIN_US,
+		     ZX279133_MDIO_RESET_DELAY_MAX_US);
+
+	return 0;
+}
+
+static int zx279133_lsp1_reset_status(struct reset_controller_dev *rcdev,
+				      unsigned long id)
+{
+	struct zx279133_lsp1_clk *priv =
+		container_of(rcdev, struct zx279133_lsp1_clk, rcdev);
+
+	if (id >= ARRAY_SIZE(priv->mdio_regs))
+		return -EINVAL;
+
+	return !(readl(priv->mdio_regs[id]) & BIT(ZX279133_MDIO_RESET));
+}
+
+static const struct reset_control_ops zx279133_lsp1_reset_ops = {
+	.assert = zx279133_lsp1_reset_assert,
+	.deassert = zx279133_lsp1_reset_deassert,
+	.reset = zx279133_lsp1_reset_reset,
+	.status = zx279133_lsp1_reset_status,
+};
+
 static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
 {
 	static const unsigned int offsets[] = {
@@ -563,6 +668,13 @@ static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
 	static const char * const names[][2] = {
 		{ "wdt0_pclk", "wdt0_wclk" },
 		{ "wdt1_pclk", "wdt1_wclk" },
+	};
+	static const unsigned int mdio_offsets[] = {
+		ZX279133_MDIO0_CLK_CTRL, ZX279133_MDIO1_CLK_CTRL,
+	};
+	static const char * const mdio_names[][2] = {
+		{ "mdio0_pclk", "mdio0_wclk" },
+		{ "mdio1_pclk", "mdio1_wclk" },
 	};
 	struct device *dev = &pdev->dev;
 	struct zx279133_lsp1_clk *priv;
@@ -661,8 +773,63 @@ static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
 				     "failed to register PWM WCLK\n");
 	priv->data.hws[ZX279133_LSP1_CLK_PWM_WCLK] = hw;
 
+	for (index = 0; index < ARRAY_SIZE(mdio_offsets); index++) {
+		struct clk_divider *divider = &priv->mdio_dividers[index];
+		struct clk_gate *gate = &priv->mdio_gates[index];
+		unsigned int clk_id = ZX279133_LSP1_CLK_MDIO0_PCLK + index * 2;
+
+		reg = base + mdio_offsets[index];
+		priv->mdio_regs[index] = reg;
+		hw = devm_clk_hw_register_gate_parent_data(dev,
+							   mdio_names[index][0],
+							   &lsp1_pclk_parent,
+							   ZX279133_MDIO_CLK_FLAGS,
+							   reg,
+							   ZX279133_MDIO_PCLK_GATE,
+							   0, &priv->lock);
+		if (IS_ERR(hw))
+			return dev_err_probe(dev, PTR_ERR(hw),
+					     "failed to register MDIO%u PCLK\n",
+					     index);
+		priv->data.hws[clk_id] = hw;
+
+		divider->reg = reg;
+		divider->shift = ZX279133_MDIO_WCLK_DIV_SHIFT;
+		divider->width = ZX279133_MDIO_WCLK_DIV_WIDTH;
+		divider->flags = CLK_DIVIDER_READ_ONLY;
+		divider->lock = &priv->lock;
+
+		gate->reg = reg;
+		gate->bit_idx = ZX279133_MDIO_WCLK_GATE;
+		gate->lock = &priv->lock;
+
+		hw = devm_clk_hw_register_composite_pdata(dev,
+							  mdio_names[index][1],
+							  &lsp1_wclk100m_parent, 1,
+							  NULL, NULL,
+							  &divider->hw,
+							  &clk_divider_ro_ops,
+							  &gate->hw,
+							  &clk_gate_ops,
+							  ZX279133_MDIO_CLK_FLAGS);
+		if (IS_ERR(hw))
+			return dev_err_probe(dev, PTR_ERR(hw),
+					     "failed to register MDIO%u WCLK\n",
+					     index);
+		priv->data.hws[clk_id + 1] = hw;
+	}
+
 	priv->data.num = ZX279133_LSP1_NUM_CLKS;
 	data = &priv->data;
+	priv->rcdev.ops = &zx279133_lsp1_reset_ops;
+	priv->rcdev.owner = THIS_MODULE;
+	priv->rcdev.of_node = dev->of_node;
+	priv->rcdev.nr_resets = ARRAY_SIZE(priv->mdio_regs);
+
+	ret = devm_reset_controller_register(dev, &priv->rcdev);
+	if (ret)
+		return dev_err_probe(dev, ret,
+				     "failed to register LSP1 reset controller\n");
 
 	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, data);
 	if (ret)
