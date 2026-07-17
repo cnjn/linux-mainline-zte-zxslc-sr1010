@@ -337,6 +337,30 @@
 			#reset-cells = <1>;
 		};
 
+		mdio0: mdio@14f01000 {
+			compatible = "zte,zx279133-mdio";
+			reg = <0x0 0x14f01000 0x0 0x1000>;
+			clocks = <&lsp1_clk ZX279133_LSP1_CLK_MDIO0_PCLK>,
+				 <&lsp1_clk ZX279133_LSP1_CLK_MDIO0_WCLK>;
+			clock-names = "pclk", "wclk";
+			resets = <&lsp1_clk ZX279133_LSP1_RESET_MDIO0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		mdio1: mdio@14f02000 {
+			compatible = "zte,zx279133-mdio";
+			reg = <0x0 0x14f02000 0x0 0x1000>;
+			clocks = <&lsp1_clk ZX279133_LSP1_CLK_MDIO1_PCLK>,
+				 <&lsp1_clk ZX279133_LSP1_CLK_MDIO1_WCLK>;
+			clock-names = "pclk", "wclk";
+			resets = <&lsp1_clk ZX279133_LSP1_RESET_MDIO1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
 		pwm: pwm@14f10000 {
 			compatible = "zte,zx279133-pwm";
 			reg = <0x0 0x14f10000 0x0 0x1000>;
