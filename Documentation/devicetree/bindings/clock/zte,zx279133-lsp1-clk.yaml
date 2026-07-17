@@ -11,9 +11,9 @@ maintainers:
 
 description:
   The LSP1 clock controller supplies bus and working clocks to the ZX279133
-  watchdog timers and efuse controller. Each watchdog working clock has a
-  10-bit linear divider followed by a gate. The efuse peripheral and working
-  clocks each have a gate.
+  watchdog timers, efuse controller, and PWM controller. Each watchdog working
+  clock has a 10-bit linear divider followed by a gate. The efuse and PWM
+  peripheral and working clocks each have a gate.
 
 properties:
   compatible:
