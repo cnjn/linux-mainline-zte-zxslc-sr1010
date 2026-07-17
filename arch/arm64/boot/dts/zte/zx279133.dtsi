@@ -330,9 +330,11 @@
 			reg = <0x0 0x14f00000 0x0 0x100>;
 			clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP1_PCLK>,
 				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_32K>,
-				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_25M>;
-			clock-names = "pclk", "wclk32k", "wclk25m";
+				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_25M>,
+				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_100M>;
+			clock-names = "pclk", "wclk32k", "wclk25m", "wclk100m";
 			#clock-cells = <1>;
+			#reset-cells = <1>;
 		};
 
 		pwm: pwm@14f10000 {
