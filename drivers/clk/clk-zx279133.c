@@ -36,7 +36,11 @@
 #define ZX279133_EFUSE_CLK_CTRL	0x54
 #define ZX279133_EFUSE_PCLK_GATE	0
 #define ZX279133_EFUSE_WCLK_GATE	1
-#define ZX279133_LSP1_NUM_CLKS	(ZX279133_LSP1_CLK_EFUSE_WCLK + 1)
+#define ZX279133_PWM_CLK_CTRL	0x50
+#define ZX279133_PWM_PCLK_GATE	0
+#define ZX279133_PWM_WCLK_GATE	1
+#define ZX279133_PWM_CLK_FLAGS	CLK_IGNORE_UNUSED
+#define ZX279133_LSP1_NUM_CLKS	(ZX279133_LSP1_CLK_PWM_WCLK + 1)
 #define ZX279133_TOPCRM_PVT_PCLK_GATE_CTRL	0x30
 #define ZX279133_TOPCRM_PVT_PCLK_GATE	12
 #define ZX279133_TOPCRM_PVT_DIV_CTRL	0x58
@@ -631,6 +635,28 @@ static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, PTR_ERR(hw),
 				     "failed to register efuse WCLK\n");
 	priv->data.hws[ZX279133_LSP1_CLK_EFUSE_WCLK] = hw;
+
+	/* Preserve the firmware PWM clock state until a safe consumer exists. */
+	reg = base + ZX279133_PWM_CLK_CTRL;
+	hw = devm_clk_hw_register_gate_parent_data(dev, "pwm_pclk",
+						   &lsp1_pclk_parent,
+						   ZX279133_PWM_CLK_FLAGS, reg,
+						   ZX279133_PWM_PCLK_GATE, 0,
+						   &priv->lock);
+	if (IS_ERR(hw))
+		return dev_err_probe(dev, PTR_ERR(hw),
+				     "failed to register PWM PCLK\n");
+	priv->data.hws[ZX279133_LSP1_CLK_PWM_PCLK] = hw;
+
+	hw = devm_clk_hw_register_gate_parent_data(dev, "pwm_wclk",
+						   &lsp1_wclk25m_parent,
+						   ZX279133_PWM_CLK_FLAGS, reg,
+						   ZX279133_PWM_WCLK_GATE, 0,
+						   &priv->lock);
+	if (IS_ERR(hw))
+		return dev_err_probe(dev, PTR_ERR(hw),
+				     "failed to register PWM WCLK\n");
+	priv->data.hws[ZX279133_LSP1_CLK_PWM_WCLK] = hw;
 
 	priv->data.num = ZX279133_LSP1_NUM_CLKS;
 	data = &priv->data;
