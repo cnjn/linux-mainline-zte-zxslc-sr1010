@@ -3,6 +3,8 @@
  * Read-only audit support for the firmware-configured ZX279133 PWM block.
  */
 
+#include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -14,16 +16,44 @@
 #define ZX279133_PWM_MODE		0x0
 #define ZX279133_PWM_PERIOD		0x4
 #define ZX279133_PWM_DUTY		0x8
+#define ZX279133_PWM_PCLK_RATE		125000000
+#define ZX279133_PWM_WCLK_RATE		25000000
 
 static int zx279133_pwm_audit_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	struct clk *pclk, *wclk;
 	void __iomem *base;
 	unsigned int channel;
+	unsigned long pclk_rate, wclk_rate;
+
+	pclk = devm_clk_get(dev, "pclk");
+	if (IS_ERR(pclk))
+		return dev_err_probe(dev, PTR_ERR(pclk), "failed to get PCLK\n");
+
+	wclk = devm_clk_get(dev, "wclk");
+	if (IS_ERR(wclk))
+		return dev_err_probe(dev, PTR_ERR(wclk), "failed to get WCLK\n");
+
+	pclk_rate = clk_get_rate(pclk);
+	wclk_rate = clk_get_rate(wclk);
+	if (pclk_rate != ZX279133_PWM_PCLK_RATE ||
+	    wclk_rate != ZX279133_PWM_WCLK_RATE)
+		return dev_err_probe(dev, -EINVAL,
+				     "unexpected clock rates pclk=%lu wclk=%lu\n",
+				     pclk_rate, wclk_rate);
+
+	/* Never enable a gate merely to inspect firmware-owned controller state. */
+	if (!__clk_is_enabled(pclk) || !__clk_is_enabled(wclk))
+		return dev_err_probe(dev, -EBUSY,
+				     "firmware clock gate is disabled\n");
 
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
+
+	dev_info(dev, "firmware clocks pclk=%lu:Y wclk=%lu:Y\n",
+		 pclk_rate, wclk_rate);
 
 	for (channel = 0; channel < ZX279133_PWM_CHANNELS; channel++) {
 		void __iomem *regs = base + ZX279133_PWM_CHANNEL_BASE +

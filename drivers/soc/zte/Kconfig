@@ -2,10 +2,11 @@
 
 config ZTE_ZX279133_PWM_AUDIT
 	tristate "ZTE ZX279133 PWM read-only audit"
-	depends on ARM64 && OF && HAS_IOMEM
+	depends on ARM64 && COMMON_CLK && OF && HAS_IOMEM
 	help
 	  Build a diagnostic driver that reads and logs raw MODE, PERIOD, and DUTY
 	  registers for all ZX279133 PWM channels. It is intended to audit a
 	  firmware-configured controller before a functional PWM driver is added.
-	  It neither registers a PWM chip nor requests clocks, resets, or pinctrl.
-	  The driver performs no hardware writes.
+	  It obtains clock handles only to verify the firmware-enabled gate state;
+	  it never prepares or enables them. The driver registers no PWM chip,
+	  requests no resets or pinctrl, and performs no hardware writes.

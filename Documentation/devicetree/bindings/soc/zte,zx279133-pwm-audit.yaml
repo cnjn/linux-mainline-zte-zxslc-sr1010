@@ -12,7 +12,9 @@ maintainers:
 description: |
   This diagnostic node reads the raw MODE, PERIOD, and DUTY registers of the
   firmware-configured PWM controller. It does not register a PWM provider,
-  request clocks or resets, select pinctrl, or modify controller state.
+  prepare or enable clocks, request resets, select pinctrl, or modify controller
+  state. The clock references let the driver refuse MMIO access unless firmware
+  has already enabled both controller gates at their expected rates.
 
 properties:
   compatible:
@@ -21,9 +23,19 @@ properties:
   reg:
     maxItems: 1
 
+  clocks:
+    maxItems: 2
+
+  clock-names:
+    items:
+      - const: pclk
+      - const: wclk
+
 required:
   - compatible
   - reg
+  - clocks
+  - clock-names
 
 additionalProperties: false
 
@@ -32,5 +44,7 @@ examples:
     pwm-audit@14f10000 {
         compatible = "zte,zx279133-pwm-audit";
         reg = <0x14f10000 0x1000>;
+        clocks = <&lsp1_clk 6>, <&lsp1_clk 7>;
+        clock-names = "pclk", "wclk";
     };
 ...
