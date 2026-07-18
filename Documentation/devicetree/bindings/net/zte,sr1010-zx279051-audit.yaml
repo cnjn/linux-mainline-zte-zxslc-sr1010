@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/net/zte,sr1010-zx279051-audit.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE SR1010 ZX279051 read-only identification audit
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+description:
+  A test-only MDIO child used to perform two fixed Clause 45 identification
+  reads from the ZX279051 WAN PHY. The audit has no write or reset operation
+  and is not present in normal SR1010 device trees.
+
+properties:
+  compatible:
+    const: zte,sr1010-zx279051-audit
+
+  reg:
+    const: 1
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    mdio {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        wan-audit@1 {
+            compatible = "zte,sr1010-zx279051-audit";
+            reg = <1>;
+        };
+    };
+
+...
