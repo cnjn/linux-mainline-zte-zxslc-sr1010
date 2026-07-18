@@ -417,5 +417,14 @@
 			timeout-sec = <10>;
 			status = "disabled";
 		};
+
+		nppt: packet-processor@19000000 {
+			compatible = "zte,zx279133-nppt";
+			reg = <0x0 0x19000000 0x0 0x1000000>;
+			interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_PON_WOE1_WCLK>;
+			clock-names = "wclk";
+			status = "disabled";
+		};
 	};
 };
