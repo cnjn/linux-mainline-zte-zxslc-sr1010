@@ -13,12 +13,13 @@ description:
   The top clock and reset manager (TOPCRM) supplies clocks to the ZX279133
   low-speed peripheral controllers, SPI flash controller, PVT temperature
   sensor, MDIO controllers, USB host controller, interconnect, and Cortex-A53
-  CPUs. Fixed PLL
-  roots feed fixed-factor branches followed by read-only system, CCI, and CPU
-  muxes. The system HCLK and PCLK use read-only even dividers. This preserves
-  the firmware-selected boot topology without allowing Linux to reprogram a
-  PLL, mux, or system divider. The PVT working clock uses a separate read-only
-  divider followed by a gate.
+  CPUs and shared network hardware. Fixed PLL roots feed fixed-factor branches
+  followed by read-only system, CCI, CPU, and network muxes. The system HCLK
+  and PCLK use read-only even dividers. This preserves the firmware-selected
+  boot topology without allowing Linux to reprogram a PLL, mux, or system
+  divider. The PVT working clock uses a separate read-only divider followed by
+  a gate. The provider also models the universal-SerDes PCLK and the
+  firmware-selected PON/NPPT working-clock path with a read-only mux.
 
 properties:
   compatible:
