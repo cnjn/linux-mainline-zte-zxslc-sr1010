@@ -426,5 +426,25 @@
 			clock-names = "wclk";
 			status = "disabled";
 		};
+
+		xpcs0: ethernet-pcs@1a000000 {
+			compatible = "snps,dw-xpcs";
+			reg = <0x0 0x1a000000 0x0 0x800000>;
+			reg-names = "direct";
+			reg-io-width = <4>;
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_UNI_SERDES_PCLK>;
+			clock-names = "csr";
+			status = "disabled";
+		};
+
+		xpcs1: ethernet-pcs@1b000000 {
+			compatible = "snps,dw-xpcs";
+			reg = <0x0 0x1b000000 0x0 0x800000>;
+			reg-names = "direct";
+			reg-io-width = <4>;
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_UNI_SERDES_PCLK>;
+			clock-names = "csr";
+			status = "disabled";
+		};
 	};
 };
