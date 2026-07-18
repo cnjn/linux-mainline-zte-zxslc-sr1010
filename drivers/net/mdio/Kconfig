@@ -113,6 +113,16 @@ config MDIO_ZX279133
 	  peripheral and working clocks and provides bounded polling for both
 	  native transaction formats.
 
+config MDIO_SR1010_ZX279051_AUDIT
+	bool "ZTE SR1010 ZX279051 read-only identification audit"
+	depends on MDIO_ZX279133
+	help
+	  Enable a test-only MDIO child that performs exactly two fixed Clause 45
+	  identification reads from the SR1010 WAN PHY. This is intended only for
+	  isolated RAM-boot hardware validation and has no write operation. The
+	  audit fails closed unless it is attached to MDIO1 at its exact address,
+	  and a one-shot guard prevents the reads from being repeated after probe.
+
 config MDIO_I2C
 	tristate
 	depends on I2C

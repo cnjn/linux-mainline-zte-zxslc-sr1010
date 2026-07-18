@@ -13,6 +13,7 @@ obj-$(CONFIG_MDIO_BITBANG)		+= mdio-bitbang.o
 obj-$(CONFIG_MDIO_CAVIUM)		+= mdio-cavium.o
 obj-$(CONFIG_MDIO_GPIO)			+= mdio-gpio.o
 obj-$(CONFIG_MDIO_HISI_FEMAC)		+= mdio-hisi-femac.o
+obj-$(CONFIG_MDIO_SR1010_ZX279051_AUDIT) += mdio-sr1010-zx279051-audit.o
 obj-$(CONFIG_MDIO_ZX279133)		+= mdio-zx279133.o
 obj-$(CONFIG_MDIO_I2C)			+= mdio-i2c.o
 obj-$(CONFIG_MDIO_IPQ4019)		+= mdio-ipq4019.o
