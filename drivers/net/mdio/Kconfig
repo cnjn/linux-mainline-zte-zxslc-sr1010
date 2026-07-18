@@ -113,6 +113,16 @@ config MDIO_ZX279133
 	  peripheral and working clocks and provides bounded polling for both
 	  native transaction formats.
 
+config MDIO_SR1010_RTL8372N_AUDIT
+	bool "ZTE SR1010 RTL8372N read-only chip ID audit"
+	depends on MDIO_ZX279133
+	help
+	  Enable a test-only non-PHY MDIO child that performs exactly two fixed
+	  read-only chip ID transactions against the SR1010 RTL8372N switch.
+	  The audit fails closed unless attached to the expected MDIO controller
+	  and address, and a one-shot guard prevents any repeated bus access.
+	  This option is intended only for isolated RAM-boot hardware validation.
+
 config MDIO_SR1010_ZX279051_AUDIT
 	bool "ZTE SR1010 ZX279051 read-only identification audit"
 	depends on MDIO_ZX279133

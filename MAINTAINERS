@@ -28412,6 +28412,7 @@ F:	Documentation/devicetree/bindings/clock/zte,zx279133-*.yaml
 F:	Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml
 F:	Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
 F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
+F:	Documentation/devicetree/bindings/net/zte,sr1010-rtl8372n-id-audit.yaml
 F:	Documentation/devicetree/bindings/net/zte,sr1010-zx279051-audit.yaml
 F:	Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
 F:	Documentation/devicetree/bindings/nvmem/zte,zx279133-efuse.yaml
@@ -28426,6 +28427,7 @@ F:	arch/arm64/boot/dts/zte/zx279133*
 F:	drivers/clk/clk-zx279133.c
 F:	drivers/gpio/gpio-zx279133.c
 F:	drivers/hwmon/zx279133-pvt.c
+F:	drivers/net/mdio/mdio-sr1010-rtl8372n-audit.c
 F:	drivers/net/mdio/mdio-sr1010-zx279051-audit.c
 F:	drivers/net/mdio/mdio-zx279133.c
 F:	drivers/nvmem/zx279133-efuse.c
