@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/net/zte,sr1010-rtl8372n-id-audit.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE SR1010 RTL8372N read-only chip ID audit
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+description:
+  A test-only, non-PHY MDIO child used to perform two fixed read-only chip ID
+  transactions against the RTL8372N switch. The audit is not present in normal
+  SR1010 device trees.
+
+properties:
+  compatible:
+    const: zte,sr1010-rtl8372n-id-audit
+
+  reg:
+    const: 29
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    mdio {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        switch-id-audit@1d {
+            compatible = "zte,sr1010-rtl8372n-id-audit";
+            reg = <0x1d>;
+        };
+    };
+
+...
