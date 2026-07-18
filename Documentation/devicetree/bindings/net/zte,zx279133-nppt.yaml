@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/net/zte,zx279133-nppt.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE ZX279133 NPPT packet processor
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+description:
+  The ZX279133 NPPT node describes the aggregate resources of the packet
+  processor block.
+
+properties:
+  $nodename:
+    pattern: "^packet-processor@[0-9a-f]+$"
+
+  compatible:
+    const: zte,zx279133-nppt
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+
+  clocks:
+    maxItems: 1
+
+  clock-names:
+    const: wclk
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - clocks
+  - clock-names
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/clock/zte,zx279133-topcrm.h>
+    #include <dt-bindings/interrupt-controller/arm-gic.h>
+
+    packet-processor@19000000 {
+        compatible = "zte,zx279133-nppt";
+        reg = <0x19000000 0x1000000>;
+        interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
+        clocks = <&topcrm ZX279133_TOPCRM_CLK_PON_WOE1_WCLK>;
+        clock-names = "wclk";
+        status = "disabled";
+    };
+
+...

@@ -28415,6 +28415,7 @@ F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
 F:	Documentation/devicetree/bindings/net/zte,sr1010-rtl8372n-id-audit.yaml
 F:	Documentation/devicetree/bindings/net/zte,sr1010-zx279051-audit.yaml
 F:	Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
+F:	Documentation/devicetree/bindings/net/zte,zx279133-nppt.yaml
 F:	Documentation/devicetree/bindings/nvmem/zte,zx279133-efuse.yaml
 F:	Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
 F:	Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
