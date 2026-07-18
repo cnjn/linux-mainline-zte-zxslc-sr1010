@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/zte,zx279133-xpcs-nppt-audit.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE ZX279133 XPCS and NPPT read-only audit
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+description: |
+  This diagnostic-only node is instantiated only by a dedicated diagnostic
+  overlay supplied by an external build, never by a normal system DTS. It
+  takes a single, read-only snapshot of firmware-configured XPCS identification
+  and state registers and NPPT shadow registers when userspace first reads its
+  snapshot attribute. It does not provide an XPCS, PCS, PHY, MAC, or packet
+  processor and must not be used as a functional hardware description.
+
+properties:
+  compatible:
+    const: zte,zx279133-xpcs-nppt-audit
+
+  reg:
+    minItems: 3
+    maxItems: 3
+
+  reg-names:
+    items:
+      - const: xpcs0
+      - const: xpcs1
+      - const: nppt
+
+  clocks:
+    minItems: 2
+    maxItems: 2
+
+  clock-names:
+    items:
+      - const: xpcs-pclk
+      - const: nppt-wclk
+
+required:
+  - compatible
+  - reg
+  - reg-names
+  - clocks
+  - clock-names
+
+additionalProperties: false
+
+examples:
+  - |
+    audit@1a000000 {
+        compatible = "zte,zx279133-xpcs-nppt-audit";
+        reg = <0x1a000000 0x00200000>,
+              <0x1b000000 0x00200000>,
+              <0x19000000 0x00001000>;
+        reg-names = "xpcs0", "xpcs1", "nppt";
+        clocks = <&topcrm 18>, <&topcrm 20>;
+        clock-names = "xpcs-pclk", "nppt-wclk";
+    };
+...
