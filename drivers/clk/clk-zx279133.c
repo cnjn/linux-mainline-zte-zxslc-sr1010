@@ -17,8 +17,11 @@
 #define ZX279133_TOPCRM_GATE_FLAGS	CLK_IGNORE_UNUSED
 #define ZX279133_TOPCRM_SYS_MUX_CTRL	0x00
 #define ZX279133_TOPCRM_CPU_CCI_MUX_CTRL	0x04
+#define ZX279133_TOPCRM_PON_NPPT_WCLK_MUX_CTRL	0x0c
+#define ZX279133_TOPCRM_UNI_SERDES_GATE_CTRL	0x44
+#define ZX279133_TOPCRM_PON_GATE_CTRL	0x48
 #define ZX279133_TOPCRM_BUS_DIV_CTRL	0x5c
-#define ZX279133_TOPCRM_NUM_CLKS	(ZX279133_TOPCRM_CLK_LSP1_100M + 1)
+#define ZX279133_TOPCRM_NUM_CLKS	(ZX279133_TOPCRM_CLK_PON_WOE1_WCLK + 1)
 #define ZX279133_UART0_CLK_CTRL	0x24
 #define ZX279133_UART_PCLK_GATE	0
 #define ZX279133_UART_WCLK_GATE	1
@@ -80,11 +83,13 @@ enum zx279133_topcrm_parent {
 	ZX279133_PARENT_CLK1000M_CPU,
 	ZX279133_PARENT_CLK32K,
 	ZX279133_PARENT_CLK172M,
+	ZX279133_PARENT_CLK_PON_125M,
 	ZX279133_PARENT_SYS_ACLK,
 	ZX279133_PARENT_SYS_HCLK,
 	ZX279133_PARENT_SYS_PCLK,
 	ZX279133_PARENT_CCI_ACLK,
 	ZX279133_PARENT_A53_MCLK,
+	ZX279133_PARENT_PON_NPPT_WCLK_MUX,
 	ZX279133_PARENT_COUNT,
 };
 
@@ -172,6 +177,9 @@ static const struct zx279133_topcrm_factor_desc topcrm_factors[] = {
 	},
 	[ZX279133_PARENT_CLK172M] = {
 		.name = "clk172m", .fw_name = "pll-1376m", .mult = 1, .div = 8,
+	},
+	[ZX279133_PARENT_CLK_PON_125M] = {
+		.name = "clk_pon_125m", .fw_name = "pll-fpp", .mult = 1, .div = 20,
 	},
 };
 
@@ -304,6 +312,7 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
 	struct clk_parent_data sys_aclk_parents[4] = {};
 	struct clk_parent_data a53_mclk_parents[8] = {};
 	struct clk_parent_data cci_aclk_parents[8] = {};
+	struct clk_parent_data pon_nppt_wclk_parents[8] = {};
 	struct clk_hw *pvt_div;
 	struct clk_hw *hw;
 	void __iomem *base;
@@ -414,6 +423,46 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
 	if (IS_ERR(pvt_div))
 		return dev_err_probe(dev, PTR_ERR(pvt_div),
 				     "failed to register clk1m22 divider\n");
+
+	pon_nppt_wclk_parents[0].hw = priv->parents[ZX279133_PARENT_CLK25M];
+	pon_nppt_wclk_parents[1].hw = priv->parents[ZX279133_PARENT_CLK100M];
+	pon_nppt_wclk_parents[2].hw = priv->parents[ZX279133_PARENT_CLK200M];
+	pon_nppt_wclk_parents[3].hw = priv->parents[ZX279133_PARENT_CLK344M];
+	pon_nppt_wclk_parents[4].hw = priv->parents[ZX279133_PARENT_CLK400M];
+	pon_nppt_wclk_parents[5].hw = priv->parents[ZX279133_PARENT_CLK500M];
+	pon_nppt_wclk_parents[6].hw = priv->parents[ZX279133_PARENT_CLK416M];
+	pon_nppt_wclk_parents[7].hw = priv->parents[ZX279133_PARENT_CLK_PON_125M];
+	hw = zx279133_register_mux(dev, "pon_nppt_wclk_mux",
+				   pon_nppt_wclk_parents,
+				   ARRAY_SIZE(pon_nppt_wclk_parents),
+				   base + ZX279133_TOPCRM_PON_NPPT_WCLK_MUX_CTRL,
+				   24, 3, CLK_MUX_READ_ONLY, &priv->lock);
+	if (IS_ERR(hw))
+		return dev_err_probe(dev, PTR_ERR(hw),
+				     "failed to register pon_nppt_wclk mux\n");
+	priv->parents[ZX279133_PARENT_PON_NPPT_WCLK_MUX] = hw;
+	priv->data.hws[ZX279133_TOPCRM_CLK_PON_NPPT_WCLK_MUX] = hw;
+
+	hw = devm_clk_hw_register_gate_parent_hw(dev, "uni_serdes_pclk",
+						 priv->parents[ZX279133_PARENT_SYS_PCLK],
+						 CLK_IGNORE_UNUSED,
+						 base + ZX279133_TOPCRM_UNI_SERDES_GATE_CTRL,
+						 8, 0, &priv->lock);
+	if (IS_ERR(hw))
+		return dev_err_probe(dev, PTR_ERR(hw),
+				     "failed to register uni_serdes_pclk gate\n");
+	priv->data.hws[ZX279133_TOPCRM_CLK_UNI_SERDES_PCLK] = hw;
+
+	/* NPPT uses the vendor-named PON WOE1 working-clock path. */
+	hw = devm_clk_hw_register_gate_parent_hw(dev, "pon_woe1_wclk",
+						 priv->parents[ZX279133_PARENT_PON_NPPT_WCLK_MUX],
+						 CLK_IGNORE_UNUSED,
+						 base + ZX279133_TOPCRM_PON_GATE_CTRL,
+						 10, 0, &priv->lock);
+	if (IS_ERR(hw))
+		return dev_err_probe(dev, PTR_ERR(hw),
+				     "failed to register pon_woe1_wclk gate\n");
+	priv->data.hws[ZX279133_TOPCRM_CLK_PON_WOE1_WCLK] = hw;
 
 	for (index = 0; index < ARRAY_SIZE(topcrm_gates); index++) {
 		const struct zx279133_topcrm_gate_desc *desc =
