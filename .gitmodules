@@ -1,0 +1,4 @@
+[submodule "linux-6.18.38"]
+	path = linux-6.18.38
+	url = https://github.com/cnjn/linux-mainline-zte-zxslc-sr1010
+	branch = codex/sr1010-mainline
