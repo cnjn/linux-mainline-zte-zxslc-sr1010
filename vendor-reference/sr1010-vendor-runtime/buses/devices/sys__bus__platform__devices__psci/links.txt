@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/psci
+driver=
+of_node=../../../firmware/devicetree/base/psci
+subsystem=../../../bus/platform

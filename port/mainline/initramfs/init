@@ -1,0 +1,117 @@
+#!/bin/sh
+# Diagnostic init for the SR1010 WAN bring-up.
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+HOME=/root
+TERM=${TERM:-vt100}
+PS1='sr1010-zxdbg# '
+export PATH HOME TERM PS1
+set -f
+
+say() {
+	printf '%s\r\n' "$*"
+}
+
+mount_fs() {
+	mkdir -p "$2"
+	mount -t "$1" "$1" "$2" 2>/dev/null || {
+		say "zxdbg: failed to mount $2"
+		while :; do sleep 3600; done
+	}
+}
+
+mount_fs devtmpfs /dev
+mount_fs proc /proc
+mount_fs sysfs /sys
+mount_fs tmpfs /run
+mkdir -p /dev/pts /root /sys/kernel/debug /var/run
+mount -t devpts devpts /dev/pts 2>/dev/null || true
+mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null || true
+
+# Proven watchdog feeders: foreground applet, confirm state==active.
+watchdog -F -T 10 -t 2 /dev/watchdog0 >/dev/null 2>&1 &
+watchdog0_pid=$!
+watchdog -F -T 10 -t 2 /dev/watchdog1 >/dev/null 2>&1 &
+watchdog1_pid=$!
+watchdogs_ready=
+for _ in 1 2 3 4 5; do
+	if kill -0 "$watchdog0_pid" 2>/dev/null \
+			&& kill -0 "$watchdog1_pid" 2>/dev/null \
+			&& [ "$(cat /sys/class/watchdog/watchdog0/state 2>/dev/null)" = active ] \
+			&& [ "$(cat /sys/class/watchdog/watchdog1/state 2>/dev/null)" = active ]; then
+		watchdogs_ready=1
+		break
+	fi
+	sleep 1
+done
+[ -n "$watchdogs_ready" ] || {
+	say 'zxdbg: watchdog feeders did not start'
+	while :; do sleep 3600; done
+}
+
+hostname sr1010-zxdbg 2>/dev/null || true
+ip link set lo up 2>/dev/null || true
+
+# Wait for deferred probe to settle (PHY -> MDIO -> nppt chain).
+i=0
+while [ $i -lt 20 ]; do
+	[ -e /sys/class/net/eth0 ] && break
+	[ -d /sys/bus/platform/drivers/zx279133-eth ] && \
+		[ $i -ge 5 ] && break
+	sleep 1
+	i=$((i + 1))
+done
+
+say ''
+say '=== SR1010 ZXDBG diagnostic ==='
+say "kernel: $(uname -r)"
+say ''
+say '--- probe status (dmesg) ---'
+dmesg | grep -iE "zx279133|nppt|19000000|zx279051|xpcs|serdes|efuse|reset|mdio|phy|defer" | tail -50
+say ''
+say '--- platform devices ---'
+ls /sys/bus/platform/devices/ | grep -iE "ethernet|nppt|19000000|14f02000|mdio" || say '  (none)'
+say '--- zx279133-eth driver bound? ---'
+if [ -d /sys/bus/platform/drivers/zx279133-eth ]; then
+	ls -l /sys/bus/platform/drivers/zx279133-eth/ 2>/dev/null | grep -E "19000000|ethernet" || say '  driver present, nothing bound (DEFER/fail)'
+else
+	say '  zx279133-eth driver dir missing'
+fi
+say '--- mdio buses / phys ---'
+ls /sys/bus/mdio_bus/devices/ 2>/dev/null || say '  no mdio_bus devices'
+
+say ''
+if [ -e /sys/class/net/eth0 ]; then
+	say '--- bringing eth0 up (192.168.1.1/24) ---'
+	ifconfig eth0 192.168.1.1 netmask 255.255.255.0 up
+	sleep 2
+	say '--- /proc/interrupts ---'
+	grep -E "ethernet|idm" /proc/interrupts
+	say '--- eth0 state ---'
+	cat /sys/class/net/eth0/operstate 2>/dev/null
+	ifconfig eth0
+else
+	say 'eth0 does NOT exist - driver made no netdev (see probe status above)'
+fi
+
+cat <<'EOF'
+
+=== Diagnostic cheatsheet ==================================================
+ ping -c 1 192.168.1.100
+ ifconfig eth0
+ cat /proc/interrupts
+ Raw IDM register peek (base 0x19280000):
+   devmem 0x19280000 32       # IDM_GLOBAL_CFG
+   devmem 0x192803fc 32       # IDM_DIAG
+ reboot -f to restart.
+=============================================================================
+EOF
+
+mount -t devpts devpts /dev/pts
+telnetd -l /bin/sh &
+iperf3 -s &
+
+while :; do
+	setsid cttyhack sh </dev/console >/dev/console 2>&1
+	say 'Shell exited; starting a new shell.'
+done

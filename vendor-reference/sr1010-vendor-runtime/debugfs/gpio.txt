@@ -1,0 +1,9 @@
+gpiochip0: GPIOs 0-15, parent: platform/10d10000.gpio, 10d10000.gpio:
+
+gpiochip1: GPIOs 16-31, parent: platform/10d10040.gpio, 10d10040.gpio:
+
+gpiochip2: GPIOs 32-47, parent: platform/10d10080.gpio, 10d10080.gpio:
+
+gpiochip3: GPIOs 48-63, parent: platform/10d100c0.gpio, 10d100c0.gpio:
+
+gpiochip4: GPIOs 64-79, parent: platform/10d10100.gpio, 10d10100.gpio:

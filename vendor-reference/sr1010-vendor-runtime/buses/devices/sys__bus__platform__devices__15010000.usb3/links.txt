@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/15010000.usb3
+driver=../../../../bus/platform/drivers/xhci-hcd
+of_node=../../../../firmware/devicetree/base/soc/usb3@15010000
+subsystem=../../../../bus/platform

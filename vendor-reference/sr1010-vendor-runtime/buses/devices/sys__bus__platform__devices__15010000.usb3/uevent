@@ -1,0 +1,6 @@
+DRIVER=xhci-hcd
+OF_NAME=usb3
+OF_FULLNAME=/soc/usb3@15010000
+OF_COMPATIBLE_0=generic-xhci
+OF_COMPATIBLE_N=1
+MODALIAS=of:Nusb3T(null)Cgeneric-xhci

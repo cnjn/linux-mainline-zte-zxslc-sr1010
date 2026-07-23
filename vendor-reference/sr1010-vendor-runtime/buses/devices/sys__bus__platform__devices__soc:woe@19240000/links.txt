@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/soc:woe@19240000
+driver=
+of_node=../../../../firmware/devicetree/base/soc/woe@19240000
+subsystem=../../../../bus/platform

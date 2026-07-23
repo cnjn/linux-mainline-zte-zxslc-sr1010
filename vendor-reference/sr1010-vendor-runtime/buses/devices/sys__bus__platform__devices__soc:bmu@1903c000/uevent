@@ -1,0 +1,5 @@
+OF_NAME=bmu
+OF_FULLNAME=/soc/bmu@1903c000
+OF_COMPATIBLE_0=zte,zx279133-bmu-ddr
+OF_COMPATIBLE_N=1
+MODALIAS=of:NbmuT(null)Czte,zx279133-bmu-ddr

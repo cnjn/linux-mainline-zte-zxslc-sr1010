@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/17000000.pon
+driver=../../../../bus/platform/drivers/zte,zx279133-pon
+of_node=../../../../firmware/devicetree/base/soc/pon@17000000
+subsystem=../../../../bus/platform

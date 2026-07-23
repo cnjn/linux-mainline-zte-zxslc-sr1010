@@ -1,0 +1,22 @@
+
+T:  Bus=01 Lev=00 Prnt=00 Port=00 Cnt=00 Dev#=  1 Spd=480  MxCh= 1
+B:  Alloc=  0/800 us ( 0%), #Int=  0, #Iso=  0
+D:  Ver= 2.00 Cls=09(hub  ) Sub=00 Prot=01 MxPS=64 #Cfgs=  1
+P:  Vendor=1d6b ProdID=0002 Rev= 5.04
+S:  Manufacturer=Linux 5.4.196 xhci-hcd
+S:  Product=xHCI Host Controller
+S:  SerialNumber=15010000.usb3
+C:* #Ifs= 1 Cfg#= 1 Atr=e0 MxPwr=  0mA
+I:* If#= 0 Alt= 0 #EPs= 1 Cls=09(hub  ) Sub=00 Prot=00 Driver=hub
+E:  Ad=81(I) Atr=03(Int.) MxPS=   4 Ivl=256ms
+
+T:  Bus=02 Lev=00 Prnt=00 Port=00 Cnt=00 Dev#=  1 Spd=10000 MxCh= 1
+B:  Alloc=  0/800 us ( 0%), #Int=  0, #Iso=  0
+D:  Ver= 3.10 Cls=09(hub  ) Sub=00 Prot=03 MxPS= 9 #Cfgs=  1
+P:  Vendor=1d6b ProdID=0003 Rev= 5.04
+S:  Manufacturer=Linux 5.4.196 xhci-hcd
+S:  Product=xHCI Host Controller
+S:  SerialNumber=15010000.usb3
+C:* #Ifs= 1 Cfg#= 1 Atr=e0 MxPwr=  0mA
+I:* If#= 0 Alt= 0 #EPs= 1 Cls=09(hub  ) Sub=00 Prot=00 Driver=hub
+E:  Ad=81(I) Atr=03(Int.) MxPS=   4 Ivl=256ms

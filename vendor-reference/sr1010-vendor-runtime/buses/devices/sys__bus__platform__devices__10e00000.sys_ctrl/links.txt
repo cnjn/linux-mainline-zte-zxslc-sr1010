@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/10e00000.sys_ctrl
+driver=
+of_node=../../../../firmware/devicetree/base/soc/sys_ctrl
+subsystem=../../../../bus/platform

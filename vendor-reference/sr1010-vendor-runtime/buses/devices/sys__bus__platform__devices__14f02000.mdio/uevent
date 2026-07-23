@@ -1,0 +1,7 @@
+DRIVER=zx_mdio
+OF_NAME=mdio
+OF_FULLNAME=/soc/mdio@14f02000
+OF_COMPATIBLE_0=zte,zx-mdio
+OF_COMPATIBLE_N=1
+OF_ALIAS_0=mdio1
+MODALIAS=of:NmdioT(null)Czte,zx-mdio

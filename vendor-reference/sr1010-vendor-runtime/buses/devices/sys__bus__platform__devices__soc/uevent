@@ -1,0 +1,5 @@
+OF_NAME=soc
+OF_FULLNAME=/soc
+OF_COMPATIBLE_0=simple-bus
+OF_COMPATIBLE_N=1
+MODALIAS=of:NsocT(null)Csimple-bus

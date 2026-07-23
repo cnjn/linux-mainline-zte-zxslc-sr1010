@@ -1,0 +1,36 @@
+dir /dev 0755 0 0
+nod /dev/console 0600 0 0 c 5 1
+nod /dev/null 0666 0 0 c 1 3
+dir /proc 0555 0 0
+dir /sys 0555 0 0
+dir /run 0755 0 0
+dir /root 0755 0 0
+dir /bin 0755 0 0
+dir /sbin 0755 0 0
+dir /usr 0755 0 0
+dir /usr/bin 0755 0 0
+dir /usr/sbin 0755 0 0
+dir /tmp 0755 0 0
+file /init /Volumes/code/zx279133/out/rootfs/init 0755 0 0
+file /bin/busybox /Volumes/code/zx279133/out/rootfs/bin/busybox 0755 0 0
+file /bin/iperf3 /Volumes/code/zx279133/out/rootfs/bin/iperf3 0755 0 0
+slink /bin/sh /bin/busybox 0755 0 0
+slink /bin/ash /bin/busybox 0755 0 0
+slink /bin/mount /bin/busybox 0755 0 0
+slink /bin/cat /bin/busybox 0755 0 0
+slink /bin/ls /bin/busybox 0755 0 0
+slink /bin/grep /bin/busybox 0755 0 0
+slink /bin/sleep /bin/busybox 0755 0 0
+slink /bin/ip /bin/busybox 0755 0 0
+slink /bin/ifconfig /bin/busybox 0755 0 0
+slink /bin/ping /bin/busybox 0755 0 0
+slink /bin/route /bin/busybox 0755 0 0
+slink /bin/dmesg /bin/busybox 0755 0 0
+slink /bin/devmem /bin/busybox 0755 0 0
+slink /bin/cttyhack /bin/busybox 0755 0 0
+slink /bin/watchdog /bin/busybox 0755 0 0
+slink /bin/hostname /bin/busybox 0755 0 0
+slink /bin/printf /bin/busybox 0755 0 0
+slink /bin/kill /bin/busybox 0755 0 0
+slink /bin/uname /bin/busybox 0755 0 0
+slink /bin/reboot /bin/busybox 0755 0 0

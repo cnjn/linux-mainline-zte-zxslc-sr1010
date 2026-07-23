@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/10e10060.toprst
+driver=../../../../bus/platform/drivers/zx2967-reset
+of_node=../../../../firmware/devicetree/base/soc/toprst@10e10060
+subsystem=../../../../bus/platform

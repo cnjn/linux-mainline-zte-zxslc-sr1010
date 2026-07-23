@@ -1,0 +1,6 @@
+DRIVER=zx_pvt_sensor_cln22ulp
+OF_NAME=pvt
+OF_FULLNAME=/soc/pvt@10e70000
+OF_COMPATIBLE_0=zxic,zx-pvt-sensor-cln22ulp
+OF_COMPATIBLE_N=1
+MODALIAS=of:NpvtT(null)Czxic,zx-pvt-sensor-cln22ulp

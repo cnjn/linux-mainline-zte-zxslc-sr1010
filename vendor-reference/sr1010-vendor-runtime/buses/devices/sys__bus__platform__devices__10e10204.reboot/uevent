@@ -1,0 +1,5 @@
+OF_NAME=reboot
+OF_FULLNAME=/soc/reboot@10e10204
+OF_COMPATIBLE_0=zxic,zx-reboot
+OF_COMPATIBLE_N=1
+MODALIAS=of:NrebootT(null)Czxic,zx-reboot

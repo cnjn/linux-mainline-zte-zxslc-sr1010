@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/soc:bmu@1903c000
+driver=
+of_node=../../../../firmware/devicetree/base/soc/bmu@1903c000
+subsystem=../../../../bus/platform

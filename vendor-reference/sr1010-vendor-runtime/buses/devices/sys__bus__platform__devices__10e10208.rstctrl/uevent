@@ -1,0 +1,6 @@
+OF_NAME=rstctrl
+OF_FULLNAME=/soc/rstctrl
+OF_COMPATIBLE_0=zxic,zx-rstctrl
+OF_COMPATIBLE_1=syscon
+OF_COMPATIBLE_N=2
+MODALIAS=of:NrstctrlT(null)Czxic,zx-rstctrlCsyscon

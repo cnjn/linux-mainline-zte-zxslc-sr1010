@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    // "ida-pro-mcp": {
+    //   "type": "remote",
+    //   "url": "http://127.0.0.1:13337/mcp",
+    //   "enabled": true
+    // }
+    "idalib-mcp": {
+      "type": "local",
+      "command": ["idalib-mcp", "--stdio"]
+    }
+  }
+}

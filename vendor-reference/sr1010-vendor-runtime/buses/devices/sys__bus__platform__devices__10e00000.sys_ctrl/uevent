@@ -1,0 +1,6 @@
+OF_NAME=sys_ctrl
+OF_FULLNAME=/soc/sys_ctrl
+OF_COMPATIBLE_0=zte,zx279133-sysctrl
+OF_COMPATIBLE_1=syscon
+OF_COMPATIBLE_N=2
+MODALIAS=of:Nsys_ctrlT(null)Czte,zx279133-sysctrlCsyscon

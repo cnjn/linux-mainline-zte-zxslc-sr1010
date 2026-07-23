@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/14f09000.wdt
+driver=../../../../bus/platform/drivers/zx_wdt
+of_node=../../../../firmware/devicetree/base/soc/wdt@14f09000
+subsystem=../../../../bus/platform

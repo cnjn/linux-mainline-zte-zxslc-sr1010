@@ -1,0 +1,61 @@
+Character devices:
+  1 mem
+  2 pty
+  3 ttyp
+  4 /dev/vc/0
+  4 tty
+  5 /dev/tty
+  5 /dev/console
+  5 /dev/ptmx
+  7 vcs
+ 10 misc
+ 13 input
+ 21 sg
+ 86 ch
+ 89 i2c
+ 90 mtd
+ 99 logger_main
+104 switch_dev
+106 peripheral
+107 pse_dev
+108 ppp
+128 ptm
+133 ioctl_dev
+134 boardcfg
+136 pts
+153 spi
+166 ttyACM
+180 usb
+188 ttyUSB
+189 usb_device
+191 msoft_debug_dev
+204 ttyAMA
+222 fpga
+251 bsg
+252 watchdog
+253 rpmsg
+254 gpiochip
+
+Block devices:
+  1 ramdisk
+  7 loop
+  8 sd
+ 31 mtdblock
+ 43 nbd
+ 65 sd
+ 66 sd
+ 67 sd
+ 68 sd
+ 69 sd
+ 70 sd
+ 71 sd
+128 sd
+129 sd
+130 sd
+131 sd
+132 sd
+133 sd
+134 sd
+135 sd
+254 ubiblock
+259 blkext

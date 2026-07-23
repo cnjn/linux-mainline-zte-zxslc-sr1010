@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/top_divider
+driver=
+of_node=../../../firmware/devicetree/base/top_divider
+subsystem=../../../bus/platform

@@ -1,0 +1,6 @@
+DRIVER=zte,zx279133-pon
+OF_NAME=pon
+OF_FULLNAME=/soc/pon@17000000
+OF_COMPATIBLE_0=zte,zx279133-pon
+OF_COMPATIBLE_N=1
+MODALIAS=of:NponT(null)Czte,zx279133-pon

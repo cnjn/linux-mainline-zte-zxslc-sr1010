@@ -1,0 +1,6 @@
+DRIVER=zx2967-reset
+OF_NAME=localrst
+OF_FULLNAME=/soc/localrst@10e10070
+OF_COMPATIBLE_0=zte,zx296718-reset
+OF_COMPATIBLE_N=1
+MODALIAS=of:NlocalrstT(null)Czte,zx296718-reset

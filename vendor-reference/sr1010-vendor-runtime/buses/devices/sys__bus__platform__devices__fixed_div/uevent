@@ -1,0 +1,5 @@
+OF_NAME=fixed_div
+OF_FULLNAME=/fixed_div
+OF_COMPATIBLE_0=simple-bus
+OF_COMPATIBLE_N=1
+MODALIAS=of:Nfixed_divT(null)Csimple-bus

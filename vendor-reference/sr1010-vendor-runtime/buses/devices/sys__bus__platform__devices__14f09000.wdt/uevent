@@ -1,0 +1,7 @@
+DRIVER=zx_wdt
+OF_NAME=wdt
+OF_FULLNAME=/soc/wdt@14f09000
+OF_COMPATIBLE_0=zte,lsp1-watchdog
+OF_COMPATIBLE_N=1
+OF_ALIAS_0=wdt0
+MODALIAS=of:NwdtT(null)Czte,lsp1-watchdog

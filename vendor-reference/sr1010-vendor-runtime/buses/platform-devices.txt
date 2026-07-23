@@ -1,0 +1,55 @@
+total 0
+drwxr-xr-x    2 root     root             0 Jan  1 00:06 .
+drwxr-xr-x    4 root     root             0 Jan  1 00:06 ..
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10d00000.lsp_crm -> ../../../devices/platform/soc/10d00000.lsp_crm
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10d0f000.spifc -> ../../../devices/platform/soc/10d0f000.spifc
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10d10000.gpio -> ../../../devices/platform/soc/10d10000.gpio
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10d10040.gpio -> ../../../devices/platform/soc/10d10040.gpio
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10d10080.gpio -> ../../../devices/platform/soc/10d10080.gpio
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10d100c0.gpio -> ../../../devices/platform/soc/10d100c0.gpio
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10d10100.gpio -> ../../../devices/platform/soc/10d10100.gpio
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10e00000.sys_ctrl -> ../../../devices/platform/soc/10e00000.sys_ctrl
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10e10000.topcrm -> ../../../devices/platform/soc/10e10000.topcrm
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10e10060.toprst -> ../../../devices/platform/soc/10e10060.toprst
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10e10070.localrst -> ../../../devices/platform/soc/10e10070.localrst
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10e10170.boot_ctrl -> ../../../devices/platform/soc/10e10170.boot_ctrl
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10e10204.reboot -> ../../../devices/platform/soc/10e10204.reboot
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10e10208.rstctrl -> ../../../devices/platform/soc/10e10208.rstctrl
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10e20000.pinctrl -> ../../../devices/platform/soc/10e20000.pinctrl
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 10e70000.pvt -> ../../../devices/platform/soc/10e70000.pvt
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 14f00000.lsp_crm -> ../../../devices/platform/soc/14f00000.lsp_crm
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 14f01000.mdio -> ../../../devices/platform/soc/14f01000.mdio
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 14f02000.mdio -> ../../../devices/platform/soc/14f02000.mdio
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 14f03000.i2c -> ../../../devices/platform/soc/14f03000.i2c
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 14f04000.i2c -> ../../../devices/platform/soc/14f04000.i2c
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 14f09000.wdt -> ../../../devices/platform/soc/14f09000.wdt
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 14f0a000.wdt -> ../../../devices/platform/soc/14f0a000.wdt
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 14f11000.efuse -> ../../../devices/platform/soc/14f11000.efuse
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 15010000.usb3 -> ../../../devices/platform/soc/15010000.usb3
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 17000000.pon -> ../../../devices/platform/soc/17000000.pon
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 Fixed MDIO bus.0 -> ../../../devices/platform/Fixed MDIO bus.0
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 cpufreq-dt -> ../../../devices/platform/cpufreq-dt
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 fixed_div -> ../../../devices/platform/fixed_div
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 lsp0_clk -> ../../../devices/platform/lsp0_clk
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 np -> ../../../devices/platform/np
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 psci -> ../../../devices/platform/psci
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 reg-dummy -> ../../../devices/platform/reg-dummy
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 regulatory.0 -> ../../../devices/platform/regulatory.0
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc -> ../../../devices/platform/soc
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:bdinfo@0 -> ../../../devices/platform/soc/soc:bdinfo@0
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:bmu@1903c000 -> ../../../devices/platform/soc/soc:bmu@1903c000
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:key_maps -> ../../../devices/platform/soc/soc:key_maps
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:keys -> ../../../devices/platform/soc/soc:keys
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:leds -> ../../../devices/platform/soc/soc:leds
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:pon_plat -> ../../../devices/platform/soc/soc:pon_plat
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:regulator@cpu -> ../../../devices/platform/soc/soc:regulator@cpu
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:se@18040000 -> ../../../devices/platform/soc/soc:se@18040000
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:wifi0@f00000 -> ../../../devices/platform/soc/soc:wifi0@f00000
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:wifi1@f00000 -> ../../../devices/platform/soc/soc:wifi1@f00000
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 soc:woe@19240000 -> ../../../devices/platform/soc/soc:woe@19240000
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 timer -> ../../../devices/platform/timer
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 top_divider -> ../../../devices/platform/top_divider
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 top_fixed -> ../../../devices/platform/top_fixed
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 top_gate -> ../../../devices/platform/top_gate
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 top_mux -> ../../../devices/platform/top_mux
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 top_pll -> ../../../devices/platform/top_pll

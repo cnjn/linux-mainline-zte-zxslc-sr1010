@@ -1,0 +1,6 @@
+DRIVER=zx-spifc
+OF_NAME=spifc
+OF_FULLNAME=/soc/spifc@0x10d0f000
+OF_COMPATIBLE_0=zxic,zx-spifc
+OF_COMPATIBLE_N=1
+MODALIAS=of:NspifcT(null)Czxic,zx-spifc

@@ -1,0 +1,11 @@
+dev:    size   erasesize  name
+mtd0: 08000000 00020000 "whole flash"
+mtd1: 00100000 00020000 "bootloader"
+mtd2: 00100000 00020000 "tags"
+mtd3: 00200000 00020000 "usercfg"
+mtd4: 00200000 00020000 "defcfg"
+mtd5: 02900000 00020000 "kernel1"
+mtd6: 02900000 00020000 "kernel2"
+mtd7: 02900000 00020000 "rootfs1"
+mtd8: 02200000 00020000 "rootfs2"
+mtd9: 02800000 00020000 "Plugin"

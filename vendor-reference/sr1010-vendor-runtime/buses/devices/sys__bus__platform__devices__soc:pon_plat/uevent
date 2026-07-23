@@ -1,0 +1,5 @@
+OF_NAME=pon_plat
+OF_FULLNAME=/soc/pon_plat
+OF_COMPATIBLE_0=zxic,pon-plat
+OF_COMPATIBLE_N=1
+MODALIAS=of:Npon_platT(null)Czxic,pon-plat

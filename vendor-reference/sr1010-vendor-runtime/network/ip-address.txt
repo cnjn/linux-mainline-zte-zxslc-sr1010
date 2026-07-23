@@ -1,0 +1,42 @@
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 brd 127.255.255.255 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: ifb0: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN qlen 32
+    link/ether 56:f0:3a:61:5c:61 brd ff:ff:ff:ff:ff:ff
+3: ifb1: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN qlen 32
+    link/ether 0a:3d:19:fb:f7:42 brd ff:ff:ff:ff:ff:ff
+4: sit0@NONE: <NOARP> mtu 1480 qdisc noop state DOWN qlen 1000
+    link/sit 0.0.0.0 brd 0.0.0.0
+5: ip6tnl0@NONE: <NOARP> mtu 1452 qdisc noop state DOWN qlen 1000
+    link/tunnel6 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00 brd 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+6: sw: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN qlen 1000
+    link/ether 00:d0:d0:81:82:01 brd ff:ff:ff:ff:ff:ff
+7: pon: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN qlen 1000
+    link/ether 00:d0:d0:81:82:00 brd ff:ff:ff:ff:ff:ff
+8: oam: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN qlen 1000
+    link/ether 00:d0:d0:81:82:02 brd ff:ff:ff:ff:ff:ff
+9: idm: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN qlen 1000
+    link/ether 00:d0:d0:81:82:03 brd ff:ff:ff:ff:ff:ff
+10: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP100> mtu 1500 qdisc fq_codel state UP qlen 1000
+    link/ether 7c:7d:21:b9:c1:3a brd ff:ff:ff:ff:ff:ff
+11: eth1: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc fq_codel master br0 state DOWN qlen 1000
+    link/ether 7c:7d:21:b9:c1:3a brd ff:ff:ff:ff:ff:ff
+12: eth2: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc fq_codel master br0 state DOWN qlen 1000
+    link/ether 7c:7d:21:b9:c1:3a brd ff:ff:ff:ff:ff:ff
+13: eth3: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc fq_codel master br0 state DOWN qlen 1000
+    link/ether 7c:7d:21:b9:c1:3a brd ff:ff:ff:ff:ff:ff
+14: eth4: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc fq_codel master br0 state DOWN qlen 1000
+    link/ether 7c:7d:21:b9:c1:3a brd ff:ff:ff:ff:ff:ff
+15: br0: <NO-CARRIER,BROADCAST,MULTICAST,UP200> mtu 1500 qdisc noqueue state DOWN qlen 1000
+    link/ether 7c:7d:21:b9:c1:3a brd ff:ff:ff:ff:ff:ff
+    inet 192.168.5.1/24 brd 192.168.5.255 scope global br0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::5/128 scope link 
+       valid_lft forever preferred_lft forever
+16: nbif0: <BROADCAST,MULTICAST,UP,LOWER_UP200> mtu 1480 qdisc fq_codel state UNKNOWN qlen 100
+    link/ether 7c:7d:21:b9:c1:3a brd ff:ff:ff:ff:ff:ff
+    inet 192.168.2.2/24 brd 192.168.2.255 scope global nbif0
+       valid_lft forever preferred_lft forever

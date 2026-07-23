@@ -1,0 +1,5 @@
+OF_NAME=woe
+OF_FULLNAME=/soc/woe@19240000
+OF_COMPATIBLE_0=zte,zx279133-woe-ddr
+OF_COMPATIBLE_N=1
+MODALIAS=of:NwoeT(null)Czte,zx279133-woe-ddr

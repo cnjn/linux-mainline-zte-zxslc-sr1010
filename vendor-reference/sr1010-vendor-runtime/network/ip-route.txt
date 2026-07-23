@@ -1,0 +1,29 @@
+192.168.5.0/24 dev br0 table 1 scope link  src 192.168.5.1 
+default via 192.168.2.1 dev nbif0 table 2  src 192.168.2.2 
+192.168.2.0/24 dev nbif0 table 2 scope link  src 192.168.2.2 
+192.168.5.0/24 dev br0 table 250 scope link  src 192.168.5.1 
+default via 192.168.2.1 dev nbif0  src 192.168.2.2 
+192.168.2.0/24 dev nbif0 scope link  src 192.168.2.2 
+192.168.5.0/24 dev br0 scope link  src 192.168.5.1 
+broadcast 127.0.0.0 dev lo table local scope link  src 127.0.0.1 
+local 127.0.0.0/8 dev lo table local scope host  src 127.0.0.1 
+local 127.0.0.1 dev lo table local scope host  src 127.0.0.1 
+broadcast 127.255.255.255 dev lo table local scope link  src 127.0.0.1 
+broadcast 192.168.2.0 dev nbif0 table local scope link  src 192.168.2.2 
+local 192.168.2.2 dev nbif0 table local scope host  src 192.168.2.2 
+broadcast 192.168.2.255 dev nbif0 table local scope link  src 192.168.2.2 
+broadcast 192.168.5.0 dev br0 table local scope link  src 192.168.5.1 
+local 192.168.5.1 dev br0 table local scope host  src 192.168.5.1 
+broadcast 192.168.5.255 dev br0 table local scope link  src 192.168.5.1 
+fe80::/64 dev br0 table 1  metric 1024 
+default dev br0 table 1  metric 2048 
+fe80::5 dev br0  metric 256 
+fe80::/64 dev br0  metric 256 
+local ::1 dev lo table local  metric 0 
+local fe80::5 dev br0 table local  metric 0 
+multicast ff00::/8 dev pon table local  metric 256 
+multicast ff00::/8 dev sw table local  metric 256 
+multicast ff00::/8 dev idm table local  metric 256 
+multicast ff00::/8 dev br0 table local  metric 256 
+multicast ff00::/8 dev eth0 table local  metric 256 
+multicast ff00::/8 dev nbif0 table local  metric 256 

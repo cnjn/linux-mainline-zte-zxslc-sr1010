@@ -1,0 +1,855 @@
+Booting Linux on physical CPU 0x0000000000 [0x410fd034]
+Linux version 5.4.196 (root@51b19664af4f) (gcc version 5.3.1 20160412 (Buildroot 2017.05)) #2 SMP Tue Jun 9 14:23:49 CST 2026
+Machine model: ZTE 133
+Memory limited to 512MB
+modename:bbx	addr:9d600000	size:000f4000,8
+zte13x mem size 20000000 reserve memory 9d700000/2900000
+idm    :off:9d700000, size:a00000B,912800B
+sehash :off:9e100000, size:1000000B
+seddr  :off:9f100000, size:0B
+bmu    :off:9f100000, size:f00000B,ecc000B
+zte13x mem size 20000000 reserve memory 9d700000/2900000
+On node 0 totalpages: 131072
+  DMA32 zone: 2048 pages used for memmap
+  DMA32 zone: 0 pages reserved
+  DMA32 zone: 131072 pages, LIFO batch:31
+psci: probing for conduit method from DT.
+psci: PSCIv1.0 detected in firmware.
+psci: Using standard PSCI v0.2 function IDs
+psci: Trusted OS migration not required
+psci: SMC Calling Convention v1.0
+percpu: Embedded 48 pages/cpu s156888 r8192 d31528 u196608
+pcpu-alloc: s156888 r8192 d31528 u196608 alloc=48*4096
+pcpu-alloc: [0] 0 [0] 1 
+Detected VIPT I-cache on CPU0
+CPU features: detected: ARM erratum 845719
+CPU features: detected: GIC system register CPU interface
+Built 1 zonelists, mobility grouping on.  Total pages: 129024
+Kernel command line: console=ttyAMA0,115200n8 root=/dev/mtdblock8 ro rootfstype=jffs2 mem=512M serial=open pcie_pme=nomsi
+Dentry cache hash table entries: 65536 (order: 7, 524288 bytes, linear)
+Inode-cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+mem auto-init: stack:off, heap alloc:off, heap free:off
+Memory: 456460K/524288K available (7550K kernel code, 774K rwdata, 2844K rodata, 512K init, 2440K bss, 67828K reserved, 0K cma-reserved)
+Virtual kernel memory layout:
+    vmalloc : 0xffffffc010000000 - 0xfffffffebfff0000   (   250 GB)
+    vmemmap : 0xfffffffeffe00000 - 0xffffffffffe00000   (     4 GB maximum)
+              0xfffffffeffe00000 - 0xffffffff00600000   (     8 MB actual)
+    fixed   : 0xfffffffefe5f9000 - 0xfffffffefea00000   (  4124 KB)
+    PCI I/O : 0xfffffffefec00000 - 0xfffffffeffc00000   (    16 MB)
+    modules : 0xffffffc008000000 - 0xffffffc010000000   (   128 MB)
+    memory  : 0xffffff8000000000 - 0xffffff8020000000   (   512 MB)
+      .init : 0xffffffc010ab0000 - 0xffffffc010b30000   (   512 KB)
+      .text : 0xffffffc010080000 - 0xffffffc0107e0000   (  7552 KB)
+      .data : 0xffffffc010b30000 - 0xffffffc010bf1808   (   775 KB)
+SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+rcu: Hierarchical RCU implementation.
+rcu: 	RCU event tracing is enabled.
+rcu: RCU calculated value of scheduler-enlistment delay is 10 jiffies.
+NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+GICv3: 224 SPIs implemented
+GICv3: 0 Extended SPIs implemented
+GICv3: Distributor has no Range Selector support
+GICv3: 16 PPIs implemented
+GICv3: no VLPI support, no direct LPI support
+GICv3: CPU0: found redistributor 0 region 0:0x0000000000540000
+random: get_random_bytes called from start_kernel+0x2c8/0x3ec with crng_init=0
+clk_common: pll_2000m_clk:register pll
+clk_common: func of_zx_clk_parse_pll nr rate is 6 
+clk_common: pll_2000m_clk:no paticular pll-enable-register, use default cfg reg
+clk_common: pll_lsp_2000m_clk:register pll
+clk_common: pll_lsp_2000m_clk:failed to find property zx-clock,pll-en-bit
+clk_common: pll_1376m_clk:register pll
+clk_common: pll_1376m_clk:failed to find property zx-clock,pll-en-bit
+clk_common: pll_fpp_2500m_clk:register pll
+clk_common: pll_fpp_2500m_clk:failed to find property zx-clock,pll-en-bit
+arch_timer: cp15 timer(s) running at 25.00MHz (virt).
+clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x5c40939b5, max_idle_ns: 440795202646 ns
+sched_clock: 56 bits at 25MHz, resolution 40ns, wraps every 4398046511100ns
+Console: colour dummy device 80x25
+Calibrating delay loop (skipped), value calculated using timer frequency.. 50.00 BogoMIPS (lpj=250000)
+pid_max: default: 32768 minimum: 301
+Mount-cache hash table entries: 1024 (order: 1, 8192 bytes, linear)
+Mountpoint-cache hash table entries: 1024 (order: 1, 8192 bytes, linear)
+ASID allocator initialised with 32768 entries
+rcu: Hierarchical SRCU implementation.
+BMU_TOTAL_SIZE=ecc000,zte13x_arch_early_init
+IDM_TOTAL_SIZE=912800,zte13x_arch_early_init
+__lsp0crpm_base=0xffffffc010045000,__lsp1crpm_base=0xffffffc01004d000
+__pinmux_base=0xffffffc010055000,__topcrm_base=0xffffffc010f10000,
+__sysctrl_base=0x0,__gpio_base=0xffffffc01005d000,
+smp: Bringing up secondary CPUs ...
+Detected VIPT I-cache on CPU1
+GICv3: CPU1: found redistributor 1 region 0:0x0000000000560000
+CPU1: Booted secondary processor 0x0000000001 [0x410fd034]
+smp: Brought up 1 node, 2 CPUs
+SMP: Total of 2 processors activated.
+CPU features: detected: 32-bit EL0 Support
+CPU features: detected: CRC32 instructions
+CPU: All CPU(s) started at EL1
+alternatives: patching kernel code
+devtmpfs: initialized
+clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+futex hash table entries: 512 (order: 3, 32768 bytes, linear)
+pinctrl core: initialized pinctrl subsystem
+regulator-dummy: no parameters
+NET: Registered protocol family 16
+product_vid = 23
+product_vid is 23, current_board id is 23, current name is SR1010.
+DMA: preallocated 256 KiB pool for atomic allocations
+cpuidle: using governor ladder
+NET: Registered protocol family 42
+11930:22:52 [Klogctl][Info] [(558)LogCtlInit] LogCtlInit begin
+11930:22:52 [Klogctl][Info] [(571)LogCtlInit] LogCtlInit end
+11930:22:52 [KernOSS][Notice] [oss_kernel_comm(663)KernOssInit]  kernel oss init... !  
+hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+Serial: AMBA PL011 UART driver
+zx reset init
+zx2967-reset 10e10060.toprst: reset controller cnt:32
+zx2967-reset 10e10070.localrst: reset controller cnt:64
+zxic-pinctrl 10e20000.pinctrl: invalid pin list in gpio-range node
+zxic-pinctrl 10e20000.pinctrl: invalid pin list in bank-range node
+10d0d000.serial: ttyAMA0 at MMIO 0x10d0d000 (irq = 14, base_baud = 0) is a PL011 rev1
+printk: console [ttyAMA0] enabled
+zx-efuse 14f11000.efuse: efuse init ok, clock rate = 25000000
+vgaarb: loaded
+SCSI subsystem initialized
+usbcore: registered new interface driver usbfs
+usbcore: registered new interface driver hub
+usbcore: registered new device driver usb
+clocksource: Switched to clocksource arch_sys_counter
+VFS: Disk quotas dquot_6.6.0
+VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+zx_gpio 10d10000.gpio: ZX GPIO chip registered
+product_vid = 23
+current_board = 0x(____ptrval____)
+0: writing reg 0x10055000 val 0x2e78b6db
+read out val is 0x2e78b6db
+1: writing reg 0x10055004 val 0xa49549
+read out val is 0xa49549
+2: writing reg 0x10055008 val 0xfc17f0
+read out val is 0xfc17f0
+3: writing reg 0x1005500c val 0x5569b6db
+read out val is 0x5569b6db
+4: writing reg 0x10055010 val 0xfc5
+read out val is 0xfc5
+5: writing reg 0x10055014 val 0xfb
+read out val is 0xfb
+rstDelay 0
+zx_gpio 10d10040.gpio: ZX GPIO chip registered
+zx_gpio 10d10080.gpio: ZX GPIO chip registered
+zx_gpio 10d100c0.gpio: ZX GPIO chip registered
+zx_gpio 10d10100.gpio: ZX GPIO chip registered
+NET: Registered protocol family 2
+IP idents hash table entries: 8192 (order: 4, 65536 bytes, linear)
+tcp_listen_portaddr_hash hash table entries: 256 (order: 0, 4096 bytes, linear)
+TCP established hash table entries: 4096 (order: 3, 32768 bytes, linear)
+TCP bind hash table entries: 4096 (order: 4, 65536 bytes, linear)
+TCP: Hash tables configured (established 4096 bind 4096)
+UDP hash table entries: 256 (order: 1, 8192 bytes, linear)
+UDP-Lite hash table entries: 256 (order: 1, 8192 bytes, linear)
+NET: Registered protocol family 1
+PCI: CLS 0 bytes, default 64
+Initialise system trusted keyrings
+workingset: timestamp_bits=46 max_order=17 bucket_order=0
+squashfs: version 4.0 (2009/01/31) Phillip Lougher
+ntfs3: Index binary search
+ntfs3: Hot fix free clusters
+ntfs3: Max link count 1024
+ntfs3: Enabled Linux POSIX ACLs support
+ntfs3: Activated 32 bits per cluster
+jffs2: version 2.2. (NAND) © 2001-2006 Red Hat, Inc.
+fuse: init (API version 7.31)
+Key type asymmetric registered
+Asymmetric key parser 'x509' registered
+Block layer SCSI generic (bsg) driver version 0.4 loaded (major 251)
+io scheduler mq-deadline registered
+io scheduler kyber registered
+zx_mdio 14f01000.mdio: Failed to get mdio pins
+zx_mdio 14f01000.mdio: Cannot found phy-power property in mdio
+zx_mdio 14f01000.mdio: MDIO id = 0, clock = 2500000
+zx_mdio 14f01000.mdio: MDIO probe success!
+zx_mdio 14f02000.mdio: Failed to get mdio pins
+zx_mdio 14f02000.mdio: MDIO id = 1, clock = 2500000
+zx_mdio 14f02000.mdio: MDIO probe success!
+zx_i2c 14f03000.i2c: zx_i2c_probe
+zx_i2c 14f03000.i2c: Failed to get i2c pins
+zx_i2c 14f03000.i2c: before i2c_add_numbered_adapter i2c->adap.nr is -1
+zx_i2c 14f03000.i2c: adapter_id is 0
+zx_i2c 14f03000.i2c: after i2c_add_numbered_adapter i2c->adap.nr is 0
+random: fast init done
+zx_i2c 14f03000.i2c: clock rate is 25000000
+zx_i2c 14f03000.i2c: zx i2c0 probe succeed.
+zx_i2c 14f04000.i2c: zx_i2c_probe
+zx_i2c 14f04000.i2c: Failed to get i2c pins
+zx_i2c 14f04000.i2c: before i2c_add_numbered_adapter i2c->adap.nr is -1
+zx_i2c 14f04000.i2c: adapter_id is 1
+zx_i2c 14f04000.i2c: after i2c_add_numbered_adapter i2c->adap.nr is 1
+zx_i2c 14f04000.i2c: clock rate is 25000000
+zx_i2c 14f04000.i2c: zx i2c1 probe succeed.
+zx_pvt_sensor_cln22ulp 10e70000.pvt: Enabled with temp 0x193
+zx_thermal_init end
+zx_pvt_sensor_cln22ulp 10e70000.pvt: probe ok, clock rate: 1190477
+(556):create proc files for watchdog!!!
+(561):Starting Watchdog Timer...
+wdt debug: nr_cpu_ids= 2
+zxwdt[0]: heartbeat 16 sec, clock 1024
+(561):Starting Watchdog Timer...
+wdt debug: nr_cpu_ids= 2
+zxwdt[1]: heartbeat 16 sec, clock 1024
+enable watchdog now
+cpufreq_zx: zx_cpufreq_driver_init
+pwm-regulator soc:regulator@cpu: Failed to get PWM: -517
+cacheinfo: Unable to detect cache hierarchy for CPU 0
+brd: module loaded
+loop: module loaded
+SCSI Media Changer driver v0.25 
+zx_sfc_probe: enter
+zx-spifc 10d0f000.spifc: spifc rate is set to 100000000
+flashid:ff,ef,ae,21
+flashid:ef,ae,21,0
+flashid:ef,ae,21,0
+spi-nand spi0.0: Winbond SPI NAND was found.
+spi-nand spi0.0: 128 MiB, block size: 128 KiB, page size: 2048, OOB size: 64
+dynamic partitions parse
+Found 128MiB: 256MiB
+Found 128MiB: 128MiB
+10 dynamic-partitions partitions found on MTD device spi0.0
+pdt_verinfo_init: tcVerInfo->RunMode[3]
+bootPara.bootWhichImg=1
+bootPara.search_info_tbl[0].flashOffset=0x 2ee0000
+sHardVersion=V1.0.0
+--runmode=3------
+--VersionStates[0].FlashOffset= 2ee0000------
+--VersionStates[0].NewVersion=       0------
+--VersionStates[0].Integrity=       0------
+--VersionStates[0].CheckSum=       0------
+--VersionStates[0].Flags=      81------
+--VersionStates[0].ImageType=       0------
+--[0]low:0x600000 high:0x2f00000------
+--VersionStates[1].FlashOffset= 57e0000------
+--VersionStates[1].NewVersion=       0------
+--VersionStates[1].Integrity=       0------
+--VersionStates[1].CheckSum=       0------
+--VersionStates[1].Flags=      a3------
+--VersionStates[1].ImageType=       0------
+--[1]low:0x600000 high:0x2f00000------
+##########u32CurrBaseAddress=35e0000,1
+tmpname = rootfs2
+kernel=kernel2,2f00000,2900000
+FS size=2200000,offset=35e0000
+size=2200000,offset=35e0000,rootfs_start_addr=35e0000,2200000
+Creating 10 MTD partitions on "spi0.0":
+0x000000000000-0x000008000000 : "whole flash"
+0x000000000000-0x000000100000 : "bootloader"
+0x000000100000-0x000000200000 : "tags"
+0x000000200000-0x000000400000 : "usercfg"
+0x000000400000-0x000000600000 : "defcfg"
+0x000000600000-0x000002f00000 : "kernel1"
+0x000002f00000-0x000005800000 : "kernel2"
+crng init done
+0x000000600000-0x000002f00000 : "rootfs1"
+0x0000035e0000-0x0000057e0000 : "rootfs2"
+0x000005800000-0x000008000000 : "Plugin"
+tun: Universal TUN/TAP device driver, 1.6
+thunder_xcv, ver 1.0
+thunder_bgx, ver 1.0
+nicpf, ver 1.0
+PPP generic driver version 2.4.2
+NET: Registered protocol family 24
+usbcore: registered new interface driver asix
+usbcore: registered new interface driver ax88179_178a
+usbcore: registered new interface driver cdc_ether
+usbcore: registered new interface driver net1080
+usbcore: registered new interface driver cdc_subset
+usbcore: registered new interface driver zaurus
+usbcore: registered new interface driver cdc_ncm
+xhci-hcd 15010000.usb3: xHCI Host Controller
+creating file 'devices'
+creating file '001'
+xhci-hcd 15010000.usb3: new USB bus registered, assigned bus number 1
+xhci-hcd 15010000.usb3: hcc params 0x08000f81 hci version 0x110 quirks 0x0000000000010010
+xhci-hcd 15010000.usb3: irq 19, io mem 0x15010000
+usb usb1: New USB device found, idVendor=1d6b, idProduct=0002, bcdDevice= 5.04
+usb usb1: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+usb usb1: Product: xHCI Host Controller
+usb usb1: Manufacturer: Linux 5.4.196 xhci-hcd
+usb usb1: SerialNumber: 15010000.usb3
+hub 1-0:1.0: USB hub found
+hub 1-0:1.0: 1 port detected
+usb usb1: csp_report_dev_addok 1d6b 2
+11930:22:54 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=0000000081c3871f, len=16, iRet=-111
+11930:22:54 [KernOSS][Warn] [oss_kernel_comm(308)Kernel_ASEND]  failed:net = 0000000000000000, receiver = cspd.cspd.usb_mgr, msgid = 0xa442, ptr = 0000000081c3871f, len = 16, priority = 0, iRet=-1009
+usb report device change: attach_flag=1
+creating file '001'
+xhci-hcd 15010000.usb3: xHCI Host Controller
+creating file '002'
+xhci-hcd 15010000.usb3: new USB bus registered, assigned bus number 2
+xhci-hcd 15010000.usb3: Host supports USB 3.1 Enhanced SuperSpeed
+usb usb2: We don't know the algorithms for LPM for this host, disabling LPM.
+usb usb2: New USB device found, idVendor=1d6b, idProduct=0003, bcdDevice= 5.04
+usb usb2: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+usb usb2: Product: xHCI Host Controller
+usb usb2: Manufacturer: Linux 5.4.196 xhci-hcd
+usb usb2: SerialNumber: 15010000.usb3
+hub 2-0:1.0: USB hub found
+hub 2-0:1.0: 1 port detected
+usb usb2: csp_report_dev_addok 1d6b 3
+usb report device change: attach_flag=1
+creating file '001'
+usbcore: registered new interface driver cdc_acm
+cdc_acm: USB Abstract Control Model driver for USB modems and ISDN adapters
+usbcore: registered new interface driver usblp
+usbcore: registered new interface driver usbserial_generic
+usbserial: USB Serial support registered for generic
+usbcore: registered new interface driver ch341
+usbserial: USB Serial support registered for ch341-uart
+usbcore: registered new interface driver cp210x
+usbserial: USB Serial support registered for cp210x
+usbcore: registered new interface driver option
+usbserial: USB Serial support registered for GSM modem (1-port)
+usbcore: registered new interface driver pl2303
+usbserial: USB Serial support registered for pl2303
+i2c /dev entries driver
+cpu cpu0: Looking up cpu-supply from device tree
+usbcore: registered new interface driver usbhid
+usbhid: USB HID core driver
+exFAT: Version 1.3.0
+Mirror/redirect action on
+u32 classifier
+    Performance counters on
+    input device check on
+    Actions configured
+Initializing XFRM netlink socket
+NET: Registered protocol family 10
+Segment Routing with IPv6
+sit: IPv6, IPv4 and MPLS over IPv4 tunneling driver
+NET: Registered protocol family 17
+NET: Registered protocol family 15
+Bridge firewalling registered
+8021q: 802.1Q VLAN Support v1.8
+Key type dns_resolver registered
+Init Common Switch Module
+Init Common Switch Module Success
+logger: created 512K log 'logger_main' major '99'
+11930:22:54 [Kernm255][Info] [ver_info_nand_v(1006)ver_info_init] 
+11930:22:54 [Kern][Notice] [csp_board_abili(368)csp_board_abili] Initializing Board Ability...
+----------netif_flag_init_net--------!
+
+ [HLD] kernel ebt_ffe_init struct = [16]
+----------wb_init_net--------!
+11930:22:54 [KIGMPSNP][Info] [br_multicast_se(7419)br_mcparam_init] info init!
+11930:22:54 [KMLDSNP][Error] [br_mld.c(3688)mld_register] protocol =131
+11930:22:54 [KMLDSNP][Error] [br_mld.c(3688)mld_register] protocol =132
+11930:22:54 [KMLDSNP][Error] [br_mld.c(3688)mld_register] protocol =143
+11930:22:54 [KQOS][Info] [qos.c(4105)CSPKernel_QoS_I] Qos module init
+11930:22:54 [KQOS][Info] [qp_meter_api.c(68)QoSPolicerMeter] Register Meter(stb)
+11930:22:54 [KQOS][Info] [qp_meter_api.c(68)QoSPolicerMeter] Register Meter(srtc)
+11930:22:54 [KQOS][Info] [qp_meter_api.c(68)QoSPolicerMeter] Register Meter(trtc)
+11930:22:54 [KQOS][Info] [qp_act_api.c(68)QoSPolicerActRe] Register Action(null)
+11930:22:54 [KQOS][Info] [qp_act_api.c(68)QoSPolicerActRe] Register Action(drop)
+11930:22:54 [KQOS][Info] [qp_act_api.c(68)QoSPolicerActRe] Register Action(dscp_mark)
+11930:22:54 [KQOS][Info] [qp_act_api.c(68)QoSPolicerActRe] Register Action(vlan_prio_mark)
+11930:22:54 [KQOS][Info] [qp_act_api.c(68)QoSPolicerActRe] Register Action(dscp_vlan_prio_mark)
+zte--oss cpu usage module init
+systools version:v0.7.0
+Loading compiled-in X.509 certificates
+pwm-regulator soc:regulator@cpu: Failed to get PWM: -517
+cpu cpu0: Looking up cpu-supply from device tree
+pwm-regulator soc:regulator@cpu: Failed to get PWM: -517
+cpu cpu0: Looking up cpu-supply from device tree
+cfg80211: Loading compiled-in X.509 certificates for regulatory database
+cfg80211: Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+LedGpioInit <32>
+cfg80211: failed to load regulatory.db
+cfg80211: reloading regulatory.db after a delay of 8 seconds ...
+LedGpioInit <36>
+LedGpioInit <26>
+LedGpioInit <2>
+LedGpioInit <13>
+LedGpioInit <68>
+LedGpioInit <69>
+KeyGpioInit <0>
+11930:22:55 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:22:55 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:22:55 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+net_ratelimit: 138 callbacks suppressed
+11930:22:59 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:22:59 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:22:59 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+11930:22:59 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+11930:22:59 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+cfg80211: failed to load regulatory.db
+cfg80211: fail again, reloading regulatory.db after a delay of 8 seconds ...
+net_ratelimit: 150 callbacks suppressed
+11930:23:04 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:23:04 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:23:04 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+11930:23:04 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+11930:23:04 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+VFS: Mounted root (jffs2 filesystem) readonly on device 31:8.
+net_ratelimit: 150 callbacks suppressed
+11930:23:09 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:23:09 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:23:09 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+11930:23:09 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+11930:23:09 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+cfg80211: failed to load regulatory.db
+net_ratelimit: 150 callbacks suppressed
+11930:23:14 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:23:14 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:23:14 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+11930:23:14 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+11930:23:14 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+net_ratelimit: 150 callbacks suppressed
+11930:23:19 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:23:19 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:23:19 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+11930:23:19 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+11930:23:19 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+Freeing unused kernel memory: 512K
+Run /sbin/init as init process
+jffs2: jffs2_scan_inode_node(): CRC failed on node at 0x001617e8: Read 0xffffffff, calculated 0x858584c5
+jffs2: Empty flash at 0x0016182c ends at 0x00162000
+jffs2: Empty flash at 0x00162a98 ends at 0x00163000
+jffs2: jffs2_scan_inode_node(): CRC failed on node at 0x001647c0: Read 0xffffffff, calculated 0x4e783880
+jffs2: Empty flash at 0x00164b34 ends at 0x00165000
+jffs2: Empty flash at 0x010aad68 ends at 0x010ab000
+jffs2: Empty flash at 0x010bf738 ends at 0x010bf800
+jffs2: Empty flash at 0x01373ad0 ends at 0x01374000
+net_ratelimit: 150 callbacks suppressed
+11930:23:24 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:23:24 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:23:24 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+11930:23:24 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+11930:23:24 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+jffs2: Empty flash at 0x01a281c0 ends at 0x01a28800
+bspdriver: loading out-of-tree module taints kernel.
+zx_i2c 14f03000.i2c: xfer err 4 err:-16 W buf[0]=0x28
+zx_i2c 14f03000.i2c: xfer err -16, res 0 
+i2c_probe(0x50) failed.
+smac5,051 phy 0x1 pll no lock
+zxic_051_phy soft pd!
+temp_val 1e.b626: 0x5
+chip_temp 1f.2e: 0x6bb0
+cfctrl_final reg: 0x220
+cfctrl_final reg[9:3]: 68
+cfctrl_final post: 0x47
+xmac_5 <phy_id:0x1> phy 051 init done
+zx297051 init!!!
+Start insmod R8226b_init!
+R8226b init success!
+Kmodule tmi7604.ko insmod successfully !
+Found switch CHIP_RTL8372N!
+net_ratelimit: 150 callbacks suppressed
+11930:23:29 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:23:29 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:23:29 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+11930:23:30 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+11930:23:30 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+jffs2: notice: (110) check_node_data: wrong data CRC in data node at 0x01373524: read 0x2bf245aa, calculated 0xe94844e.
+2134, RL6818C_pwr_on_patch_phy_v009 , patch 0xf0 finished!
+switch chip id 6
+[info]port 3 mask 0x108
+[info]port 4 mask 0x110
+[info]port 5 mask 0x120
+[info]port 6 mask 0x140
+[info]port 7 mask 0x180
+[info]port 8 mask 0x1ff
+rtl8372_debug module loaded
+rtk switch init OK!
+plat_initModule g_pon_cputype ZTE_PON_CPUTYPE_133
+pon init
+sys_ctrl_base is 0xffffffc010fb5000
+top_crm_base is 0xffffffc011040000
+efuse_base is 0xffffffc010fc5000
+pin_mux_base is 0xffffffc010fbd000
+pon_base is 0xffffffc012000000
+g_pon_irq:21
+pps_base is 0xffffffc014000000
+nppt_base is 0xffffffc016000000
+rgmii_base is 0xffffffc011600000
+pon_serdes_base is 0xffffffc011070000
+pon_serdes_pll_base is 0xffffffc011090000
+uni_serdes_base is 0xffffffc011800000
+pcu_base is 0xffffffc0110e0000
+gephy_apb_base is 0xffffffc013800000
+idm-intr0 is 26
+idm-intr1 is 27
+idm-intr2 is 28
+idm-intr3 is 29
+xmac0_pcs_base is 0xffffffc018000000
+pon init 17000000.pon,pon mode 10
+idm cci enable
+CLK_MUX_3 is 0x06711177,CLK_EN_6 is 0x00001fd7.
+val =0xffffffff, reg = 0xffffffc0162c0004
+reset val =0xffffffef
+val =0xffffffef, reg = 0xffffffc0162c0004
+reset val =0x7fffffef
+pon_sys_soft_reset restore val = 0xffffffef
+nppt init done ok. cnt = 0
+val =0xffffffef, reg = 0xffffffc0162c0004
+restore val = 0xffffffff
+enter eth pll cfg 
+mode_eth_2p5gbase_x_cfg
+net_ratelimit: 150 callbacks suppressed
+11930:23:35 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:23:35 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:23:35 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+11930:23:35 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+11930:23:35 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+com pll lock failed!
+serdes init failed because the pll or cdr is not lock
+pon mode UP_WAN_P2P 16
+lan_up=1, lan_up_port=0
+lan_up=1, corrected lan_up_port=6
+pon int
+nppt int
+pon probe init ok
+pwm-regulator soc:regulator@cpu: Failed to get PWM: -517
+nppt init start
+cpu cpu0: Looking up cpu-supply from device tree
+eth0, uni5 init
+eth1, uni58 init
+eth2, uni59 init
+eth3, uni60 init
+eth4, uni61 init
+val =0xffffffff, reg = 0xffffffc0162c0004
+reset val =0xfffffffe
+smac_reset restore val = 0xffffffff
+enter smac_init
+write smac an ctrl ,mac = 0x0
+read SOPC_CLR_OVER_READY_SMAC = 0x1, mac = 0x0
+write SOPC_SEND_EN_CFG_SMAC,mac = 0x0
+sopc send enable ,mac = 0x0
+exit smac_init:mac=0x0
+val =0xffffffff, reg = 0xffffffc0162c0004
+reset val =0xfffffffd
+smac_reset restore val = 0xffffffff
+enter smac_init
+write smac an ctrl ,mac = 0x1
+read SOPC_CLR_OVER_READY_SMAC = 0x1, mac = 0x1
+write SOPC_SEND_EN_CFG_SMAC,mac = 0x1
+sopc send enable ,mac = 0x1
+exit smac_init:mac=0x1
+val =0xffffffff, reg = 0xffffffc0162c0004
+reset val =0xfffffffb
+smac_reset restore val = 0xffffffff
+enter smac_init
+write smac an ctrl ,mac = 0x2
+read SOPC_CLR_OVER_READY_SMAC = 0x1, mac = 0x2
+write SOPC_SEND_EN_CFG_SMAC,mac = 0x2
+sopc send enable ,mac = 0x2
+exit smac_init:mac=0x2
+val =0xffffffff, reg = 0xffffffc0162c0004
+reset val =0xfffffff7
+smac_reset restore val = 0xffffffff
+enter smac_init
+write smac an ctrl ,mac = 0x3
+read SOPC_CLR_OVER_READY_SMAC = 0x1, mac = 0x3
+write SOPC_SEND_EN_CFG_SMAC,mac = 0x3
+sopc send enable ,mac = 0x3
+exit smac_init:mac=0x3
+xmac type 279051 ,xmac1 switch,xmac_phy_id[1]  1
+val =0xffffffff, reg = 0xffffffc0162c0004
+reset val =0xfffffbff
+smac_reset restore val = 0xffffffff
+mode_eth_10gbase_r_cfg
+exit uni_serdes_mode_set 
+com_pll_lock_ready
+rx los =0 rx data in
+cdr_lock_ready
+uni serdes init succeed
+xmac 0 work mode 5
+val =0xffffffff, reg = 0xffffffc0162c0004
+reset val =0xfffff7ff
+smac_reset restore val = 0xffffffff
+enter eth pll cfg 
+mode_eth_2p5gbase_x_cfg
+com pll lock failed!
+serdes init failed because the pll or cdr is not lock
+xmac 1 work mode 4
+xmac1_work_mode 4
+create smac_check_phy_task_thread ok!
+alloc idm reserved mem size a00000/813800
+idm_reserved_base is 9d700000
+mac 5 link down
+idm buf cache len 2432
+idm jbuf cache len 10176
+rx ring 800/1000 @ 000000005eb85233, jumbo rx ring 20/1000
+pon: netif_napi_add() called with weight 512
+pp net init ok,share 320
+nppt init end. ret = 0
+init np_reg module
+pon_base_addr ffffffc012000000
+pps_base_addr ffffffc014000000
+nppt_base_addr ffffffc016000000
+rgmii_base_addr ffffffc011600000
+gmac_base_addr ffffffc012080000
+xgmac_base_addr ffffffc012040000
+np_crm_base_addr ffffffc012240000
+xmac_pcs_base_addr ffffffc018000000
+init np start
+[WOE] WOE init start
+g_bmu_base_ddr  is 000000006a1d8142
+ddr size(0xf00000), bmu used(0xecc000)
+pp_bppe_pool_init:  BPPE_PA_BASE = 0x9f100000
+pp_bppe_pool_init: bppe_va_addr =0xffffff801f100000, BPPE_PA_BASE = 0x9f100000
+[TM][bppi_lowthreh_set]input: bppilowthreh=128
+[TM][bppi_highthreh_set]input: bppilowthreh=192
+extend_mode 1, desc_mode 0, wifi use seram 1
+desc_out_max 3000
+sw change extend_mode 1, desc_mode 0, desc_in_max 3000, all_desc_in_max 4000
+desc_woe_water_in fa0
+[TM][qmg_set_ram_init]input: cache_ctrl_req = 1, pkt_in_ddr_req = 1, des_ptr_req = 1, queue_head_req = 1, qmg_que_ptr_req = 1
+[tm_qmg_init] get ram init done status.
+ddr space(start:0x9e100000, size:0x1000000) for hash table
+ddr space(start:0x9f100000, size:0x0) for ddr table
+age num is 0x40000
+sg_hash_zcam_used ffffff801ad20000
+sdt num is 71
+[se_smmu0_get_available_space_for_eram] skip ram(0x1000, size 0x2000) is int the table(0x1000, 0x1000), jump it
+[core_sdt_init] L1301 sdt zcam hash mem size 2607104, max size 2097152
+[core_sdt_init] L1304 sdt zcam hash mem size too big, 2607104
+net_ratelimit: 150 callbacks suppressed
+11930:23:40 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:23:40 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:23:40 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+11930:23:40 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+11930:23:40 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+version: 0x0001.0x0001.0x00000001
+multicast table size: 1536, max join ports number 10
+init np success
+read top crm ipsec wclk is 0x1,aclk is 0x1
+after write top crm ipsec sw reset is 0x1
+read top crm ipsec sw reset is 0x1
+after write top crm ipsec wclk is 0x0,aclk is 0x0
+NP Module SYS FS Init ended successfully =
+init np_reg module success
+ret=1!
+zte_power_ctl_init success!
+register peripheral success, major = 106
+register fpga driver success, major=222
+Init switch module
+g_sw_cap.sw_uni_count=5
+g_sw_cap.sw_uni_mask=0x3c000020
+g_sw_cap.sw_wan_port=5
+g_sw_cap.sw_wan_mask=0x20
+g_sw_cap.sw_all_port_count=8
+g_sw_cap.sw_all_port_mask=0x3c0003a0
+g_sw_cap.gwtype1
+g_sw_cap.wantype0
+g_sw_cap.onutype3
+ptSwInfo->wan_logicport=0
+g_mii_dev_name[0]  sw 
+g_mii_dev_name[1]  pon 
+port id 0, name pon
+port id 1, name sw
+port id 2, name sw
+port id 3, name sw
+port id 4, name sw
+sw_set_uni_as_wan uni=5
+zte_api_sw_lan_up_pon_set ok
+broadcast flood groupid 224
+unicast flood groupid 124
+multicast flood groupid 324
+broadcast flood groupid 754
+unicast flood groupid 654
+multicast flood groupid 854
+broadcast flood groupid 764
+unicast flood groupid 664
+multicast flood groupid 864
+broadcast flood groupid 774
+unicast flood groupid 674
+multicast flood groupid 874
+broadcast flood groupid 784
+unicast flood groupid 684
+multicast flood groupid 884
+broadcast flood groupid 784
+unicast flood groupid 684
+multicast flood groupid 884
+tm_port_pvid_set fail, error p_port 8
+[zte_api_sw_vlan_set_port_pvid] L672 sw api set failed!
+broadcast flood groupid 244
+unicast flood groupid 144
+multicast flood groupid 344
+zte_zx_api_sw_port_init fails!!!!
+[tm_query_wan_port] L20282 trans port(9) to ppu port failed!
+tm_port_multicast_unhit_act_set fail, error port 9
+[zte_api_sw_set_port_muticast_unhit_act] L10257 tm sdk failed!
+tm_port_dns_check_set port error 9
+tm_vlan_check_ena_set fail, error port 9
+tm_vlan_check_ena_set fail, error port 9
+tm_mac_da_look_ena_get fail, error port 9
+tm_mac_da_look_ena_set  fail, error port 9
+tm_port_onu_mode_set  fail, error port 9
+[zte_api_sw_port_init] L10186 tm sdk failed!
+tm_port_pvid_set fail, error p_port 9
+[zte_api_sw_vlan_set_port_pvid] L672 sw api set failed!
+tm_vlantable_add_set fail, error port 9
+[zte_api_sw_vlan_set_port_vlancfg] L723 tm sdk failed!
+tm_vlantable_add_set fail, error port 9
+[zte_api_sw_vlan_set_port_vlancfg] L723 tm sdk failed!
+[tm_query_wan_port] L20282 trans port(9) to ppu port failed!
+tm_vlantable_add_set fail, error port 9
+[zte_api_sw_vlan_set_port_vlancfg] L723 tm sdk failed!
+tm_port_isolate_set  fail1, error port 9
+[zte_api_sw_port_set_port_isolatemask] L1640 tm sdk failed!
+tm_port_brdcast_flood_ena_set fail, error port 9
+tm_port_pon_broadcast_floodcontrolmask fail, error port 9
+[zte_api_sw_set_port_brdcast] L10204 tm sdk failed!
+tm_port_unknwn_unicast_flood_set fail, error port 9
+tm_port_pon_unkuni_floodcontrolmask fail, error port 9
+[zte_api_sw_set_port_unicast] L10223 tm sdk failed!
+tm_port_unknwn_multicast_flood_set fail, error port 9
+tm_port_unknwn_multicast_floodport_set fail, error port 9
+[zte_api_sw_set_port_muticast] L10242 tm sdk failed!
+zte_zx_api_sw_port_init fails!!!!
+net_ratelimit: 150 callbacks suppressed
+11930:23:45 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+11930:23:45 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+11930:23:45 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+11930:23:45 [KernOSS][Warn] [oss_kernel_comm(349)kern_oss_timer_]  bufCnt=4: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+11930:23:45 [KernOSS][Info] [oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+-------chip_tm_init end-----
+=============mac_tbl_init success================
+[SW]set cpu queue rate limit to 8000pps
+[TM][ssch_set_uni_sharp_fill]input invalid parameter!
+tm_port_egress_traffic_sharp_set fail
+zte_api_sw_port_set_port_ratelimit port:(16) direct:(1) enable:(1) rate:(2048 kpbs) ifgMode:(1)
+[TM][ssch_set_uni_sharp_fill]input invalid parameter!
+tm_port_egress_traffic_sharp_set fail
+zte_api_sw_port_set_port_ratelimit port:(17) direct:(1) enable:(1) rate:(2048 kpbs) ifgMode:(1)
+[SW][sw_init_switch] reg hff
+register npu driver 24
+init done lan port 5 
+init done lan port 58 
+init done lan port 59 
+init done lan port 60 
+init done lan port 61 
+twin_eth_port [0] : 255
+twin_eth_port [1] : 255
+twin_eth_port [2] : 255
+twin_eth_port [3] : 255
+twin_eth_port [4] : 255
+twin_eth_port [5] : 6
+twin_eth_port [6] : 5
+twin_eth_port [7] : 255
+Init personal switch module Success
+xDPISetThreadNum 1 !!!
+xDPIGetEngineMemSize=13613044
+xDPIGetDBMemSize=27282328
+xDPISetThreadNum 1 !!!
+ptxDpiMemTable->ulRealEngineMemSize = 12501124
+XDPI DB Real Allocate Share memsize: 171664; Real Allocate Local memsie: 27095024
+[XDPI]: xDPI init success!!
+bSigFileName = /DPITMP/xDpi_SigLibSoft.bin size:13490928 
+[XDPI]: load signature rule success!!
+IN task: pc(165)
+systools cmd: ck 
+ret=0!
+printk: console [0] enabled
+create thread systools log success!
+ck run ok
+net_ratelimit: 154 callbacks suppressed
+[oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=00000000181ee816, len=16, iRet=-111
+[oss_kernel_comm(349)kern_oss_timer_]  bufCnt=5: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA442
+[oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a437, ptr=00000000d15fe7f4, len=320, iRet=-111
+[oss_kernel_comm(349)kern_oss_timer_]  bufCnt=5: Receiver=cspd.cspd.usb_mgr, wMsgId=0XA437
+[oss_kernel_comm(213)KernOssInner_AS]  transfer appid=00010000, msgid=0x0000a442, ptr=000000004aee43df, len=16, iRet=-111
+sip alg change power[1] ok!
+ftp alg change power[1] ok!
+h323 alg change power[1] ok!
+rtsp alg change power[0] ok!
+pptp alg change power[1] ok!
+tftp alg change power[1] ok!
+ffe max flow cnt is 40000
+device eth0 entered promiscuous mode
+[TM][zte_api_sw_port_set_port_enable]input invalid parameter!
+[sw_port_set_port_flowcontrol] L214 tm sdk failed!
+[TM][zte_api_sw_port_set_port_enable]input invalid parameter!
+[sw_port_set_port_flowcontrol] L214 tm sdk failed!
+ reg0 write 0x1
+[TM][zte_api_sw_port_set_port_enable]input invalid parameter!
+[sw_port_set_port_flowcontrol] L214 tm sdk failed!
+[TM][zte_api_sw_port_set_port_enable]input invalid parameter!
+[sw_port_set_port_flowcontrol] L214 tm sdk failed!
+==========sw_port_set_ethdev_carrier.
+================>I will set g_ethdev_carrierFlag to 1.
+
+[low_power_set_dmac]set dmac [0]:7c-7d-21-b9-c1-3a
+
+[low_power_set_dmac]set dmac [1]:7c-7d-21-b9-c1-3b
+ reg0 write 0x0
+read top crm ipsec wclk is 0x0,aclk is 0x0
+after write top crm ipsec sw reset is 0x0
+read top crm ipsec sw reset is 0x0
+after write top crm ipsec wclk is 0x0,aclk is 0x0
+IN task: fttr_m(504)
+systools cmd: ck 
+ck run ok
+IN task: fttr_m(505)
+systools cmd: ck 
+ck run ok
+IN task: fttr_m(502)
+systools cmd: ck 
+ck run ok
+[br_com_index.c(112)br_port_renew_i] netdevice[br0] is not a port
+[br_com_filter.c(494)br_rule_add] ADD ports[31]' filter, group_key[0]
+[br_multicast_se(1717)set_igmp_wanup_] set_igmp_wanup_sendquery sendquery =  1
+[br_multicast_se(1728)set_igmp_sendqu] set_igmp_sendquery_version sendqueryver =  2
+[br_multicast_se(3501)add_igmp_specia] verflag =0 ,group : e0000009 
+[br_multicast_se(3502)add_igmp_specia] group :0000:0000:0000:0000:0000:0000:0000:0000
+[br_com_index.c(112)br_port_renew_i] netdevice[eth1] is not a port
+[br_com_filter.c(494)br_rule_add] ADD ports[0]' filter, group_key[3]
+br0: port 1(eth1) entered blocking state
+br0: port 1(eth1) entered disabled state
+device eth1 entered promiscuous mode
+net_ratelimit: 75 callbacks suppressed
+[br_traffic_stat(112)traffic_stats_r] mac:7c:7d:21:b9:c1:3a,rx_bytes:0,tx_bytes:0,status:1
+[br_com_index.c(112)br_port_renew_i] netdevice[eth2] is not a port
+[br_com_filter.c(494)br_rule_add] ADD ports[1]' filter, group_key[4]
+051 mode_eth_1gbase_x_cfg
+end of 051 mode_eth_1gbase_x_cfg
+phy_051 stable ok
+[wait_time:0ms]phy_051 stable:0x1, pll_lock:0x1, reg_val:0xf80007
+cur 1 phy  serdes_mode : 0x6, last serdes_mode0 : 0xc, last serdes_mode1 : 0xc
+enter eth pll cfg 
+mode_eth_1gbase_x_cfg
+com_pll_lock_ready
+rx los =0 rx data in
+cdr_lock_ready
+pon serdes init succeed
+xmac_mode_set 1 xmac_id 1, serdes_mode 6, speed 3, duplex 1
+xmac 1 speed set 3 in sgmii(xmac speed 3)
+mac 5 phy status changed: 1000M full-duplex
+IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+br0: port 2(eth2) entered blocking state
+br0: port 2(eth2) entered disabled state
+device eth2 entered promiscuous mode
+[br_com_index.c(112)br_port_renew_i] netdevice[eth3] is not a port
+[br_com_filter.c(494)br_rule_add] ADD ports[2]' filter, group_key[5]
+cgroup: lxc-start (649) created nested cgroup for controller "memory" which has incomplete hierarchy support. Nested cgroups may change behavior in the future.
+cgroup: "memory" requires setting use_hierarchy to 1 on the root
+cgroup: cgroup: disabling cgroup2 socket matching due to net_prio or net_cls activation
+overlayfs: upper fs does not support tmpfile.
+overlayfs: upper fs does not support xattr, falling back to index=off and metacopy=off.
+br0: port 3(eth3) entered blocking state
+br0: port 3(eth3) entered disabled state
+device eth3 entered promiscuous mode
+[br_com_index.c(112)br_port_renew_i] netdevice[eth4] is not a port
+[br_com_filter.c(494)br_rule_add] ADD ports[3]' filter, group_key[6]
+br0: port 4(eth4) entered blocking state
+br0: port 4(eth4) entered disabled state
+device eth4 entered promiscuous mode
+zte_api_sw_port_set_port_ratelimit port:(5) direct:(1) enable:(0) rate:(0 kpbs) ifgMode:(1)
+zte_api_sw_port_set_port_ratelimit port:(5) direct:(1) enable:(0) rate:(0 kpbs) ifgMode:(1)
+zte_api_sw_port_set_port_ratelimit port:(5) direct:(1) enable:(1) rate:(1000000 kpbs) ifgMode:(1)
+[TM][ssch_set_uni_sharp_fill]input invalid parameter!
+tm_port_egress_traffic_sharp_set fail
+zte_api_sw_port_set_port_ratelimit port:(16) direct:(1) enable:(0) rate:(0 kpbs) ifgMode:(1)
+[TM][ssch_set_uni_sharp_fill]input invalid parameter!
+tm_port_egress_traffic_sharp_set fail
+zte_api_sw_port_set_port_ratelimit port:(17) direct:(1) enable:(0) rate:(0 kpbs) ifgMode:(1)

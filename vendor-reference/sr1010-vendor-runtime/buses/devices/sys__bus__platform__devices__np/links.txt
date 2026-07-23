@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/np
+driver=
+of_node=
+subsystem=../../../bus/platform

@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/10e10208.rstctrl
+driver=
+of_node=../../../../firmware/devicetree/base/soc/rstctrl
+subsystem=../../../../bus/platform

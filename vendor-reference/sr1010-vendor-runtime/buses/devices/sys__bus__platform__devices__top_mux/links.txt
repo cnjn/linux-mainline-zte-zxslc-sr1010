@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/top_mux
+driver=
+of_node=../../../firmware/devicetree/base/top_mux
+subsystem=../../../bus/platform

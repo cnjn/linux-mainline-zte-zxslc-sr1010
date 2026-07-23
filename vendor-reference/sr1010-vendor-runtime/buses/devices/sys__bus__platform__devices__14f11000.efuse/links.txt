@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/14f11000.efuse
+driver=../../../../bus/platform/drivers/zx-efuse
+of_node=../../../../firmware/devicetree/base/soc/efuse@14f11000
+subsystem=../../../../bus/platform

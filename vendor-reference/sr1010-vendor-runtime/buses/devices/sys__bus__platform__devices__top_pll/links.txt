@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/top_pll
+driver=
+of_node=../../../firmware/devicetree/base/top_pll
+subsystem=../../../bus/platform

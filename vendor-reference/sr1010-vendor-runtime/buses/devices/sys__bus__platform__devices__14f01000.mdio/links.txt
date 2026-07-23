@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/14f01000.mdio
+driver=../../../../bus/platform/drivers/zx_mdio
+of_node=../../../../firmware/devicetree/base/soc/mdio@14f01000
+subsystem=../../../../bus/platform

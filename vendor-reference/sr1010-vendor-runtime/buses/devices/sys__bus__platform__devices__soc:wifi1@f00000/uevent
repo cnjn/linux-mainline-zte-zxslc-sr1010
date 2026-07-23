@@ -1,0 +1,5 @@
+OF_NAME=wifi1
+OF_FULLNAME=/soc/wifi1@f00000
+OF_COMPATIBLE_0=qcom,cnss-qcn9224
+OF_COMPATIBLE_N=1
+MODALIAS=of:Nwifi1T(null)Cqcom,cnss-qcn9224

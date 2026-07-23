@@ -1,0 +1,1 @@
+Linux SR1010 5.4.196 #2 SMP Tue Jun 9 14:23:49 CST 2026 aarch64 GNU/Linux

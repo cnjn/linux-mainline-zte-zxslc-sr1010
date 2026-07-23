@@ -1,0 +1,539 @@
+unreadable: /etc/os-release
+unreadable: /proc/config.gz
+unreadable: /sys/kernel/btf/vmlinux
+unreadable: /sys/bus/platform/devices/10d00000.lsp_crm/resource
+unreadable: /sys/bus/platform/devices/10d00000.lsp_crm/numa_node
+unreadable: /sys/bus/platform/devices/10d00000.lsp_crm/dma_mask
+unreadable: /sys/bus/platform/devices/10d00000.lsp_crm/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10d0f000.spifc/resource
+unreadable: /sys/bus/platform/devices/10d0f000.spifc/numa_node
+unreadable: /sys/bus/platform/devices/10d0f000.spifc/dma_mask
+unreadable: /sys/bus/platform/devices/10d0f000.spifc/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10d10000.gpio/resource
+unreadable: /sys/bus/platform/devices/10d10000.gpio/numa_node
+unreadable: /sys/bus/platform/devices/10d10000.gpio/dma_mask
+unreadable: /sys/bus/platform/devices/10d10000.gpio/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10d10040.gpio/resource
+unreadable: /sys/bus/platform/devices/10d10040.gpio/numa_node
+unreadable: /sys/bus/platform/devices/10d10040.gpio/dma_mask
+unreadable: /sys/bus/platform/devices/10d10040.gpio/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10d10080.gpio/resource
+unreadable: /sys/bus/platform/devices/10d10080.gpio/numa_node
+unreadable: /sys/bus/platform/devices/10d10080.gpio/dma_mask
+unreadable: /sys/bus/platform/devices/10d10080.gpio/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10d100c0.gpio/resource
+unreadable: /sys/bus/platform/devices/10d100c0.gpio/numa_node
+unreadable: /sys/bus/platform/devices/10d100c0.gpio/dma_mask
+unreadable: /sys/bus/platform/devices/10d100c0.gpio/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10d10100.gpio/resource
+unreadable: /sys/bus/platform/devices/10d10100.gpio/numa_node
+unreadable: /sys/bus/platform/devices/10d10100.gpio/dma_mask
+unreadable: /sys/bus/platform/devices/10d10100.gpio/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10e00000.sys_ctrl/resource
+unreadable: /sys/bus/platform/devices/10e00000.sys_ctrl/numa_node
+unreadable: /sys/bus/platform/devices/10e00000.sys_ctrl/dma_mask
+unreadable: /sys/bus/platform/devices/10e00000.sys_ctrl/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10e10000.topcrm/resource
+unreadable: /sys/bus/platform/devices/10e10000.topcrm/numa_node
+unreadable: /sys/bus/platform/devices/10e10000.topcrm/dma_mask
+unreadable: /sys/bus/platform/devices/10e10000.topcrm/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10e10060.toprst/resource
+unreadable: /sys/bus/platform/devices/10e10060.toprst/numa_node
+unreadable: /sys/bus/platform/devices/10e10060.toprst/dma_mask
+unreadable: /sys/bus/platform/devices/10e10060.toprst/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10e10070.localrst/resource
+unreadable: /sys/bus/platform/devices/10e10070.localrst/numa_node
+unreadable: /sys/bus/platform/devices/10e10070.localrst/dma_mask
+unreadable: /sys/bus/platform/devices/10e10070.localrst/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10e10170.boot_ctrl/resource
+unreadable: /sys/bus/platform/devices/10e10170.boot_ctrl/numa_node
+unreadable: /sys/bus/platform/devices/10e10170.boot_ctrl/dma_mask
+unreadable: /sys/bus/platform/devices/10e10170.boot_ctrl/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10e10204.reboot/resource
+unreadable: /sys/bus/platform/devices/10e10204.reboot/numa_node
+unreadable: /sys/bus/platform/devices/10e10204.reboot/dma_mask
+unreadable: /sys/bus/platform/devices/10e10204.reboot/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10e10208.rstctrl/resource
+unreadable: /sys/bus/platform/devices/10e10208.rstctrl/numa_node
+unreadable: /sys/bus/platform/devices/10e10208.rstctrl/dma_mask
+unreadable: /sys/bus/platform/devices/10e10208.rstctrl/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10e20000.pinctrl/resource
+unreadable: /sys/bus/platform/devices/10e20000.pinctrl/numa_node
+unreadable: /sys/bus/platform/devices/10e20000.pinctrl/dma_mask
+unreadable: /sys/bus/platform/devices/10e20000.pinctrl/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/10e70000.pvt/resource
+unreadable: /sys/bus/platform/devices/10e70000.pvt/numa_node
+unreadable: /sys/bus/platform/devices/10e70000.pvt/dma_mask
+unreadable: /sys/bus/platform/devices/10e70000.pvt/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/14f00000.lsp_crm/resource
+unreadable: /sys/bus/platform/devices/14f00000.lsp_crm/numa_node
+unreadable: /sys/bus/platform/devices/14f00000.lsp_crm/dma_mask
+unreadable: /sys/bus/platform/devices/14f00000.lsp_crm/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/14f01000.mdio/resource
+unreadable: /sys/bus/platform/devices/14f01000.mdio/numa_node
+unreadable: /sys/bus/platform/devices/14f01000.mdio/dma_mask
+unreadable: /sys/bus/platform/devices/14f01000.mdio/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/14f02000.mdio/resource
+unreadable: /sys/bus/platform/devices/14f02000.mdio/numa_node
+unreadable: /sys/bus/platform/devices/14f02000.mdio/dma_mask
+unreadable: /sys/bus/platform/devices/14f02000.mdio/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/14f03000.i2c/resource
+unreadable: /sys/bus/platform/devices/14f03000.i2c/numa_node
+unreadable: /sys/bus/platform/devices/14f03000.i2c/dma_mask
+unreadable: /sys/bus/platform/devices/14f03000.i2c/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/14f04000.i2c/resource
+unreadable: /sys/bus/platform/devices/14f04000.i2c/numa_node
+unreadable: /sys/bus/platform/devices/14f04000.i2c/dma_mask
+unreadable: /sys/bus/platform/devices/14f04000.i2c/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/14f09000.wdt/resource
+unreadable: /sys/bus/platform/devices/14f09000.wdt/numa_node
+unreadable: /sys/bus/platform/devices/14f09000.wdt/dma_mask
+unreadable: /sys/bus/platform/devices/14f09000.wdt/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/14f0a000.wdt/resource
+unreadable: /sys/bus/platform/devices/14f0a000.wdt/numa_node
+unreadable: /sys/bus/platform/devices/14f0a000.wdt/dma_mask
+unreadable: /sys/bus/platform/devices/14f0a000.wdt/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/14f11000.efuse/resource
+unreadable: /sys/bus/platform/devices/14f11000.efuse/numa_node
+unreadable: /sys/bus/platform/devices/14f11000.efuse/dma_mask
+unreadable: /sys/bus/platform/devices/14f11000.efuse/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/15010000.usb3/resource
+unreadable: /sys/bus/platform/devices/15010000.usb3/numa_node
+unreadable: /sys/bus/platform/devices/15010000.usb3/dma_mask
+unreadable: /sys/bus/platform/devices/15010000.usb3/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/17000000.pon/resource
+unreadable: /sys/bus/platform/devices/17000000.pon/numa_node
+unreadable: /sys/bus/platform/devices/17000000.pon/dma_mask
+unreadable: /sys/bus/platform/devices/17000000.pon/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/Fixed MDIO bus.0/resource
+unreadable: /sys/bus/platform/devices/Fixed MDIO bus.0/numa_node
+unreadable: /sys/bus/platform/devices/Fixed MDIO bus.0/dma_mask
+unreadable: /sys/bus/platform/devices/Fixed MDIO bus.0/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/cpufreq-dt/resource
+unreadable: /sys/bus/platform/devices/cpufreq-dt/numa_node
+unreadable: /sys/bus/platform/devices/cpufreq-dt/dma_mask
+unreadable: /sys/bus/platform/devices/cpufreq-dt/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/fixed_div/resource
+unreadable: /sys/bus/platform/devices/fixed_div/numa_node
+unreadable: /sys/bus/platform/devices/fixed_div/dma_mask
+unreadable: /sys/bus/platform/devices/fixed_div/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/lsp0_clk/resource
+unreadable: /sys/bus/platform/devices/lsp0_clk/numa_node
+unreadable: /sys/bus/platform/devices/lsp0_clk/dma_mask
+unreadable: /sys/bus/platform/devices/lsp0_clk/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/np/resource
+unreadable: /sys/bus/platform/devices/np/numa_node
+unreadable: /sys/bus/platform/devices/np/dma_mask
+unreadable: /sys/bus/platform/devices/np/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/psci/resource
+unreadable: /sys/bus/platform/devices/psci/numa_node
+unreadable: /sys/bus/platform/devices/psci/dma_mask
+unreadable: /sys/bus/platform/devices/psci/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/reg-dummy/resource
+unreadable: /sys/bus/platform/devices/reg-dummy/numa_node
+unreadable: /sys/bus/platform/devices/reg-dummy/dma_mask
+unreadable: /sys/bus/platform/devices/reg-dummy/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/regulatory.0/resource
+unreadable: /sys/bus/platform/devices/regulatory.0/numa_node
+unreadable: /sys/bus/platform/devices/regulatory.0/dma_mask
+unreadable: /sys/bus/platform/devices/regulatory.0/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc/resource
+unreadable: /sys/bus/platform/devices/soc/numa_node
+unreadable: /sys/bus/platform/devices/soc/dma_mask
+unreadable: /sys/bus/platform/devices/soc/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:bdinfo@0/resource
+unreadable: /sys/bus/platform/devices/soc:bdinfo@0/numa_node
+unreadable: /sys/bus/platform/devices/soc:bdinfo@0/dma_mask
+unreadable: /sys/bus/platform/devices/soc:bdinfo@0/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:bmu@1903c000/resource
+unreadable: /sys/bus/platform/devices/soc:bmu@1903c000/numa_node
+unreadable: /sys/bus/platform/devices/soc:bmu@1903c000/dma_mask
+unreadable: /sys/bus/platform/devices/soc:bmu@1903c000/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:key_maps/resource
+unreadable: /sys/bus/platform/devices/soc:key_maps/numa_node
+unreadable: /sys/bus/platform/devices/soc:key_maps/dma_mask
+unreadable: /sys/bus/platform/devices/soc:key_maps/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:keys/resource
+unreadable: /sys/bus/platform/devices/soc:keys/numa_node
+unreadable: /sys/bus/platform/devices/soc:keys/dma_mask
+unreadable: /sys/bus/platform/devices/soc:keys/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:leds/resource
+unreadable: /sys/bus/platform/devices/soc:leds/numa_node
+unreadable: /sys/bus/platform/devices/soc:leds/dma_mask
+unreadable: /sys/bus/platform/devices/soc:leds/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:pon_plat/resource
+unreadable: /sys/bus/platform/devices/soc:pon_plat/numa_node
+unreadable: /sys/bus/platform/devices/soc:pon_plat/dma_mask
+unreadable: /sys/bus/platform/devices/soc:pon_plat/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:regulator@cpu/resource
+unreadable: /sys/bus/platform/devices/soc:regulator@cpu/numa_node
+unreadable: /sys/bus/platform/devices/soc:regulator@cpu/dma_mask
+unreadable: /sys/bus/platform/devices/soc:regulator@cpu/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:se@18040000/resource
+unreadable: /sys/bus/platform/devices/soc:se@18040000/numa_node
+unreadable: /sys/bus/platform/devices/soc:se@18040000/dma_mask
+unreadable: /sys/bus/platform/devices/soc:se@18040000/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:wifi0@f00000/resource
+unreadable: /sys/bus/platform/devices/soc:wifi0@f00000/numa_node
+unreadable: /sys/bus/platform/devices/soc:wifi0@f00000/dma_mask
+unreadable: /sys/bus/platform/devices/soc:wifi0@f00000/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:wifi1@f00000/resource
+unreadable: /sys/bus/platform/devices/soc:wifi1@f00000/numa_node
+unreadable: /sys/bus/platform/devices/soc:wifi1@f00000/dma_mask
+unreadable: /sys/bus/platform/devices/soc:wifi1@f00000/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/soc:woe@19240000/resource
+unreadable: /sys/bus/platform/devices/soc:woe@19240000/numa_node
+unreadable: /sys/bus/platform/devices/soc:woe@19240000/dma_mask
+unreadable: /sys/bus/platform/devices/soc:woe@19240000/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/timer/resource
+unreadable: /sys/bus/platform/devices/timer/numa_node
+unreadable: /sys/bus/platform/devices/timer/dma_mask
+unreadable: /sys/bus/platform/devices/timer/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/top_divider/resource
+unreadable: /sys/bus/platform/devices/top_divider/numa_node
+unreadable: /sys/bus/platform/devices/top_divider/dma_mask
+unreadable: /sys/bus/platform/devices/top_divider/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/top_fixed/resource
+unreadable: /sys/bus/platform/devices/top_fixed/numa_node
+unreadable: /sys/bus/platform/devices/top_fixed/dma_mask
+unreadable: /sys/bus/platform/devices/top_fixed/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/top_gate/resource
+unreadable: /sys/bus/platform/devices/top_gate/numa_node
+unreadable: /sys/bus/platform/devices/top_gate/dma_mask
+unreadable: /sys/bus/platform/devices/top_gate/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/top_mux/resource
+unreadable: /sys/bus/platform/devices/top_mux/numa_node
+unreadable: /sys/bus/platform/devices/top_mux/dma_mask
+unreadable: /sys/bus/platform/devices/top_mux/coherent_dma_mask
+unreadable: /sys/bus/platform/devices/top_pll/resource
+unreadable: /sys/bus/platform/devices/top_pll/numa_node
+unreadable: /sys/bus/platform/devices/top_pll/dma_mask
+unreadable: /sys/bus/platform/devices/top_pll/coherent_dma_mask
+unreadable: /sys/bus/amba/devices/10d0d000.serial/modalias
+unreadable: /sys/bus/amba/devices/10d0d000.serial/numa_node
+unreadable: /sys/bus/amba/devices/10d0d000.serial/dma_mask
+unreadable: /sys/bus/amba/devices/10d0d000.serial/coherent_dma_mask
+unreadable: /sys/kernel/irq/1/node
+unreadable: /sys/kernel/irq/10/node
+unreadable: /sys/kernel/irq/11/node
+unreadable: /sys/kernel/irq/12/node
+unreadable: /sys/kernel/irq/13/node
+unreadable: /sys/kernel/irq/14/node
+unreadable: /sys/kernel/irq/15/node
+unreadable: /sys/kernel/irq/16/node
+unreadable: /sys/kernel/irq/17/node
+unreadable: /sys/kernel/irq/18/node
+unreadable: /sys/kernel/irq/19/node
+unreadable: /sys/kernel/irq/2/node
+unreadable: /sys/kernel/irq/20/node
+unreadable: /sys/kernel/irq/21/node
+unreadable: /sys/kernel/irq/22/node
+unreadable: /sys/kernel/irq/23/node
+unreadable: /sys/kernel/irq/24/node
+unreadable: /sys/kernel/irq/25/node
+unreadable: /sys/kernel/irq/26/node
+unreadable: /sys/kernel/irq/27/node
+unreadable: /sys/kernel/irq/28/node
+unreadable: /sys/kernel/irq/29/node
+unreadable: /sys/kernel/irq/3/node
+unreadable: /sys/kernel/irq/4/node
+unreadable: /sys/kernel/irq/5/node
+unreadable: /sys/kernel/irq/6/node
+unreadable: /sys/kernel/irq/7/node
+unreadable: /sys/kernel/irq/8/node
+unreadable: /sys/kernel/irq/9/node
+unreadable: /sys/class/mtd/mtd0/failed
+unreadable: /sys/class/mtd/mtd0ro/name
+unreadable: /sys/class/mtd/mtd0ro/type
+unreadable: /sys/class/mtd/mtd0ro/flags
+unreadable: /sys/class/mtd/mtd0ro/size
+unreadable: /sys/class/mtd/mtd0ro/erasesize
+unreadable: /sys/class/mtd/mtd0ro/writesize
+unreadable: /sys/class/mtd/mtd0ro/subpagesize
+unreadable: /sys/class/mtd/mtd0ro/oobsize
+unreadable: /sys/class/mtd/mtd0ro/numeraseregions
+unreadable: /sys/class/mtd/mtd0ro/ecc_strength
+unreadable: /sys/class/mtd/mtd0ro/ecc_step_size
+unreadable: /sys/class/mtd/mtd0ro/corrected_bits
+unreadable: /sys/class/mtd/mtd0ro/failed
+unreadable: /sys/class/mtd/mtd0ro/bad_blocks
+unreadable: /sys/class/mtd/mtd0ro/bbt_blocks
+unreadable: /sys/class/mtd/mtd1/failed
+unreadable: /sys/class/mtd/mtd1ro/name
+unreadable: /sys/class/mtd/mtd1ro/type
+unreadable: /sys/class/mtd/mtd1ro/flags
+unreadable: /sys/class/mtd/mtd1ro/size
+unreadable: /sys/class/mtd/mtd1ro/erasesize
+unreadable: /sys/class/mtd/mtd1ro/writesize
+unreadable: /sys/class/mtd/mtd1ro/subpagesize
+unreadable: /sys/class/mtd/mtd1ro/oobsize
+unreadable: /sys/class/mtd/mtd1ro/numeraseregions
+unreadable: /sys/class/mtd/mtd1ro/ecc_strength
+unreadable: /sys/class/mtd/mtd1ro/ecc_step_size
+unreadable: /sys/class/mtd/mtd1ro/corrected_bits
+unreadable: /sys/class/mtd/mtd1ro/failed
+unreadable: /sys/class/mtd/mtd1ro/bad_blocks
+unreadable: /sys/class/mtd/mtd1ro/bbt_blocks
+unreadable: /sys/class/mtd/mtd2/failed
+unreadable: /sys/class/mtd/mtd2ro/name
+unreadable: /sys/class/mtd/mtd2ro/type
+unreadable: /sys/class/mtd/mtd2ro/flags
+unreadable: /sys/class/mtd/mtd2ro/size
+unreadable: /sys/class/mtd/mtd2ro/erasesize
+unreadable: /sys/class/mtd/mtd2ro/writesize
+unreadable: /sys/class/mtd/mtd2ro/subpagesize
+unreadable: /sys/class/mtd/mtd2ro/oobsize
+unreadable: /sys/class/mtd/mtd2ro/numeraseregions
+unreadable: /sys/class/mtd/mtd2ro/ecc_strength
+unreadable: /sys/class/mtd/mtd2ro/ecc_step_size
+unreadable: /sys/class/mtd/mtd2ro/corrected_bits
+unreadable: /sys/class/mtd/mtd2ro/failed
+unreadable: /sys/class/mtd/mtd2ro/bad_blocks
+unreadable: /sys/class/mtd/mtd2ro/bbt_blocks
+unreadable: /sys/class/mtd/mtd3/failed
+unreadable: /sys/class/mtd/mtd3ro/name
+unreadable: /sys/class/mtd/mtd3ro/type
+unreadable: /sys/class/mtd/mtd3ro/flags
+unreadable: /sys/class/mtd/mtd3ro/size
+unreadable: /sys/class/mtd/mtd3ro/erasesize
+unreadable: /sys/class/mtd/mtd3ro/writesize
+unreadable: /sys/class/mtd/mtd3ro/subpagesize
+unreadable: /sys/class/mtd/mtd3ro/oobsize
+unreadable: /sys/class/mtd/mtd3ro/numeraseregions
+unreadable: /sys/class/mtd/mtd3ro/ecc_strength
+unreadable: /sys/class/mtd/mtd3ro/ecc_step_size
+unreadable: /sys/class/mtd/mtd3ro/corrected_bits
+unreadable: /sys/class/mtd/mtd3ro/failed
+unreadable: /sys/class/mtd/mtd3ro/bad_blocks
+unreadable: /sys/class/mtd/mtd3ro/bbt_blocks
+unreadable: /sys/class/mtd/mtd4/failed
+unreadable: /sys/class/mtd/mtd4ro/name
+unreadable: /sys/class/mtd/mtd4ro/type
+unreadable: /sys/class/mtd/mtd4ro/flags
+unreadable: /sys/class/mtd/mtd4ro/size
+unreadable: /sys/class/mtd/mtd4ro/erasesize
+unreadable: /sys/class/mtd/mtd4ro/writesize
+unreadable: /sys/class/mtd/mtd4ro/subpagesize
+unreadable: /sys/class/mtd/mtd4ro/oobsize
+unreadable: /sys/class/mtd/mtd4ro/numeraseregions
+unreadable: /sys/class/mtd/mtd4ro/ecc_strength
+unreadable: /sys/class/mtd/mtd4ro/ecc_step_size
+unreadable: /sys/class/mtd/mtd4ro/corrected_bits
+unreadable: /sys/class/mtd/mtd4ro/failed
+unreadable: /sys/class/mtd/mtd4ro/bad_blocks
+unreadable: /sys/class/mtd/mtd4ro/bbt_blocks
+unreadable: /sys/class/mtd/mtd5/failed
+unreadable: /sys/class/mtd/mtd5ro/name
+unreadable: /sys/class/mtd/mtd5ro/type
+unreadable: /sys/class/mtd/mtd5ro/flags
+unreadable: /sys/class/mtd/mtd5ro/size
+unreadable: /sys/class/mtd/mtd5ro/erasesize
+unreadable: /sys/class/mtd/mtd5ro/writesize
+unreadable: /sys/class/mtd/mtd5ro/subpagesize
+unreadable: /sys/class/mtd/mtd5ro/oobsize
+unreadable: /sys/class/mtd/mtd5ro/numeraseregions
+unreadable: /sys/class/mtd/mtd5ro/ecc_strength
+unreadable: /sys/class/mtd/mtd5ro/ecc_step_size
+unreadable: /sys/class/mtd/mtd5ro/corrected_bits
+unreadable: /sys/class/mtd/mtd5ro/failed
+unreadable: /sys/class/mtd/mtd5ro/bad_blocks
+unreadable: /sys/class/mtd/mtd5ro/bbt_blocks
+unreadable: /sys/class/mtd/mtd6/failed
+unreadable: /sys/class/mtd/mtd6ro/name
+unreadable: /sys/class/mtd/mtd6ro/type
+unreadable: /sys/class/mtd/mtd6ro/flags
+unreadable: /sys/class/mtd/mtd6ro/size
+unreadable: /sys/class/mtd/mtd6ro/erasesize
+unreadable: /sys/class/mtd/mtd6ro/writesize
+unreadable: /sys/class/mtd/mtd6ro/subpagesize
+unreadable: /sys/class/mtd/mtd6ro/oobsize
+unreadable: /sys/class/mtd/mtd6ro/numeraseregions
+unreadable: /sys/class/mtd/mtd6ro/ecc_strength
+unreadable: /sys/class/mtd/mtd6ro/ecc_step_size
+unreadable: /sys/class/mtd/mtd6ro/corrected_bits
+unreadable: /sys/class/mtd/mtd6ro/failed
+unreadable: /sys/class/mtd/mtd6ro/bad_blocks
+unreadable: /sys/class/mtd/mtd6ro/bbt_blocks
+unreadable: /sys/class/mtd/mtd7/failed
+unreadable: /sys/class/mtd/mtd7ro/name
+unreadable: /sys/class/mtd/mtd7ro/type
+unreadable: /sys/class/mtd/mtd7ro/flags
+unreadable: /sys/class/mtd/mtd7ro/size
+unreadable: /sys/class/mtd/mtd7ro/erasesize
+unreadable: /sys/class/mtd/mtd7ro/writesize
+unreadable: /sys/class/mtd/mtd7ro/subpagesize
+unreadable: /sys/class/mtd/mtd7ro/oobsize
+unreadable: /sys/class/mtd/mtd7ro/numeraseregions
+unreadable: /sys/class/mtd/mtd7ro/ecc_strength
+unreadable: /sys/class/mtd/mtd7ro/ecc_step_size
+unreadable: /sys/class/mtd/mtd7ro/corrected_bits
+unreadable: /sys/class/mtd/mtd7ro/failed
+unreadable: /sys/class/mtd/mtd7ro/bad_blocks
+unreadable: /sys/class/mtd/mtd7ro/bbt_blocks
+unreadable: /sys/class/mtd/mtd8/failed
+unreadable: /sys/class/mtd/mtd8ro/name
+unreadable: /sys/class/mtd/mtd8ro/type
+unreadable: /sys/class/mtd/mtd8ro/flags
+unreadable: /sys/class/mtd/mtd8ro/size
+unreadable: /sys/class/mtd/mtd8ro/erasesize
+unreadable: /sys/class/mtd/mtd8ro/writesize
+unreadable: /sys/class/mtd/mtd8ro/subpagesize
+unreadable: /sys/class/mtd/mtd8ro/oobsize
+unreadable: /sys/class/mtd/mtd8ro/numeraseregions
+unreadable: /sys/class/mtd/mtd8ro/ecc_strength
+unreadable: /sys/class/mtd/mtd8ro/ecc_step_size
+unreadable: /sys/class/mtd/mtd8ro/corrected_bits
+unreadable: /sys/class/mtd/mtd8ro/failed
+unreadable: /sys/class/mtd/mtd8ro/bad_blocks
+unreadable: /sys/class/mtd/mtd8ro/bbt_blocks
+unreadable: /sys/class/mtd/mtd9/failed
+unreadable: /sys/class/mtd/mtd9ro/name
+unreadable: /sys/class/mtd/mtd9ro/type
+unreadable: /sys/class/mtd/mtd9ro/flags
+unreadable: /sys/class/mtd/mtd9ro/size
+unreadable: /sys/class/mtd/mtd9ro/erasesize
+unreadable: /sys/class/mtd/mtd9ro/writesize
+unreadable: /sys/class/mtd/mtd9ro/subpagesize
+unreadable: /sys/class/mtd/mtd9ro/oobsize
+unreadable: /sys/class/mtd/mtd9ro/numeraseregions
+unreadable: /sys/class/mtd/mtd9ro/ecc_strength
+unreadable: /sys/class/mtd/mtd9ro/ecc_step_size
+unreadable: /sys/class/mtd/mtd9ro/corrected_bits
+unreadable: /sys/class/mtd/mtd9ro/failed
+unreadable: /sys/class/mtd/mtd9ro/bad_blocks
+unreadable: /sys/class/mtd/mtd9ro/bbt_blocks
+unreadable: /sys/kernel/debug/pm_genpd/pm_genpd_summary
+unreadable: /sys/kernel/debug/pinctrl/10e20000.pinctrl-zx-pinctrl/pinctrl-handles
+unreadable: /sys/kernel/debug/pinctrl/10e20000.pinctrl-zx-pinctrl/pinctrl-maps
+unreadable: /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies
+unreadable: /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors
+unreadable: /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq
+unreadable: /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver
+unreadable: /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+unreadable: /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq
+unreadable: /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq
+unreadable: /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq
+unreadable: /sys/devices/system/cpu/cpu1/cpufreq/scaling_available_frequencies
+unreadable: /sys/devices/system/cpu/cpu1/cpufreq/scaling_available_governors
+unreadable: /sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq
+unreadable: /sys/devices/system/cpu/cpu1/cpufreq/scaling_driver
+unreadable: /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
+unreadable: /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_cur_freq
+unreadable: /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_max_freq
+unreadable: /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_min_freq
+command failed: ip -details -statistics link show
+command failed: ip neighbour show
+cat: read error: Invalid argument
+copy failed: /sys/class/net/br0/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/br0/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/eth0/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/eth0/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/eth1/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/eth1/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/eth2/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/eth2/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/eth3/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/eth3/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/eth4/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/eth4/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/idm/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/idm/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ifb0/carrier
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ifb0/dormant
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ifb0/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ifb0/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ifb1/carrier
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ifb1/dormant
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ifb1/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ifb1/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ip6tnl0/carrier
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ip6tnl0/dormant
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ip6tnl0/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/ip6tnl0/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/lo/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/lo/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/nbif0/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/nbif0/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/oam/carrier
+cat: read error: Invalid argument
+copy failed: /sys/class/net/oam/dormant
+cat: read error: Invalid argument
+copy failed: /sys/class/net/oam/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/oam/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/pon/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/pon/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/sit0/carrier
+cat: read error: Invalid argument
+copy failed: /sys/class/net/sit0/dormant
+cat: read error: Invalid argument
+copy failed: /sys/class/net/sit0/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/sit0/speed
+cat: read error: Invalid argument
+copy failed: /sys/class/net/sw/duplex
+cat: read error: Invalid argument
+copy failed: /sys/class/net/sw/speed
+unreadable: /sys/module/xdpi/srcversion
+unreadable: /sys/module/xdpi/version
+unreadable: /sys/module/switch/srcversion
+unreadable: /sys/module/switch/version
+unreadable: /sys/module/zx_ponreg/srcversion
+unreadable: /sys/module/zx_ponreg/version
+unreadable: /sys/module/peripheral/srcversion
+unreadable: /sys/module/peripheral/version
+unreadable: /sys/module/cpu_ctrl/srcversion
+unreadable: /sys/module/cpu_ctrl/version
+unreadable: /sys/module/np/srcversion
+unreadable: /sys/module/np/version
+unreadable: /sys/module/plat_132/srcversion
+unreadable: /sys/module/plat_132/version
+unreadable: /sys/module/rtl8373_switch/srcversion
+unreadable: /sys/module/rtl8373_switch/version
+unreadable: /sys/module/TMI7604/srcversion
+unreadable: /sys/module/TMI7604/version
+unreadable: /sys/module/rlt8226b/srcversion
+unreadable: /sys/module/rlt8226b/version
+unreadable: /sys/module/zx279051/srcversion
+unreadable: /sys/module/zx279051/version
+unreadable: /sys/module/shellproc/srcversion
+unreadable: /sys/module/shellproc/version
+unreadable: /sys/module/bspdriver/srcversion
+unreadable: /sys/module/bspdriver/version
+command failed: find /lib/firmware -type f -print
+gzip: short write: No space left on device
+tar: write error: Broken pipe
+tar.gz creation failed; use the collection directory directly

@@ -1,0 +1,5 @@
+OF_NAME=leds
+OF_FULLNAME=/soc/leds
+OF_COMPATIBLE_0=zxic,zx-leds
+OF_COMPATIBLE_N=1
+MODALIAS=of:NledsT(null)Czxic,zx-leds

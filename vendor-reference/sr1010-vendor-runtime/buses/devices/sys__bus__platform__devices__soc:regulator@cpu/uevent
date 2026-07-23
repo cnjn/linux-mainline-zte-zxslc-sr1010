@@ -1,0 +1,5 @@
+OF_NAME=regulator
+OF_FULLNAME=/soc/regulator@cpu
+OF_COMPATIBLE_0=pwm-regulator
+OF_COMPATIBLE_N=1
+MODALIAS=of:NregulatorT(null)Cpwm-regulator

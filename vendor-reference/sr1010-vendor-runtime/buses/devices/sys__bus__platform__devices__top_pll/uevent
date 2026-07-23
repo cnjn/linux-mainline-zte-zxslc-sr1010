@@ -1,0 +1,5 @@
+OF_NAME=top_pll
+OF_FULLNAME=/top_pll
+OF_COMPATIBLE_0=simple-bus
+OF_COMPATIBLE_N=1
+MODALIAS=of:Ntop_pllT(null)Csimple-bus

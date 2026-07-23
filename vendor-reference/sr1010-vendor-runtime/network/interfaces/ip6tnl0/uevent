@@ -1,0 +1,2 @@
+INTERFACE=ip6tnl0
+IFINDEX=5

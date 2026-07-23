@@ -1,0 +1,5 @@
+OF_NAME=timer
+OF_FULLNAME=/timer
+OF_COMPATIBLE_0=arm,armv8-timer
+OF_COMPATIBLE_N=1
+MODALIAS=of:NtimerT(null)Carm,armv8-timer

@@ -1,0 +1,6 @@
+OF_NAME=boot_ctrl
+OF_FULLNAME=/soc/boot_ctrl@10e10170
+OF_COMPATIBLE_0=zxic,boot-ctrl
+OF_COMPATIBLE_1=syscon
+OF_COMPATIBLE_N=2
+MODALIAS=of:Nboot_ctrlT(null)Czxic,boot-ctrlCsyscon

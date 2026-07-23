@@ -1,0 +1,5 @@
+OF_NAME=lsp0_clk
+OF_FULLNAME=/lsp0_clk
+OF_COMPATIBLE_0=simple-bus
+OF_COMPATIBLE_N=1
+MODALIAS=of:Nlsp0_clkT(null)Csimple-bus

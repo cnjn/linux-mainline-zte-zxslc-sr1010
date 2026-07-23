@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/14f00000.lsp_crm
+driver=
+of_node=../../../../firmware/devicetree/base/soc/lsp_crm@14f00000
+subsystem=../../../../bus/platform

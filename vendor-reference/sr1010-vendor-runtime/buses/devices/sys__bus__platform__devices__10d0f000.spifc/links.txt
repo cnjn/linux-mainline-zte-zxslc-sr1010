@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/10d0f000.spifc
+driver=../../../../bus/platform/drivers/zx-spifc
+of_node=../../../../firmware/devicetree/base/soc/spifc@0x10d0f000
+subsystem=../../../../bus/platform

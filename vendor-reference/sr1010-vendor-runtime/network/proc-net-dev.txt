@@ -1,0 +1,18 @@
+Inter-|   Receive                                                |  Transmit
+ face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+  sit0:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+  ifb0:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+    lo:    2423      11    0    0    0     0          0         0     2423      11    0    0    0     0       0          0
+   idm:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+  ifb1:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+  eth0:   80297     337    0    0    0     0          0        90    13183     161    0    0    0     0       0          0
+   pon:   85015     337    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+  eth1:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+  eth2:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+ nbif0:   84519     330    0    0    0     0          0         0    13183     161    0    0    0     0       0          0
+ip6tnl0:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+    sw:       0       0    0    0    0     0          0         0    13327     161    0    0    0     0       0          0
+   oam:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+  eth3:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+  eth4:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+   br0:       0       0    0    0    0     0          0         0      132       2    0    0    0     0       0          0

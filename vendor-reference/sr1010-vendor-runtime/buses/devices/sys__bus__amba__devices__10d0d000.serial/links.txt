@@ -1,0 +1,4 @@
+device=/sys/bus/amba/devices/10d0d000.serial
+driver=../../../../bus/amba/drivers/uart-pl011
+of_node=../../../../firmware/devicetree/base/soc/serial@10d0d000
+subsystem=../../../../bus/amba

@@ -1,0 +1,5 @@
+OF_NAME=se
+OF_FULLNAME=/soc/se@18040000
+OF_COMPATIBLE_0=zte,zx279133-se-ddr
+OF_COMPATIBLE_N=1
+MODALIAS=of:NseT(null)Czte,zx279133-se-ddr

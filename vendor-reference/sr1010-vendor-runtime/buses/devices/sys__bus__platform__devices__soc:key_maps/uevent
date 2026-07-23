@@ -1,0 +1,5 @@
+OF_NAME=key_maps
+OF_FULLNAME=/soc/key_maps
+OF_COMPATIBLE_0=zxic,gpio-key-evdev
+OF_COMPATIBLE_N=1
+MODALIAS=of:Nkey_mapsT(null)Czxic,gpio-key-evdev

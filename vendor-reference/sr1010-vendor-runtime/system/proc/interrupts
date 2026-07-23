@@ -1,0 +1,21 @@
+           CPU0       CPU1       
+  3:      38087      38098     GICv3  27 Level     arch_timer
+ 14:      24748          0     GICv3  63 Level     uart-pl011
+ 15:    1268736          0     GICv3  75 Level     14f03000.i2c
+ 16:          0          0     GICv3  76 Level     14f04000.i2c
+ 19:          0          0     GICv3  97 Level     xhci-hcd:usb1
+ 20:     274627          0     GICv3  65 Level     zx-spifc
+ 21:          0          0     GICv3  38 Level     pon
+ 25:          0          0     GICv3  37 Level     nppt
+ 26:        268          0     GICv3  33 Level     cpu
+ 27:          0          0     GICv3  34 Level     idm
+ 28:          0          0     GICv3  35 Level     buf_rls
+ 29:          0          0     GICv3  36 Level     localtest
+IPI0:      4657     125226       Rescheduling interrupts
+IPI1:        15         14       Function call interrupts
+IPI2:         0          0       CPU stop interrupts
+IPI3:         0          0       CPU stop (for crash dump) interrupts
+IPI4:         0          0       Timer broadcast interrupts
+IPI5:         0          0       IRQ work interrupts
+IPI6:         0          0       CPU wake-up interrupts
+Err:          0

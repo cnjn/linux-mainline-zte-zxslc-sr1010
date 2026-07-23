@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/lsp0_clk
+driver=
+of_node=../../../firmware/devicetree/base/lsp0_clk
+subsystem=../../../bus/platform

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "idalib-mcp": {
+      "type": "stdio",
+      "command": "idalib-mcp",
+      "args": [
+        "--stdio"
+      ],
+      "env": {}
+    }
+  }
+}

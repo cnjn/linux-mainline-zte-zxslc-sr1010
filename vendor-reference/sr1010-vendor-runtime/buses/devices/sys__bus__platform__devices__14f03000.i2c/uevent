@@ -1,0 +1,7 @@
+DRIVER=zx_i2c
+OF_NAME=i2c
+OF_FULLNAME=/soc/i2c@14f03000
+OF_COMPATIBLE_0=zte,zx-i2c
+OF_COMPATIBLE_N=1
+OF_ALIAS_0=i2c0
+MODALIAS=of:Ni2cT(null)Czte,zx-i2c

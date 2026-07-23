@@ -1,0 +1,5 @@
+OF_NAME=keys
+OF_FULLNAME=/soc/keys
+OF_COMPATIBLE_0=zxic,gpio-keys
+OF_COMPATIBLE_N=1
+MODALIAS=of:NkeysT(null)Czxic,gpio-keys

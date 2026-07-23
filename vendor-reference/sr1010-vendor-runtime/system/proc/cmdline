@@ -1,0 +1,1 @@
+console=ttyAMA0,115200n8 root=/dev/mtdblock8 ro rootfstype=jffs2 mem=512M serial=open pcie_pme=nomsi

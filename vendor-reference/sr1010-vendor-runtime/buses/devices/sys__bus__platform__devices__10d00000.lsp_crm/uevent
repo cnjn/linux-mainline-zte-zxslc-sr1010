@@ -1,0 +1,6 @@
+OF_NAME=lsp_crm
+OF_FULLNAME=/soc/lsp_crm@10d00000
+OF_COMPATIBLE_0=zxic,lsp-clock
+OF_COMPATIBLE_1=syscon
+OF_COMPATIBLE_N=2
+MODALIAS=of:Nlsp_crmT(null)Czxic,lsp-clockCsyscon

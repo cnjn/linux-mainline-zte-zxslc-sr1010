@@ -1,0 +1,6 @@
+OF_NAME=bdinfo
+OF_FULLNAME=/soc/bdinfo@0
+OF_COMPATIBLE_0=zxic,zx279133-board
+OF_COMPATIBLE_1=zxic,zx-board
+OF_COMPATIBLE_N=2
+MODALIAS=of:NbdinfoT(null)Czxic,zx279133-boardCzxic,zx-board

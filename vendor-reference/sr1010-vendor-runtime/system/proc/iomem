@@ -1,0 +1,31 @@
+10d0d000-10d0dfff : serial@10d0d000
+  10d0d000-10d0dfff : 10d0d000.serial serial@10d0d000
+10d10000-10d1003f : 10d10000.gpio gpio@10d10000
+10d10040-10d1007f : 10d10040.gpio gpio@10d10040
+10d10080-10d100bf : 10d10080.gpio gpio@10d10080
+10d100c0-10d100ff : 10d100c0.gpio gpio@10d100c0
+10d10100-10d1013f : 10d10100.gpio gpio@10d10100
+10e10060-10e10063 : 10e10060.toprst toprst@10e10060
+10e10070-10e10077 : 10e10070.localrst localrst@10e10070
+10e20000-10e20fff : 10e20000.pinctrl pinctrl@10e20000
+10e70000-10e7ffff : 10e70000.pvt pvt@10e70000
+14f01000-14f01fff : 14f01000.mdio mdio@14f01000
+14f02000-14f02fff : 14f02000.mdio mdio@14f02000
+14f03000-14f03fff : 14f03000.i2c i2c@14f03000
+14f04000-14f04fff : 14f04000.i2c i2c@14f04000
+14f09000-14f09fff : 14f09000.wdt wdt@14f09000
+14f0a000-14f0afff : 14f0a000.wdt wdt@14f0a000
+14f11000-14f11fff : 14f11000.efuse efuse@14f11000
+15010000-15013fff : 15010000.usb3 usb3@15010000
+80000000-9fffffff : System RAM
+  80080000-80aaffff : Kernel code
+  80ab0000-80b2ffff : reserved
+  80b30000-80e55fff : Kernel data
+  85ff3000-85ffcfff : reserved
+  9ca00000-9cbfffff : reserved
+  9cd7f000-9d3fffff : reserved
+  9d420000-9d460fff : reserved
+  9d461000-9d4c0fff : reserved
+  9d4c3000-9d4c3fff : reserved
+  9d4c4000-9d4d4fff : reserved
+  9d4d5000-9fffffff : reserved

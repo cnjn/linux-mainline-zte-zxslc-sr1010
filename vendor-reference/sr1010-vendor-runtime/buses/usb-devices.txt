@@ -1,0 +1,7 @@
+total 0
+drwxr-xr-x    2 root     root             0 Jan  1 00:06 .
+drwxr-xr-x    4 root     root             0 Jan  1 00:06 ..
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 1-0:1.0 -> ../../../devices/platform/soc/15010000.usb3/usb1/1-0:1.0
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 2-0:1.0 -> ../../../devices/platform/soc/15010000.usb3/usb2/2-0:1.0
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 usb1 -> ../../../devices/platform/soc/15010000.usb3/usb1
+lrwxrwxrwx    1 root     root             0 Jan  1 00:06 usb2 -> ../../../devices/platform/soc/15010000.usb3/usb2

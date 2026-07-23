@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/10e10000.topcrm
+driver=
+of_node=../../../../firmware/devicetree/base/soc/topcrm@10e10000
+subsystem=../../../../bus/platform

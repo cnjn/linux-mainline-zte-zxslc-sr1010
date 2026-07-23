@@ -1,0 +1,113 @@
+{
+  "elf": {
+    "entry": 18446743799111289236,
+    "entry_hex": "0xffffffc010ab0994",
+    "kernel_section_size": 11999240,
+    "kernel_virtual_base": 18446743799100604416,
+    "kernel_virtual_base_hex": "0xffffffc010080000",
+    "symbol_count": 75538,
+    "symbols": {
+      "__init_begin": 18446743799111286784,
+      "__init_end": 18446743799111811072,
+      "_text": 18446743799100604416,
+      "start_kernel": 18446743799111289236
+    },
+    "symbols_hex": {
+      "__init_begin": "0xffffffc010ab0000",
+      "__init_end": "0xffffffc010b30000",
+      "_text": "0xffffffc010080000",
+      "start_kernel": "0xffffffc010ab0994"
+    }
+  },
+  "files": {
+    "Image": {
+      "sha256": "68927e18eb1f8c6479fe44755ba7fbe09e323d2e6fc92bd1c3b5a43c826e3bbd",
+      "size": 11999240
+    },
+    "kernel-2b5.elf": {
+      "sha256": "35941b131502ba785326692169dc3b9ca165d4417ee50632dc335e7a856baa6d",
+      "size": 15327763
+    },
+    "kernel-image.gz": {
+      "sha256": "08d93e0952a22fff9cf2d8bf33cef8bab19ca716ae718732b70c25e6676b3577",
+      "size": 5522023
+    },
+    "kernel.encrypted.bin": {
+      "sha256": "ee4dd336ac7f0febd05d0d92bd89b5cfde5ac23b57df55641d34427ef879460c",
+      "size": 5561344
+    },
+    "rootfs.encrypted.bin": {
+      "sha256": "8dfc28833525c28218aacdec5af491def250d61378263be1f6c0fae7879f1e7c",
+      "size": 24641536
+    },
+    "rootfs.jffs2": {
+      "sha256": "e7295bb6aa714a62c9856413c18cfedf492fca4d08c49cfc2d8e4e5c19991127",
+      "size": 24641536
+    },
+    "uboot.bin": {
+      "sha256": "19ea3fc627989d4016004a4ca4829192a7660a5579af3dd33e88f1e842b74927",
+      "size": 1572864
+    },
+    "vendor-2b5.itb": {
+      "sha256": "b7966f7a1ddcc5decaab32e17d3454d59169e2b58a03c86da581cb907367c687",
+      "size": 5561335
+    },
+    "zx279133-sr1010.dtb": {
+      "sha256": "c58f95354b23d831ff92904820e4f6174bb39914b07bfd3e02330250d1a678a7",
+      "size": 37374
+    },
+    "zx279133-sr1010.dts": {
+      "sha256": "b8483418d52bd26d475435e3cf54a285a328d63568ff54940a8f02a16d0cdcb8",
+      "size": 47841
+    }
+  },
+  "fit": {
+    "configuration": "conf@133",
+    "dtb": {
+      "compression": "none",
+      "decoded_size": 37374,
+      "hashes": {},
+      "name": "fdt@133",
+      "stored_size": 37374
+    },
+    "kernel": {
+      "compression": "gzip",
+      "decoded_size": 11999240,
+      "hashes": {},
+      "name": "kernel@133",
+      "stored_size": 5522023
+    },
+    "sha256": "b7966f7a1ddcc5decaab32e17d3454d59169e2b58a03c86da581cb907367c687"
+  },
+  "image": {
+    "image_size": 14508032,
+    "image_size_hex": "0xdd6000",
+    "physical_entry": 2148007936,
+    "physical_entry_hex": "0x80080000",
+    "physical_load": 2148007936,
+    "physical_load_hex": "0x80080000",
+    "sha256": "68927e18eb1f8c6479fe44755ba7fbe09e323d2e6fc92bd1c3b5a43c826e3bbd",
+    "text_offset": 524288,
+    "text_offset_hex": "0x80000"
+  },
+  "input": "firmwares/zxhnsr1010_hv100_fv1002b58000_firmware-20260618145154.bin",
+  "input_sha256": "97a710c362a6a1221c3a454f2e2b8bca763c4d1a356489f099a1cefb18d9c932",
+  "ota": {
+    "body_offset": 788,
+    "body_size": 31850496,
+    "header_crc32": 2644310351,
+    "header_crc32_2": 853245592,
+    "kernel_crc32": 2569557896,
+    "kernel_offset": 1573684,
+    "kernel_size": 5561344,
+    "rootfs_crc32": 252279401,
+    "rootfs_offset": 7209748,
+    "rootfs_size": 24641536,
+    "signature_size": 256,
+    "version_header_offset": 276
+  },
+  "tools": {
+    "dtc": "Version: DTC 1.7.2",
+    "vmlinux_to_elf": "1.3.6"
+  }
+}

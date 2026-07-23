@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/10e10204.reboot
+driver=
+of_node=../../../../firmware/devicetree/base/soc/reboot@10e10204
+subsystem=../../../../bus/platform

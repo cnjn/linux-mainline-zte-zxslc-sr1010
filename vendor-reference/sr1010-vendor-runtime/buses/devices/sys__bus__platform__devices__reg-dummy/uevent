@@ -1,0 +1,2 @@
+DRIVER=reg-dummy
+MODALIAS=platform:reg-dummy

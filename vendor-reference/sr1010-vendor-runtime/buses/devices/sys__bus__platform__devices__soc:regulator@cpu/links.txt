@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/soc:regulator@cpu
+driver=
+of_node=../../../../firmware/devicetree/base/soc/regulator@cpu
+subsystem=../../../../bus/platform

@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/soc:keys
+driver=
+of_node=../../../../firmware/devicetree/base/soc/keys
+subsystem=../../../../bus/platform

@@ -1,0 +1,5 @@
+collector=sr1010-vendor-runtime-v1
+timestamp_utc=19700101T000620Z
+uid=0
+output=/tmp/sr1010-vendor-runtime
+policy=read-only kernel interfaces; no MTD data, devmem, register dumps, or configuration changes

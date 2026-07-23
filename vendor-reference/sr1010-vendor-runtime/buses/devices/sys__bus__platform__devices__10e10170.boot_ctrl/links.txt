@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/10e10170.boot_ctrl
+driver=
+of_node=../../../../firmware/devicetree/base/soc/boot_ctrl@10e10170
+subsystem=../../../../bus/platform

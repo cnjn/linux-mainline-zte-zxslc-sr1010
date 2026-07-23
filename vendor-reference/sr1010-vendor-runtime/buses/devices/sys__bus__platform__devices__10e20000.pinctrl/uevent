@@ -1,0 +1,6 @@
+DRIVER=zxic-pinctrl
+OF_NAME=pinctrl
+OF_FULLNAME=/soc/pinctrl@10e20000
+OF_COMPATIBLE_0=zte,zx-pinctrl
+OF_COMPATIBLE_N=1
+MODALIAS=of:NpinctrlT(null)Czte,zx-pinctrl

@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/soc:bdinfo@0
+driver=
+of_node=../../../../firmware/devicetree/base/soc/bdinfo@0
+subsystem=../../../../bus/platform

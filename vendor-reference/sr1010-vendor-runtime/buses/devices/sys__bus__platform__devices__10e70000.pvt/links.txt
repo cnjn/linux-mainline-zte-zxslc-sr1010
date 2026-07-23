@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/10e70000.pvt
+driver=../../../../bus/platform/drivers/zx_pvt_sensor_cln22ulp
+of_node=../../../../firmware/devicetree/base/soc/pvt@10e70000
+subsystem=../../../../bus/platform

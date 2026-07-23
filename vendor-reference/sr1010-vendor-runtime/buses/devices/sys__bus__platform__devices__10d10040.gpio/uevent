@@ -1,0 +1,7 @@
+DRIVER=zx_gpio
+OF_NAME=gpio
+OF_FULLNAME=/soc/gpio@10d10040
+OF_COMPATIBLE_0=zte,zx-gpio
+OF_COMPATIBLE_N=1
+OF_ALIAS_0=gpio1
+MODALIAS=of:NgpioT(null)Czte,zx-gpio

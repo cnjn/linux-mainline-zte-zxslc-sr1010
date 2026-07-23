@@ -1,0 +1,6 @@
+OF_NAME=topcrm
+OF_FULLNAME=/soc/topcrm@10e10000
+OF_COMPATIBLE_0=zte,zx279133-topcrm
+OF_COMPATIBLE_1=syscon
+OF_COMPATIBLE_N=2
+MODALIAS=of:NtopcrmT(null)Czte,zx279133-topcrmCsyscon

@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/10d10000.gpio
+driver=../../../../bus/platform/drivers/zx_gpio
+of_node=../../../../firmware/devicetree/base/soc/gpio@10d10000
+subsystem=../../../../bus/platform

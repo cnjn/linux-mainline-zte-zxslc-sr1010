@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/top_fixed
+driver=
+of_node=../../../firmware/devicetree/base/top_fixed
+subsystem=../../../bus/platform

@@ -1,0 +1,11 @@
+DRIVER=uart-pl011
+OF_NAME=serial
+OF_FULLNAME=/soc/serial@10d0d000
+OF_TYPE=serial
+OF_COMPATIBLE_0=arm,sbsa-uart
+OF_COMPATIBLE_1=arm,pl011
+OF_COMPATIBLE_2=arm,primecell
+OF_COMPATIBLE_N=3
+OF_ALIAS_0=serial0
+AMBA_ID=001feffe
+MODALIAS=amba:d001FEFFE

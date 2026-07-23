@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/10e10070.localrst
+driver=../../../../bus/platform/drivers/zx2967-reset
+of_node=../../../../firmware/devicetree/base/soc/localrst@10e10070
+subsystem=../../../../bus/platform

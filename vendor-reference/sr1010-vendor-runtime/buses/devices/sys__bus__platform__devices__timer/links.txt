@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/timer
+driver=
+of_node=../../../firmware/devicetree/base/timer
+subsystem=../../../bus/platform

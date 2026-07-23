@@ -1,0 +1,8 @@
+DRIVER=zx-efuse
+OF_NAME=efuse
+OF_FULLNAME=/soc/efuse@14f11000
+OF_COMPATIBLE_0=zte,efuse
+OF_COMPATIBLE_1=zxic,zx-efuse
+OF_COMPATIBLE_2=syscon
+OF_COMPATIBLE_N=3
+MODALIAS=of:NefuseT(null)Czte,efuseCzxic,zx-efuseCsyscon

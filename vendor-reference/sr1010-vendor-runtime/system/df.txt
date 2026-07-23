@@ -1,0 +1,17 @@
+Filesystem           1K-blocks      Used Available Use% Mounted on
+/dev/root                34816     25524      9292  73% /
+/dev/loop0               19776     19776         0 100% /kmodule
+tmpfs                    56320       248     56072   0% /var
+tmpfs                    20480        48     20432   0% /tmp
+tmpfs                     2048         0      2048   0% /tracelog
+tmpfs                     2048         0      2048   0% /owdptsplugin/tmp
+tmpfs                    61440        12     61428   0% /DPITMP
+tmpfs                     1024         0      1024   0% /uadd
+tmpfs                     3072         0      3072   0% /owjdxbplugin/tmp
+tmpfs                    39936         0     39936   0% /plugintmp
+/dev/mtdblock3            2048       496      1552  24% /usercfg
+/dev/mtdblock4            2048       504      1544  25% /defcfg
+/dev/mtdblock9           40960      8672     32288  21% /Plugin
+cgroup_root             228484         0    228484   0% /sys/fs/cgroup
+cgroup_root             228484         0    228484   0% /sys/fs/cgroup
+tmpfs                    10240         0     10240   0% /dbtmpfile

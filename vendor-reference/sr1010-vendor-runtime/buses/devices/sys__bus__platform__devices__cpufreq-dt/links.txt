@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/cpufreq-dt
+driver=
+of_node=
+subsystem=../../../bus/platform

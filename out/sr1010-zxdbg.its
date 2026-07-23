@@ -1,0 +1,42 @@
+/dts-v1/;
+
+/ {
+	description = "ZXSLC SR1010 mainline RAM boot";
+	#address-cells = <1>;
+
+	images {
+		kernel {
+			description = "Linux arm64 Image with mainline diagnostic initramfs";
+			data = /incbin/("/Volumes/code/zx279133/out/Image.gz");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "gzip";
+			load = <0x80200000>;
+			entry = <0x80200000>;
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+
+		fdt {
+			description = "ZX279133 SR1010 mainline device tree";
+			data = /incbin/("/Volumes/code/zx279133/out/zx279133-sr1010.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+	};
+
+	configurations {
+		default = "conf";
+		conf {
+			description = "SR1010 mainline SoC and diagnostic monitor";
+			kernel = "kernel";
+			fdt = "fdt";
+		};
+	};
+};

@@ -1,0 +1,4 @@
+device=/sys/bus/platform/devices/soc:wifi0@f00000
+driver=
+of_node=../../../../firmware/devicetree/base/soc/wifi0@f00000
+subsystem=../../../../bus/platform

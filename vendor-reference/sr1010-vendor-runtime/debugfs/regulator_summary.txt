@@ -1,0 +1,3 @@
+ regulator                      use open bypass  opmode voltage current     min     max
+---------------------------------------------------------------------------------------
+ regulator-dummy                  1    0      0 unknown     0mV     0mA     0mV     0mV 
