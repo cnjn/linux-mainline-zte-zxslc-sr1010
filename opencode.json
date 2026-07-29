@@ -8,7 +8,8 @@
     // }
     "idalib-mcp": {
       "type": "local",
-      "command": ["idalib-mcp", "--stdio"]
+      "command": ["idalib-mcp", "--stdio"],
+      "timeout": 1800000
     }
   }
 }
