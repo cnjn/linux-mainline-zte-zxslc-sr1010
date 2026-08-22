@@ -123,6 +123,15 @@ config MDIO_SR1010_RTL8372N_AUDIT
 	  and address, and a one-shot guard prevents any repeated bus access.
 	  This option is intended only for isolated RAM-boot hardware validation.
 
+config MDIO_SR1010_RTL8372N_PORT_AUDIT
+	bool "ZTE SR1010 RTL8372N read-only port status audit"
+	depends on MDIO_ZX279133
+	help
+	  Enable a test-only non-PHY MDIO child that reads the RTL8372N
+	  link, media, speed and duplex status registers for ports 3..8.
+	  This option performs no switch configuration and is intended only
+	  for isolated SR1010 LAN bring-up validation.
+
 config MDIO_SR1010_ZX279051_AUDIT
 	bool "ZTE SR1010 ZX279051 read-only identification audit"
 	depends on MDIO_ZX279133
