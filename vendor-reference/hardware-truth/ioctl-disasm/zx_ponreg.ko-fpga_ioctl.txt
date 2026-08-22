@@ -1,0 +1,139 @@
+
+/Volumes/code/zx279133/vendor-reference/sr1010-vendor-runtime/modules/files/kmodule/zx_ponreg.ko:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+0000000000000190 <fpga_ioctl>:
+ 190:	a9b47bfd 	stp	x29, x30, [sp, #-192]!
+ 194:	910003fd 	mov	x29, sp
+ 198:	a90153f3 	stp	x19, x20, [sp, #16]
+ 19c:	90000013 	adrp	x19, 0 <__stack_chk_guard>
+			19c: R_AARCH64_ADR_PREL_PG_HI21	__stack_chk_guard
+ 1a0:	a9025bf5 	stp	x21, x22, [sp, #32]
+ 1a4:	91000260 	add	x0, x19, #0x0
+			1a4: R_AARCH64_ADD_ABS_LO12_NC	__stack_chk_guard
+ 1a8:	2a0103f6 	mov	w22, w1
+ 1ac:	aa0203f4 	mov	x20, x2
+ 1b0:	f9400001 	ldr	x1, [x0]
+ 1b4:	f9005fa1 	str	x1, [x29, #184]
+ 1b8:	d2800001 	mov	x1, #0x0                   	// #0
+ 1bc:	aa0203e0 	mov	x0, x2
+ 1c0:	9100e3b5 	add	x21, x29, #0x38
+ 1c4:	97ffffcd 	bl	f8 <__range_ok.constprop.9>
+ 1c8:	b4000200 	cbz	x0, 208 <fpga_ioctl+0x78>
+ 1cc:	97ffff8f 	bl	8 <uaccess_enable_not_uao>
+ 1d0:	d5384100 	mrs	x0, sp_el0
+ 1d4:	f9400402 	ldr	x2, [x0, #8]
+ 1d8:	9340de80 	sbfx	x0, x20, #0, #56
+ 1dc:	8a140000 	and	x0, x0, x20
+ 1e0:	ea22001f 	bics	xzr, x0, x2
+ 1e4:	9a9f0281 	csel	x1, x20, xzr, eq	// eq = none
+ 1e8:	d503229f 	csdb
+ 1ec:	aa1503e0 	mov	x0, x21
+ 1f0:	d2800202 	mov	x2, #0x10                  	// #16
+ 1f4:	94000000 	bl	0 <__arch_copy_from_user>
+			1f4: R_AARCH64_CALL26	__arch_copy_from_user
+ 1f8:	aa0003e2 	mov	x2, x0
+ 1fc:	97ffff81 	bl	0 <uaccess_disable_not_uao>
+ 200:	b4000180 	cbz	x0, 230 <fpga_ioctl+0xa0>
+ 204:	14000002 	b	20c <fpga_ioctl+0x7c>
+ 208:	d2800202 	mov	x2, #0x10                  	// #16
+ 20c:	cb0202a0 	sub	x0, x21, x2
+ 210:	52800001 	mov	w1, #0x0                   	// #0
+ 214:	91004000 	add	x0, x0, #0x10
+ 218:	94000000 	bl	0 <memset>
+			218: R_AARCH64_CALL26	memset
+ 21c:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			21c: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x23
+ 220:	91000000 	add	x0, x0, #0x0
+			220: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x23
+ 224:	94000000 	bl	0 <printk>
+			224: R_AARCH64_CALL26	printk
+ 228:	92800000 	mov	x0, #0xffffffffffffffff    	// #-1
+ 22c:	1400000c 	b	25c <fpga_ioctl+0xcc>
+ 230:	710006df 	cmp	w22, #0x1
+ 234:	54000201 	b.ne	274 <fpga_ioctl+0xe4>  // b.any
+ 238:	294707a0 	ldp	w0, w1, [x29, #56]
+ 23c:	b94047a2 	ldr	w2, [x29, #68]
+ 240:	94000000 	bl	18 <fpga_write_reg_one_module>
+			240: R_AARCH64_CALL26	fpga_write_reg_one_module
+ 244:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			244: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x69
+ 248:	b94047a1 	ldr	w1, [x29, #68]
+ 24c:	29470fa2 	ldp	w2, w3, [x29, #56]
+ 250:	91000000 	add	x0, x0, #0x0
+			250: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x69
+ 254:	94000000 	bl	0 <printk>
+			254: R_AARCH64_CALL26	printk
+ 258:	d2800000 	mov	x0, #0x0                   	// #0
+ 25c:	91000273 	add	x19, x19, #0x0
+			25c: R_AARCH64_ADD_ABS_LO12_NC	__stack_chk_guard
+ 260:	f9405fa2 	ldr	x2, [x29, #184]
+ 264:	f9400261 	ldr	x1, [x19]
+ 268:	ca010041 	eor	x1, x2, x1
+ 26c:	b4000661 	cbz	x1, 338 <fpga_ioctl+0x1a8>
+ 270:	94000000 	bl	0 <__stack_chk_fail>
+			270: R_AARCH64_CALL26	__stack_chk_fail
+ 274:	350002f6 	cbnz	w22, 2d0 <fpga_ioctl+0x140>
+ 278:	b94043a1 	ldr	w1, [x29, #64]
+ 27c:	12bff000 	mov	w0, #0x7fffff              	// #8388607
+ 280:	6b00003f 	cmp	w1, w0
+ 284:	54fffea8 	b.hi	258 <fpga_ioctl+0xc8>  // b.pmore
+ 288:	90000015 	adrp	x21, 0 <uaccess_disable_not_uao>
+			288: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x3b
+ 28c:	52800014 	mov	w20, #0x0                   	// #0
+ 290:	910002b5 	add	x21, x21, #0x0
+			290: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x3b
+ 294:	b94043a0 	ldr	w0, [x29, #64]
+ 298:	6b00029f 	cmp	w20, w0
+ 29c:	54fffde2 	b.cs	258 <fpga_ioctl+0xc8>  // b.hs, b.nlast
+ 2a0:	b9403ba0 	ldr	w0, [x29, #56]
+ 2a4:	b94047a1 	ldr	w1, [x29, #68]
+ 2a8:	0b000280 	add	w0, w20, w0
+ 2ac:	94000000 	bl	7c <fpga_read_reg_one_module>
+			2ac: R_AARCH64_CALL26	fpga_read_reg_one_module
+ 2b0:	2a0003e3 	mov	w3, w0
+ 2b4:	b9403ba2 	ldr	w2, [x29, #56]
+ 2b8:	aa1503e0 	mov	x0, x21
+ 2bc:	b94047a1 	ldr	w1, [x29, #68]
+ 2c0:	0b020282 	add	w2, w20, w2
+ 2c4:	11000694 	add	w20, w20, #0x1
+ 2c8:	94000000 	bl	0 <printk>
+			2c8: R_AARCH64_CALL26	printk
+ 2cc:	17fffff2 	b	294 <fpga_ioctl+0x104>
+ 2d0:	71000edf 	cmp	w22, #0x3
+ 2d4:	54000141 	b.ne	2fc <fpga_ioctl+0x16c>  // b.any
+ 2d8:	b9403ba1 	ldr	w1, [x29, #56]
+ 2dc:	52800000 	mov	w0, #0x0                   	// #0
+ 2e0:	94000000 	bl	7c <fpga_read_reg_one_module>
+			2e0: R_AARCH64_CALL26	fpga_read_reg_one_module
+ 2e4:	b9003fa0 	str	w0, [x29, #60]
+ 2e8:	aa1503e1 	mov	x1, x21
+ 2ec:	aa1403e0 	mov	x0, x20
+ 2f0:	d2800202 	mov	x2, #0x10                  	// #16
+ 2f4:	97ffff91 	bl	138 <_copy_to_user.constprop.7>
+ 2f8:	17ffffd8 	b	258 <fpga_ioctl+0xc8>
+ 2fc:	529bc060 	mov	w0, #0xde03                	// #56835
+ 300:	72a80080 	movk	w0, #0x4004, lsl #16
+ 304:	6b0002df 	cmp	w22, w0
+ 308:	54fffa81 	b.ne	258 <fpga_ioctl+0xc8>  // b.any
+ 30c:	b94047a1 	ldr	w1, [x29, #68]
+ 310:	b9403ba0 	ldr	w0, [x29, #56]
+ 314:	94000000 	bl	7c <fpga_read_reg_one_module>
+			314: R_AARCH64_CALL26	fpga_read_reg_one_module
+ 318:	2a0003e3 	mov	w3, w0
+ 31c:	b9003fa0 	str	w0, [x29, #60]
+ 320:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			320: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x3b
+ 324:	b9403ba2 	ldr	w2, [x29, #56]
+ 328:	91000000 	add	x0, x0, #0x0
+			328: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x3b
+ 32c:	b94047a1 	ldr	w1, [x29, #68]
+ 330:	94000000 	bl	0 <printk>
+			330: R_AARCH64_CALL26	printk
+ 334:	17ffffed 	b	2e8 <fpga_ioctl+0x158>
+ 338:	a94153f3 	ldp	x19, x20, [sp, #16]
+ 33c:	a9425bf5 	ldp	x21, x22, [sp, #32]
+ 340:	a8cc7bfd 	ldp	x29, x30, [sp], #192
+ 344:	d65f03c0 	ret

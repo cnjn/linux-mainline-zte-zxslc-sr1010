@@ -1,0 +1,50 @@
+
+/Volumes/code/zx279133/vendor-reference/sr1010-vendor-runtime/modules/files/kmodule/peripheral.ko:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+Disassembly of section .init.text:
+
+0000000000000000 <init_module>:
+   0:	a9be7bfd 	stp	x29, x30, [sp, #-32]!
+   4:	90000004 	adrp	x4, 0 <init_module>
+			4: R_AARCH64_ADR_PREL_PG_HI21	.data
+   8:	91000084 	add	x4, x4, #0x0
+			8: R_AARCH64_ADD_ABS_LO12_NC	.data
+   c:	52802002 	mov	w2, #0x100                 	// #256
+  10:	910003fd 	mov	x29, sp
+  14:	f9000bf3 	str	x19, [sp, #16]
+  18:	90000013 	adrp	x19, 0 <init_module>
+			18: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x2d1
+  1c:	91000273 	add	x19, x19, #0x0
+			1c: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x2d1
+  20:	52800001 	mov	w1, #0x0                   	// #0
+  24:	aa1303e3 	mov	x3, x19
+  28:	52800d40 	mov	w0, #0x6a                  	// #106
+  2c:	94000000 	bl	0 <__register_chrdev>
+			2c: R_AARCH64_CALL26	__register_chrdev
+  30:	36f800e0 	tbz	w0, #31, 4c <init_module+0x4c>
+  34:	90000000 	adrp	x0, 0 <init_module>
+			34: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x2dc
+  38:	aa1303e1 	mov	x1, x19
+  3c:	91000000 	add	x0, x0, #0x0
+			3c: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x2dc
+  40:	94000000 	bl	0 <printk>
+			40: R_AARCH64_CALL26	printk
+  44:	12800000 	mov	w0, #0xffffffff            	// #-1
+  48:	14000007 	b	64 <init_module+0x64>
+  4c:	90000000 	adrp	x0, 0 <init_module>
+			4c: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x2f0
+  50:	aa1303e1 	mov	x1, x19
+  54:	91000000 	add	x0, x0, #0x0
+			54: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x2f0
+  58:	52800d42 	mov	w2, #0x6a                  	// #106
+  5c:	94000000 	bl	0 <printk>
+			5c: R_AARCH64_CALL26	printk
+  60:	52800000 	mov	w0, #0x0                   	// #0
+  64:	f9400bf3 	ldr	x19, [sp, #16]
+  68:	a8c27bfd 	ldp	x29, x30, [sp], #32
+  6c:	d65f03c0 	ret
+
+Disassembly of section .exit.text:

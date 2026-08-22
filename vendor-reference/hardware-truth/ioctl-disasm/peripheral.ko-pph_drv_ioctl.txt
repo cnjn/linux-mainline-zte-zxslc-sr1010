@@ -1,0 +1,466 @@
+
+/Volumes/code/zx279133/vendor-reference/sr1010-vendor-runtime/modules/files/kmodule/peripheral.ko:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+00000000000001c0 <pph_drv_ioctl>:
+ 1c0:	a9b97bfd 	stp	x29, x30, [sp, #-112]!
+ 1c4:	910003fd 	mov	x29, sp
+ 1c8:	a90153f3 	stp	x19, x20, [sp, #16]
+ 1cc:	2a0103f3 	mov	w19, w1
+ 1d0:	a9025bf5 	stp	x21, x22, [sp, #32]
+ 1d4:	90000016 	adrp	x22, 0 <__stack_chk_guard>
+			1d4: R_AARCH64_ADR_PREL_PG_HI21	__stack_chk_guard
+ 1d8:	a90363f7 	stp	x23, x24, [sp, #48]
+ 1dc:	910163b5 	add	x21, x29, #0x58
+ 1e0:	f90023f9 	str	x25, [sp, #64]
+ 1e4:	910002c0 	add	x0, x22, #0x0
+			1e4: R_AARCH64_ADD_ABS_LO12_NC	__stack_chk_guard
+ 1e8:	aa0203f4 	mov	x20, x2
+ 1ec:	b90057bf 	str	wzr, [x29, #84]
+ 1f0:	f9400001 	ldr	x1, [x0]
+ 1f4:	f90037a1 	str	x1, [x29, #104]
+ 1f8:	d2800001 	mov	x1, #0x0                   	// #0
+ 1fc:	aa0203e0 	mov	x0, x2
+ 200:	a9007ebf 	stp	xzr, xzr, [x21]
+ 204:	97ffff8b 	bl	30 <__range_ok.constprop.7>
+ 208:	b4000200 	cbz	x0, 248 <pph_drv_ioctl+0x88>
+ 20c:	97ffff7f 	bl	8 <uaccess_enable_not_uao>
+ 210:	d5384100 	mrs	x0, sp_el0
+ 214:	f9400402 	ldr	x2, [x0, #8]
+ 218:	9340de80 	sbfx	x0, x20, #0, #56
+ 21c:	8a140000 	and	x0, x0, x20
+ 220:	ea22001f 	bics	xzr, x0, x2
+ 224:	9a9f0281 	csel	x1, x20, xzr, eq	// eq = none
+ 228:	d503229f 	csdb
+ 22c:	aa1503e0 	mov	x0, x21
+ 230:	d2800202 	mov	x2, #0x10                  	// #16
+ 234:	94000000 	bl	0 <__arch_copy_from_user>
+			234: R_AARCH64_CALL26	__arch_copy_from_user
+ 238:	aa0003e2 	mov	x2, x0
+ 23c:	97ffff71 	bl	0 <uaccess_disable_not_uao>
+ 240:	b4000160 	cbz	x0, 26c <pph_drv_ioctl+0xac>
+ 244:	14000002 	b	24c <pph_drv_ioctl+0x8c>
+ 248:	d2800202 	mov	x2, #0x10                  	// #16
+ 24c:	cb0202a0 	sub	x0, x21, x2
+ 250:	52800001 	mov	w1, #0x0                   	// #0
+ 254:	91004000 	add	x0, x0, #0x10
+ 258:	94000000 	bl	0 <memset>
+			258: R_AARCH64_CALL26	memset
+ 25c:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			25c: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1
+ 260:	91000000 	add	x0, x0, #0x0
+			260: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1
+ 264:	94000000 	bl	0 <printk>
+			264: R_AARCH64_CALL26	printk
+ 268:	14000132 	b	730 <pph_drv_ioctl+0x570>
+ 26c:	7101067f 	cmp	w19, #0x41
+ 270:	54000281 	b.ne	2c0 <pph_drv_ioctl+0x100>  // b.any
+ 274:	b9405ba0 	ldr	w0, [x29, #88]
+ 278:	94000000 	bl	0 <zte_gpio_get_value>
+			278: R_AARCH64_CALL26	zte_gpio_get_value
+ 27c:	2a0003e2 	mov	w2, w0
+ 280:	b90057a0 	str	w0, [x29, #84]
+ 284:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			284: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x294
+ 288:	b9405ba1 	ldr	w1, [x29, #88]
+ 28c:	91000000 	add	x0, x0, #0x0
+			28c: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x294
+ 290:	1400000a 	b	2b8 <pph_drv_ioctl+0xf8>
+ 294:	71010a7f 	cmp	w19, #0x42
+ 298:	540024c1 	b.ne	730 <pph_drv_ioctl+0x570>  // b.any
+ 29c:	b9405ba0 	ldr	w0, [x29, #88]
+ 2a0:	94000000 	bl	0 <zte_gpio_direction_output>
+			2a0: R_AARCH64_CALL26	zte_gpio_direction_output
+ 2a4:	294b07a0 	ldp	w0, w1, [x29, #88]
+ 2a8:	94000000 	bl	0 <zte_gpio_set_value>
+			2a8: R_AARCH64_CALL26	zte_gpio_set_value
+ 2ac:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			2ac: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x2a8
+ 2b0:	294b0ba1 	ldp	w1, w2, [x29, #88]
+ 2b4:	91000000 	add	x0, x0, #0x0
+			2b4: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x2a8
+ 2b8:	94000000 	bl	0 <printk>
+			2b8: R_AARCH64_CALL26	printk
+ 2bc:	1400000d 	b	2f0 <pph_drv_ioctl+0x130>
+ 2c0:	54001bc8 	b.hi	638 <pph_drv_ioctl+0x478>  // b.pmore
+ 2c4:	7100867f 	cmp	w19, #0x21
+ 2c8:	54000221 	b.ne	30c <pph_drv_ioctl+0x14c>  // b.any
+ 2cc:	294b0ba1 	ldp	w1, w2, [x29, #88]
+ 2d0:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			2d0: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x60
+ 2d4:	b94063a3 	ldr	w3, [x29, #96]
+ 2d8:	91000000 	add	x0, x0, #0x0
+			2d8: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x60
+ 2dc:	94000000 	bl	0 <printk>
+			2dc: R_AARCH64_CALL26	printk
+ 2e0:	7940c3a2 	ldrh	w2, [x29, #96]
+ 2e4:	7940bba1 	ldrh	w1, [x29, #92]
+ 2e8:	394163a0 	ldrb	w0, [x29, #88]
+ 2ec:	94000000 	bl	0 <zx_mdio_write>
+			2ec: R_AARCH64_CALL26	zx_mdio_write
+ 2f0:	d2800000 	mov	x0, #0x0                   	// #0
+ 2f4:	910002d6 	add	x22, x22, #0x0
+			2f4: R_AARCH64_ADD_ABS_LO12_NC	__stack_chk_guard
+ 2f8:	f94037a2 	ldr	x2, [x29, #104]
+ 2fc:	f94002c1 	ldr	x1, [x22]
+ 300:	ca010041 	eor	x1, x2, x1
+ 304:	b40021a1 	cbz	x1, 738 <pph_drv_ioctl+0x578>
+ 308:	94000000 	bl	0 <__stack_chk_fail>
+			308: R_AARCH64_CALL26	__stack_chk_fail
+ 30c:	54000dc8 	b.hi	4c4 <pph_drv_ioctl+0x304>  // b.pmore
+ 310:	71004e7f 	cmp	w19, #0x13
+ 314:	54000181 	b.ne	344 <pph_drv_ioctl+0x184>  // b.any
+ 318:	394167a2 	ldrb	w2, [x29, #89]
+ 31c:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			31c: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x20f
+ 320:	394163a1 	ldrb	w1, [x29, #88]
+ 324:	91000000 	add	x0, x0, #0x0
+			324: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x20f
+ 328:	39416ba3 	ldrb	w3, [x29, #90]
+ 32c:	94000000 	bl	0 <printk>
+			32c: R_AARCH64_CALL26	printk
+ 330:	39416ba2 	ldrb	w2, [x29, #90]
+ 334:	394167a1 	ldrb	w1, [x29, #89]
+ 338:	394163a0 	ldrb	w0, [x29, #88]
+ 33c:	94000000 	bl	0 <i2c_writeb>
+			33c: R_AARCH64_CALL26	i2c_writeb
+ 340:	17ffffec 	b	2f0 <pph_drv_ioctl+0x130>
+ 344:	7100827f 	cmp	w19, #0x20
+ 348:	54000521 	b.ne	3ec <pph_drv_ioctl+0x22c>  // b.any
+ 34c:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			34c: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x18
+ 350:	91000000 	add	x0, x0, #0x0
+			350: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x18
+ 354:	94000000 	bl	0 <printk>
+			354: R_AARCH64_CALL26	printk
+ 358:	7940bba1 	ldrh	w1, [x29, #92]
+ 35c:	910153a2 	add	x2, x29, #0x54
+ 360:	394163a0 	ldrb	w0, [x29, #88]
+ 364:	94000000 	bl	c8 <mdio_read>
+			364: R_AARCH64_CALL26	mdio_read
+ 368:	1400000d 	b	39c <pph_drv_ioctl+0x1dc>
+ 36c:	54001c08 	b.hi	6ec <pph_drv_ioctl+0x52c>  // b.pmore
+ 370:	7101467f 	cmp	w19, #0x51
+ 374:	540017a0 	b.eq	668 <pph_drv_ioctl+0x4a8>  // b.none
+ 378:	7101827f 	cmp	w19, #0x60
+ 37c:	54fff8c1 	b.ne	294 <pph_drv_ioctl+0xd4>  // b.any
+ 380:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			380: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x8e
+ 384:	91000000 	add	x0, x0, #0x0
+			384: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x8e
+ 388:	94000000 	bl	0 <printk>
+			388: R_AARCH64_CALL26	printk
+ 38c:	7940bba1 	ldrh	w1, [x29, #92]
+ 390:	910153a2 	add	x2, x29, #0x54
+ 394:	394163a0 	ldrb	w0, [x29, #88]
+ 398:	94000000 	bl	10c <mdio_1_read>
+			398: R_AARCH64_CALL26	mdio_1_read
+ 39c:	b94057a0 	ldr	w0, [x29, #84]
+ 3a0:	aa1503e1 	mov	x1, x21
+ 3a4:	d2800202 	mov	x2, #0x10                  	// #16
+ 3a8:	b90063a0 	str	w0, [x29, #96]
+ 3ac:	aa1403e0 	mov	x0, x20
+ 3b0:	97ffff2e 	bl	68 <_copy_to_user.constprop.5>
+ 3b4:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			3b4: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x34
+ 3b8:	b9405fa2 	ldr	w2, [x29, #92]
+ 3bc:	91000000 	add	x0, x0, #0x0
+			3bc: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x34
+ 3c0:	294a87a3 	ldp	w3, w1, [x29, #84]
+ 3c4:	14000008 	b	3e4 <pph_drv_ioctl+0x224>
+ 3c8:	7100ca7f 	cmp	w19, #0x32
+ 3cc:	54001b21 	b.ne	730 <pph_drv_ioctl+0x570>  // b.any
+ 3d0:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			3d0: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x270
+ 3d4:	39416ba3 	ldrb	w3, [x29, #90]
+ 3d8:	394167a2 	ldrb	w2, [x29, #89]
+ 3dc:	91000000 	add	x0, x0, #0x0
+			3dc: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x270
+ 3e0:	394163a1 	ldrb	w1, [x29, #88]
+ 3e4:	94000000 	bl	0 <printk>
+			3e4: R_AARCH64_CALL26	printk
+ 3e8:	17ffffc2 	b	2f0 <pph_drv_ioctl+0x130>
+ 3ec:	71004a7f 	cmp	w19, #0x12
+ 3f0:	54001a01 	b.ne	730 <pph_drv_ioctl+0x570>  // b.any
+ 3f4:	39416ba3 	ldrb	w3, [x29, #90]
+ 3f8:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			3f8: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x1c6
+ 3fc:	394167a2 	ldrb	w2, [x29, #89]
+ 400:	91000000 	add	x0, x0, #0x0
+			400: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x1c6
+ 404:	394163a1 	ldrb	w1, [x29, #88]
+ 408:	94000000 	bl	0 <printk>
+			408: R_AARCH64_CALL26	printk
+ 40c:	39416ba0 	ldrb	w0, [x29, #90]
+ 410:	97ffff02 	bl	18 <kzalloc.constprop.8>
+ 414:	aa0003f4 	mov	x20, x0
+ 418:	92800000 	mov	x0, #0xffffffffffffffff    	// #-1
+ 41c:	b4fff6d4 	cbz	x20, 2f4 <pph_drv_ioctl+0x134>
+ 420:	90000017 	adrp	x23, 0 <uaccess_disable_not_uao>
+			420: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x1fa
+ 424:	d2800039 	mov	x25, #0x1                   	// #1
+ 428:	90000018 	adrp	x24, 0 <uaccess_disable_not_uao>
+			428: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x1ed
+ 42c:	f2a00219 	movk	x25, #0x10, lsl #16
+ 430:	910002f7 	add	x23, x23, #0x0
+			430: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x1fa
+ 434:	91000318 	add	x24, x24, #0x0
+			434: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x1ed
+ 438:	52800013 	mov	w19, #0x0                   	// #0
+ 43c:	f2e00039 	movk	x25, #0x1, lsl #48
+ 440:	39416ba0 	ldrb	w0, [x29, #90]
+ 444:	6b00027f 	cmp	w19, w0
+ 448:	54000342 	b.cs	4b0 <pph_drv_ioctl+0x2f0>  // b.hs, b.nlast
+ 44c:	394167a1 	ldrb	w1, [x29, #89]
+ 450:	2a1303f5 	mov	w21, w19
+ 454:	394163a0 	ldrb	w0, [x29, #88]
+ 458:	8b150282 	add	x2, x20, x21
+ 45c:	0b010261 	add	w1, w19, w1
+ 460:	94000000 	bl	0 <i2c_readb>
+			460: R_AARCH64_CALL26	i2c_readb
+ 464:	394163a0 	ldrb	w0, [x29, #88]
+ 468:	394167a1 	ldrb	w1, [x29, #89]
+ 46c:	7102801f 	cmp	w0, #0xa0
+ 470:	38756a82 	ldrb	w2, [x20, x21]
+ 474:	54000141 	b.ne	49c <pph_drv_ioctl+0x2dc>  // b.any
+ 478:	51005020 	sub	w0, w1, #0x14
+ 47c:	53001c00 	uxtb	w0, w0
+ 480:	7100c01f 	cmp	w0, #0x30
+ 484:	540000c8 	b.hi	49c <pph_drv_ioctl+0x2dc>  // b.pmore
+ 488:	9ac02720 	lsr	x0, x25, x0
+ 48c:	36000080 	tbz	w0, #0, 49c <pph_drv_ioctl+0x2dc>
+ 490:	0b130021 	add	w1, w1, w19
+ 494:	aa1803e0 	mov	x0, x24
+ 498:	14000003 	b	4a4 <pph_drv_ioctl+0x2e4>
+ 49c:	0b130021 	add	w1, w1, w19
+ 4a0:	aa1703e0 	mov	x0, x23
+ 4a4:	94000000 	bl	0 <printk>
+			4a4: R_AARCH64_CALL26	printk
+ 4a8:	11000673 	add	w19, w19, #0x1
+ 4ac:	17ffffe5 	b	440 <pph_drv_ioctl+0x280>
+ 4b0:	aa1403e0 	mov	x0, x20
+ 4b4:	14000002 	b	4bc <pph_drv_ioctl+0x2fc>
+ 4b8:	aa1503e0 	mov	x0, x21
+ 4bc:	94000000 	bl	0 <kfree>
+			4bc: R_AARCH64_CALL26	kfree
+ 4c0:	17ffff8c 	b	2f0 <pph_drv_ioctl+0x130>
+ 4c4:	7100a67f 	cmp	w19, #0x29
+ 4c8:	54000561 	b.ne	574 <pph_drv_ioctl+0x3b4>  // b.any
+ 4cc:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			4cc: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x132
+ 4d0:	294b0fa1 	ldp	w1, w3, [x29, #88]
+ 4d4:	91000000 	add	x0, x0, #0x0
+			4d4: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x132
+ 4d8:	294c0ba4 	ldp	w4, w2, [x29, #96]
+ 4dc:	94000000 	bl	0 <printk>
+			4dc: R_AARCH64_CALL26	printk
+ 4e0:	b9405ba0 	ldr	w0, [x29, #88]
+ 4e4:	7100041f 	cmp	w0, #0x1
+ 4e8:	540000c1 	b.ne	500 <pph_drv_ioctl+0x340>  // b.any
+ 4ec:	7940c3a3 	ldrh	w3, [x29, #96]
+ 4f0:	7940bba2 	ldrh	w2, [x29, #92]
+ 4f4:	7940cba1 	ldrh	w1, [x29, #100]
+ 4f8:	94000000 	bl	0 <zx_mdio_0_write_extended>
+			4f8: R_AARCH64_CALL26	zx_mdio_0_write_extended
+ 4fc:	17ffff7d 	b	2f0 <pph_drv_ioctl+0x130>
+ 500:	294b8fa2 	ldp	w2, w3, [x29, #92]
+ 504:	b94067a1 	ldr	w1, [x29, #100]
+ 508:	94000000 	bl	0 <rtk_port_phyReg_set>
+			508: R_AARCH64_CALL26	rtk_port_phyReg_set
+ 50c:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			50c: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x171
+ 510:	91000000 	add	x0, x0, #0x0
+			510: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x171
+ 514:	294b0fa1 	ldp	w1, w3, [x29, #88]
+ 518:	294c0ba4 	ldp	w4, w2, [x29, #96]
+ 51c:	14000014 	b	56c <pph_drv_ioctl+0x3ac>
+ 520:	b9405fa2 	ldr	w2, [x29, #92]
+ 524:	b94067a1 	ldr	w1, [x29, #100]
+ 528:	94000000 	bl	0 <rtk_port_phyReg_get>
+			528: R_AARCH64_CALL26	rtk_port_phyReg_get
+ 52c:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			52c: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0xcf
+ 530:	b9405fa3 	ldr	w3, [x29, #92]
+ 534:	294a87a4 	ldp	w4, w1, [x29, #84]
+ 538:	91000000 	add	x0, x0, #0x0
+			538: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0xcf
+ 53c:	b94067a2 	ldr	w2, [x29, #100]
+ 540:	b90063a4 	str	w4, [x29, #96]
+ 544:	94000000 	bl	0 <printk>
+			544: R_AARCH64_CALL26	printk
+ 548:	aa1503e1 	mov	x1, x21
+ 54c:	aa1403e0 	mov	x0, x20
+ 550:	d2800202 	mov	x2, #0x10                  	// #16
+ 554:	97fffec5 	bl	68 <_copy_to_user.constprop.5>
+ 558:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			558: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0xfb
+ 55c:	b9405fa3 	ldr	w3, [x29, #92]
+ 560:	294a87a4 	ldp	w4, w1, [x29, #84]
+ 564:	91000000 	add	x0, x0, #0x0
+			564: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0xfb
+ 568:	b94067a2 	ldr	w2, [x29, #100]
+ 56c:	94000000 	bl	0 <printk>
+			56c: R_AARCH64_CALL26	printk
+ 570:	17ffff60 	b	2f0 <pph_drv_ioctl+0x130>
+ 574:	54000348 	b.hi	5dc <pph_drv_ioctl+0x41c>  // b.pmore
+ 578:	7100a27f 	cmp	w19, #0x28
+ 57c:	54000da1 	b.ne	730 <pph_drv_ioctl+0x570>  // b.any
+ 580:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			580: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0xac
+ 584:	91000000 	add	x0, x0, #0x0
+			584: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0xac
+ 588:	94000000 	bl	0 <printk>
+			588: R_AARCH64_CALL26	printk
+ 58c:	b9405ba0 	ldr	w0, [x29, #88]
+ 590:	910153a3 	add	x3, x29, #0x54
+ 594:	7100041f 	cmp	w0, #0x1
+ 598:	54fffc41 	b.ne	520 <pph_drv_ioctl+0x360>  // b.any
+ 59c:	7940bba2 	ldrh	w2, [x29, #92]
+ 5a0:	7940cba1 	ldrh	w1, [x29, #100]
+ 5a4:	94000000 	bl	150 <mdio_read_extern>
+			5a4: R_AARCH64_CALL26	mdio_read_extern
+ 5a8:	1400000a 	b	5d0 <pph_drv_ioctl+0x410>
+ 5ac:	54000ba2 	b.cs	720 <pph_drv_ioctl+0x560>  // b.hs, b.nlast
+ 5b0:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			5b0: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x1a1
+ 5b4:	91000000 	add	x0, x0, #0x0
+			5b4: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x1a1
+ 5b8:	94000000 	bl	0 <printk>
+			5b8: R_AARCH64_CALL26	printk
+ 5bc:	7940bba2 	ldrh	w2, [x29, #92]
+ 5c0:	910153a3 	add	x3, x29, #0x54
+ 5c4:	7940cba1 	ldrh	w1, [x29, #100]
+ 5c8:	394163a0 	ldrb	w0, [x29, #88]
+ 5cc:	94000000 	bl	194 <mdio_1_read_extern>
+			5cc: R_AARCH64_CALL26	mdio_1_read_extern
+ 5d0:	b94057a0 	ldr	w0, [x29, #84]
+ 5d4:	b90063a0 	str	w0, [x29, #96]
+ 5d8:	17ffffdc 	b	548 <pph_drv_ioctl+0x388>
+ 5dc:	7100c67f 	cmp	w19, #0x31
+ 5e0:	54ffef41 	b.ne	3c8 <pph_drv_ioctl+0x208>  // b.any
+ 5e4:	39416ba3 	ldrb	w3, [x29, #90]
+ 5e8:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			5e8: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x239
+ 5ec:	394167a2 	ldrb	w2, [x29, #89]
+ 5f0:	91000000 	add	x0, x0, #0x0
+			5f0: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x239
+ 5f4:	394163a1 	ldrb	w1, [x29, #88]
+ 5f8:	90000014 	adrp	x20, 0 <uaccess_disable_not_uao>
+			5f8: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x25a
+ 5fc:	91000294 	add	x20, x20, #0x0
+			5fc: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x25a
+ 600:	52800013 	mov	w19, #0x0                   	// #0
+ 604:	94000000 	bl	0 <printk>
+			604: R_AARCH64_CALL26	printk
+ 608:	39416ba0 	ldrb	w0, [x29, #90]
+ 60c:	97fffe83 	bl	18 <kzalloc.constprop.8>
+ 610:	aa0003f5 	mov	x21, x0
+ 614:	39416ba0 	ldrb	w0, [x29, #90]
+ 618:	6b00027f 	cmp	w19, w0
+ 61c:	54fff4e2 	b.cs	4b8 <pph_drv_ioctl+0x2f8>  // b.hs, b.nlast
+ 620:	38734aa2 	ldrb	w2, [x21, w19, uxtw]
+ 624:	2a1303e1 	mov	w1, w19
+ 628:	aa1403e0 	mov	x0, x20
+ 62c:	11000673 	add	w19, w19, #0x1
+ 630:	94000000 	bl	0 <printk>
+			630: R_AARCH64_CALL26	printk
+ 634:	17fffff8 	b	614 <pph_drv_ioctl+0x454>
+ 638:	7101867f 	cmp	w19, #0x61
+ 63c:	54ffe981 	b.ne	36c <pph_drv_ioctl+0x1ac>  // b.any
+ 640:	294b0ba1 	ldp	w1, w2, [x29, #88]
+ 644:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			644: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x60
+ 648:	b94063a3 	ldr	w3, [x29, #96]
+ 64c:	91000000 	add	x0, x0, #0x0
+			64c: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x60
+ 650:	94000000 	bl	0 <printk>
+			650: R_AARCH64_CALL26	printk
+ 654:	7940c3a2 	ldrh	w2, [x29, #96]
+ 658:	7940bba1 	ldrh	w1, [x29, #92]
+ 65c:	394163a0 	ldrb	w0, [x29, #88]
+ 660:	94000000 	bl	0 <zx_mdio_1_write>
+			660: R_AARCH64_CALL26	zx_mdio_1_write
+ 664:	17ffff23 	b	2f0 <pph_drv_ioctl+0x130>
+ 668:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			668: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x2bc
+ 66c:	b9405ba1 	ldr	w1, [x29, #88]
+ 670:	91000000 	add	x0, x0, #0x0
+			670: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x2bc
+ 674:	94000000 	bl	0 <printk>
+			674: R_AARCH64_CALL26	printk
+ 678:	b9405ba0 	ldr	w0, [x29, #88]
+ 67c:	7100081f 	cmp	w0, #0x2
+ 680:	540000a1 	b.ne	694 <pph_drv_ioctl+0x4d4>  // b.any
+ 684:	90000000 	adrp	x0, 0 <rtk_init_flag>
+			684: R_AARCH64_ADR_PREL_PG_HI21	rtk_init_flag
+ 688:	52800021 	mov	w1, #0x1                   	// #1
+ 68c:	b9000001 	str	w1, [x0]
+			68c: R_AARCH64_LDST32_ABS_LO12_NC	rtk_init_flag
+ 690:	17ffff18 	b	2f0 <pph_drv_ioctl+0x130>
+ 694:	35ffe2e0 	cbnz	w0, 2f0 <pph_drv_ioctl+0x130>
+ 698:	90000000 	adrp	x0, 0 <pon_up_flag>
+			698: R_AARCH64_ADR_PREL_PG_HI21	pon_up_flag
+ 69c:	b900001f 	str	wzr, [x0]
+			69c: R_AARCH64_LDST32_ABS_LO12_NC	pon_up_flag
+ 6a0:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			6a0: R_AARCH64_ADR_PREL_PG_HI21	.bss
+ 6a4:	aa0003f3 	mov	x19, x0
+ 6a8:	f9400014 	ldr	x20, [x0]
+			6a8: R_AARCH64_LDST64_ABS_LO12_NC	.bss
+ 6ac:	b4000094 	cbz	x20, 6bc <pph_drv_ioctl+0x4fc>
+ 6b0:	94000000 	bl	0 <get_dsl_port>
+			6b0: R_AARCH64_CALL26	get_dsl_port
+ 6b4:	53001c00 	uxtb	w0, w0
+ 6b8:	b9000280 	str	w0, [x20]
+ 6bc:	94000000 	bl	0 <get_dsl_port>
+			6bc: R_AARCH64_CALL26	get_dsl_port
+ 6c0:	53001c01 	uxtb	w1, w0
+ 6c4:	52800020 	mov	w0, #0x1                   	// #1
+ 6c8:	94000000 	bl	0 <zte_api_sw_lan_up_pon_set>
+			6c8: R_AARCH64_CALL26	zte_api_sw_lan_up_pon_set
+ 6cc:	90000000 	adrp	x0, 0 <lan_up>
+			6cc: R_AARCH64_ADR_PREL_PG_HI21	lan_up
+ 6d0:	52800021 	mov	w1, #0x1                   	// #1
+ 6d4:	b9000001 	str	w1, [x0]
+			6d4: R_AARCH64_LDST32_ABS_LO12_NC	lan_up
+ 6d8:	91000260 	add	x0, x19, #0x0
+			6d8: R_AARCH64_ADD_ABS_LO12_NC	.bss
+ 6dc:	f9400400 	ldr	x0, [x0, #8]
+ 6e0:	b4ffe080 	cbz	x0, 2f0 <pph_drv_ioctl+0x130>
+ 6e4:	d63f0000 	blr	x0
+ 6e8:	17ffff02 	b	2f0 <pph_drv_ioctl+0x130>
+ 6ec:	71018e7f 	cmp	w19, #0x63
+ 6f0:	54fff5e1 	b.ne	5ac <pph_drv_ioctl+0x3ec>  // b.any
+ 6f4:	294b0fa1 	ldp	w1, w3, [x29, #88]
+ 6f8:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			6f8: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x132
+ 6fc:	294c0ba4 	ldp	w4, w2, [x29, #96]
+ 700:	91000000 	add	x0, x0, #0x0
+			700: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x132
+ 704:	94000000 	bl	0 <printk>
+			704: R_AARCH64_CALL26	printk
+ 708:	7940c3a3 	ldrh	w3, [x29, #96]
+ 70c:	7940bba2 	ldrh	w2, [x29, #92]
+ 710:	7940cba1 	ldrh	w1, [x29, #100]
+ 714:	394163a0 	ldrb	w0, [x29, #88]
+ 718:	94000000 	bl	0 <zx_mdio_1_write_extended>
+			718: R_AARCH64_CALL26	zx_mdio_1_write_extended
+ 71c:	17fffef5 	b	2f0 <pph_drv_ioctl+0x130>
+ 720:	7101c27f 	cmp	w19, #0x70
+ 724:	54ffde60 	b.eq	2f0 <pph_drv_ioctl+0x130>  // b.none
+ 728:	7102027f 	cmp	w19, #0x80
+ 72c:	54ffde20 	b.eq	2f0 <pph_drv_ioctl+0x130>  // b.none
+ 730:	92800000 	mov	x0, #0xffffffffffffffff    	// #-1
+ 734:	17fffef0 	b	2f4 <pph_drv_ioctl+0x134>
+ 738:	a94153f3 	ldp	x19, x20, [sp, #16]
+ 73c:	a9425bf5 	ldp	x21, x22, [sp, #32]
+ 740:	a94363f7 	ldp	x23, x24, [sp, #48]
+ 744:	f94023f9 	ldr	x25, [sp, #64]
+ 748:	a8c77bfd 	ldp	x29, x30, [sp], #112
+ 74c:	d65f03c0 	ret
+
+Disassembly of section .init.text:
+
+Disassembly of section .exit.text:

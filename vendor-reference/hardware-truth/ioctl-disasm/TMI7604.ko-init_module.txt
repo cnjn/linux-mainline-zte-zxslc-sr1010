@@ -1,0 +1,44 @@
+
+/Volumes/code/zx279133/vendor-reference/sr1010-vendor-runtime/modules/files/kmodule/TMI7604.ko:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+00000000000004a8 <init_module>:
+ 4a8:	a9bf7bfd 	stp	x29, x30, [sp, #-16]!
+ 4ac:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			4ac: R_AARCH64_ADR_PREL_PG_HI21	.bss
+ 4b0:	90000004 	adrp	x4, 0 <uaccess_disable_not_uao>
+			4b0: R_AARCH64_ADR_PREL_PG_HI21	.data
+ 4b4:	90000003 	adrp	x3, 0 <uaccess_disable_not_uao>
+			4b4: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0xff
+ 4b8:	910003fd 	mov	x29, sp
+ 4bc:	91000084 	add	x4, x4, #0x0
+			4bc: R_AARCH64_ADD_ABS_LO12_NC	.data
+ 4c0:	91000063 	add	x3, x3, #0x0
+			4c0: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0xff
+ 4c4:	b900001f 	str	wzr, [x0]
+			4c4: R_AARCH64_LDST32_ABS_LO12_NC	.bss
+ 4c8:	52802002 	mov	w2, #0x100                 	// #256
+ 4cc:	52800001 	mov	w1, #0x0                   	// #0
+ 4d0:	52800d60 	mov	w0, #0x6b                  	// #107
+ 4d4:	94000000 	bl	0 <__register_chrdev>
+			4d4: R_AARCH64_CALL26	__register_chrdev
+ 4d8:	36f800c0 	tbz	w0, #31, 4f0 <init_module+0x48>
+ 4dc:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			4dc: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x107
+ 4e0:	91000000 	add	x0, x0, #0x0
+			4e0: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x107
+ 4e4:	94000000 	bl	0 <printk>
+			4e4: R_AARCH64_CALL26	printk
+ 4e8:	12800000 	mov	w0, #0xffffffff            	// #-1
+ 4ec:	14000005 	b	500 <init_module+0x58>
+ 4f0:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			4f0: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x11b
+ 4f4:	91000000 	add	x0, x0, #0x0
+			4f4: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x11b
+ 4f8:	94000000 	bl	0 <printk>
+			4f8: R_AARCH64_CALL26	printk
+ 4fc:	52800000 	mov	w0, #0x0                   	// #0
+ 500:	a8c17bfd 	ldp	x29, x30, [sp], #16
+ 504:	d65f03c0 	ret

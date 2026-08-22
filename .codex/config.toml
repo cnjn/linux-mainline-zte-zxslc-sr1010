@@ -1,0 +1,5 @@
+[mcp_servers.idalib-mcp]
+command = "idalib-mcp"
+args = ["--stdio"]
+tool_timeout_sec = 1800
+enabled = true

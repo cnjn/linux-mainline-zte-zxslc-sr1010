@@ -1,0 +1,61 @@
+
+/Volumes/code/zx279133/vendor-reference/sr1010-vendor-runtime/modules/files/kmodule/zx_ponreg.ko:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+00000000000003ac <fpga_module_init>:
+ 3ac:	90000002 	adrp	x2, 0 <pon_base>
+			3ac: R_AARCH64_ADR_PREL_PG_HI21	pon_base
+ 3b0:	a9bf7bfd 	stp	x29, x30, [sp, #-16]!
+ 3b4:	90000001 	adrp	x1, 0 <uaccess_disable_not_uao>
+			3b4: R_AARCH64_ADR_PREL_PG_HI21	.bss
+ 3b8:	90000004 	adrp	x4, 0 <uaccess_disable_not_uao>
+			3b8: R_AARCH64_ADR_PREL_PG_HI21	.data
+ 3bc:	910003fd 	mov	x29, sp
+ 3c0:	f9400042 	ldr	x2, [x2]
+			3c0: R_AARCH64_LDST64_ABS_LO12_NC	pon_base
+ 3c4:	91000020 	add	x0, x1, #0x0
+			3c4: R_AARCH64_ADD_ABS_LO12_NC	.bss
+ 3c8:	90000003 	adrp	x3, 0 <uaccess_disable_not_uao>
+			3c8: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x97
+ 3cc:	91000084 	add	x4, x4, #0x0
+			3cc: R_AARCH64_ADD_ABS_LO12_NC	.data
+ 3d0:	f9000022 	str	x2, [x1]
+			3d0: R_AARCH64_LDST64_ABS_LO12_NC	.bss
+ 3d4:	90000001 	adrp	x1, 0 <pps_base>
+			3d4: R_AARCH64_ADR_PREL_PG_HI21	pps_base
+ 3d8:	91000063 	add	x3, x3, #0x0
+			3d8: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x97
+ 3dc:	52802002 	mov	w2, #0x100                 	// #256
+ 3e0:	f9400021 	ldr	x1, [x1]
+			3e0: R_AARCH64_LDST64_ABS_LO12_NC	pps_base
+ 3e4:	f9000401 	str	x1, [x0, #8]
+ 3e8:	90000001 	adrp	x1, 0 <nppt_base>
+			3e8: R_AARCH64_ADR_PREL_PG_HI21	nppt_base
+ 3ec:	f9400021 	ldr	x1, [x1]
+			3ec: R_AARCH64_LDST64_ABS_LO12_NC	nppt_base
+ 3f0:	f9000801 	str	x1, [x0, #16]
+ 3f4:	52800001 	mov	w1, #0x0                   	// #0
+ 3f8:	52801bc0 	mov	w0, #0xde                  	// #222
+ 3fc:	94000000 	bl	0 <__register_chrdev>
+			3fc: R_AARCH64_CALL26	__register_chrdev
+ 400:	36f800c0 	tbz	w0, #31, 418 <fpga_module_init+0x6c>
+ 404:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			404: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0x9c
+ 408:	91000000 	add	x0, x0, #0x0
+			408: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0x9c
+ 40c:	94000000 	bl	0 <printk>
+			40c: R_AARCH64_CALL26	printk
+ 410:	12800000 	mov	w0, #0xffffffff            	// #-1
+ 414:	14000006 	b	42c <fpga_module_init+0x80>
+ 418:	90000000 	adrp	x0, 0 <uaccess_disable_not_uao>
+			418: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.1+0xba
+ 41c:	52801bc1 	mov	w1, #0xde                  	// #222
+ 420:	91000000 	add	x0, x0, #0x0
+			420: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.1+0xba
+ 424:	94000000 	bl	0 <printk>
+			424: R_AARCH64_CALL26	printk
+ 428:	52800000 	mov	w0, #0x0                   	// #0
+ 42c:	a8c17bfd 	ldp	x29, x30, [sp], #16
+ 430:	d65f03c0 	ret

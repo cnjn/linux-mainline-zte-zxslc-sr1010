@@ -6,7 +6,13 @@
       "args": [
         "--stdio"
       ],
-      "env": {}
+      "env": {},
+      "requestTimeoutMs": 1800000,
+      "directTools": true
+    },
+    "ida-pro-mcp": {
+      "url": "http://127.0.0.1:13337/mcp",
+      "disabled": true
     }
   }
 }

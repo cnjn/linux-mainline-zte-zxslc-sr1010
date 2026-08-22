@@ -1,2 +1,7 @@
 .DS_Store
 trash
+vendor-reference/2b5/kernel-2b5.elf.i64
+/out/*
+!/out/mcode_intel.bin
+!/out/rootfs/
+
