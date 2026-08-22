@@ -1,0 +1,796 @@
+From 0c765789682131802f84094f62d112dff67af1d3 Mon Sep 17 00:00:00 2001
+From: cnjn <1779895255@qq.com>
+Date: Sat, 22 Aug 2026 20:00:17 +0800
+Subject: [PATCH 08/16] net: mdio: add ZX279133 controller support
+
+Consolidate 6 validated ZX279133 development commits into one functional stage.
+
+Original range: a72dc7b657aeb646e27da440611603bc75cafe6f..e10ab35b69a4a5e94bdac689e71dc984d5d7cbeb
+
+Signed-off-by: cnjn <1779895255@qq.com>
+---
+ .../bindings/clock/zte,zx279133-lsp1-clk.yaml |  24 +-
+ .../bindings/clock/zte,zx279133-topcrm.yaml   |   3 +-
+ .../bindings/net/zte,zx279133-mdio.yaml       |  66 +++++
+ MAINTAINERS                                   |   2 +
+ arch/arm64/boot/dts/zte/zx279133.dtsi         |  30 ++-
+ drivers/clk/clk-zx279133.c                    | 171 +++++++++++-
+ drivers/net/mdio/Kconfig                      |   9 +
+ drivers/net/mdio/Makefile                     |   1 +
+ drivers/net/mdio/mdio-zx279133.c              | 246 ++++++++++++++++++
+ include/dt-bindings/clock/zte,zx279133-lsp.h  |   4 +
+ .../dt-bindings/clock/zte,zx279133-topcrm.h   |   1 +
+ include/dt-bindings/reset/zte,zx279133-lsp.h  |   3 +
+ 12 files changed, 549 insertions(+), 11 deletions(-)
+ create mode 100644 Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
+ create mode 100644 drivers/net/mdio/mdio-zx279133.c
+
+diff --git a/Documentation/devicetree/bindings/clock/zte,zx279133-lsp1-clk.yaml b/Documentation/devicetree/bindings/clock/zte,zx279133-lsp1-clk.yaml
+index 4b76ee01450176e5bc1bb3da1407efefa1c5edf5..45b76caaec4ec153587194c1165e463c176bc6ae 100644
+--- a/Documentation/devicetree/bindings/clock/zte,zx279133-lsp1-clk.yaml
++++ b/Documentation/devicetree/bindings/clock/zte,zx279133-lsp1-clk.yaml
+@@ -4,16 +4,18 @@
+ $id: http://devicetree.org/schemas/clock/zte,zx279133-lsp1-clk.yaml#
+ $schema: http://devicetree.org/meta-schemas/core.yaml#
+ 
+-title: ZTE ZX279133 LSP1 clock controller
++title: ZTE ZX279133 LSP1 clock and reset controller
+ 
+ maintainers:
+   - cnjn <1779895255@qq.com>
+ 
+ description:
+   The LSP1 clock controller supplies bus and working clocks to the ZX279133
+-  watchdog timers, efuse controller, and PWM controller. Each watchdog working
+-  clock has a 10-bit linear divider followed by a gate. The efuse and PWM
+-  peripheral and working clocks each have a gate.
++  watchdog timers, efuse controller, PWM controller, and MDIO controllers. Each
++  watchdog working clock has a 10-bit linear divider followed by a gate. Each
++  MDIO working clock has a read-only 7-bit linear divider followed by a gate.
++  The efuse and PWM peripheral and working clocks each have a gate. The
++  controller also provides the MDIO reset lines.
+ 
+ properties:
+   compatible:
+@@ -27,24 +29,32 @@ properties:
+       - description: LSP1 peripheral bus clock
+       - description: 32.768 kHz watchdog working clock
+       - description: 25 MHz efuse working clock
++      - description: 100 MHz MDIO working clock source
+ 
+   clock-names:
+     items:
+       - const: pclk
+       - const: wclk32k
+       - const: wclk25m
++      - const: wclk100m
+ 
+   '#clock-cells':
+     const: 1
+     description:
+       See include/dt-bindings/clock/zte,zx279133-lsp.h for valid indices.
+ 
++  '#reset-cells':
++    const: 1
++    description:
++      See include/dt-bindings/reset/zte,zx279133-lsp.h for valid indices.
++
+ required:
+   - compatible
+   - reg
+   - clocks
+   - clock-names
+   - '#clock-cells'
++  - '#reset-cells'
+ 
+ additionalProperties: false
+ 
+@@ -57,9 +67,11 @@ examples:
+         reg = <0x14f00000 0x100>;
+         clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP1_PCLK>,
+                  <&topcrm ZX279133_TOPCRM_CLK_LSP1_32K>,
+-                 <&topcrm ZX279133_TOPCRM_CLK_LSP1_25M>;
+-        clock-names = "pclk", "wclk32k", "wclk25m";
++                 <&topcrm ZX279133_TOPCRM_CLK_LSP1_25M>,
++                 <&topcrm ZX279133_TOPCRM_CLK_LSP1_100M>;
++        clock-names = "pclk", "wclk32k", "wclk25m", "wclk100m";
+         #clock-cells = <1>;
++        #reset-cells = <1>;
+     };
+ 
+ ...
+diff --git a/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml b/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
+index 1ef18d1f2efc760f22bdd769627cbf633c7803b5..eb10c071be319e2878b36cb30f64fe358cd286f0 100644
+--- a/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
++++ b/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
+@@ -12,7 +12,8 @@ maintainers:
+ description:
+   The top clock and reset manager (TOPCRM) supplies clocks to the ZX279133
+   low-speed peripheral controllers, SPI flash controller, PVT temperature
+-  sensor, USB host controller, interconnect, and Cortex-A53 CPUs. Fixed PLL
++  sensor, MDIO controllers, USB host controller, interconnect, and Cortex-A53
++  CPUs. Fixed PLL
+   roots feed fixed-factor branches followed by read-only system, CCI, and CPU
+   muxes. The system HCLK and PCLK use read-only even dividers. This preserves
+   the firmware-selected boot topology without allowing Linux to reprogram a
+diff --git a/Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml b/Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..08161e316a75343419610c970238a7287e5c1bfd
+--- /dev/null
++++ b/Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
+@@ -0,0 +1,66 @@
++# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/net/zte,zx279133-mdio.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 MDIO controller
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description:
++  The ZX279133 contains two independent MDIO controllers supporting native
++  Clause 22 and Clause 45 transactions.
++
++allOf:
++  - $ref: mdio.yaml#
++
++properties:
++  compatible:
++    const: zte,zx279133-mdio
++
++  reg:
++    maxItems: 1
++
++  clocks:
++    items:
++      - description: Peripheral register interface clock
++      - description: MDIO working clock
++
++  clock-names:
++    items:
++      - const: pclk
++      - const: wclk
++
++  resets:
++    maxItems: 1
++
++required:
++  - compatible
++  - reg
++  - clocks
++  - clock-names
++  - resets
++  - '#address-cells'
++  - '#size-cells'
++
++unevaluatedProperties: false
++
++examples:
++  - |
++    #include <dt-bindings/clock/zte,zx279133-lsp.h>
++    #include <dt-bindings/reset/zte,zx279133-lsp.h>
++
++    mdio@14f01000 {
++        compatible = "zte,zx279133-mdio";
++        reg = <0x14f01000 0x1000>;
++        clocks = <&lsp1_clk ZX279133_LSP1_CLK_MDIO0_PCLK>,
++                 <&lsp1_clk ZX279133_LSP1_CLK_MDIO0_WCLK>;
++        clock-names = "pclk", "wclk";
++        resets = <&lsp1_clk ZX279133_LSP1_RESET_MDIO0>;
++        #address-cells = <1>;
++        #size-cells = <0>;
++    };
++
++...
+diff --git a/MAINTAINERS b/MAINTAINERS
+index aca7fec862b98909e1e4125c64ada92d354d622c..a6484c5a39b2a6f651f22a544575dd79181e25cb 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -28412,6 +28412,7 @@ F:	Documentation/devicetree/bindings/clock/zte,zx279133-*.yaml
+ F:	Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml
+ F:	Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
+ F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
++F:	Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
+ F:	Documentation/devicetree/bindings/nvmem/zte,zx279133-efuse.yaml
+ F:	Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
+ F:	Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
+@@ -28424,6 +28425,7 @@ F:	arch/arm64/boot/dts/zte/zx279133*
+ F:	drivers/clk/clk-zx279133.c
+ F:	drivers/gpio/gpio-zx279133.c
+ F:	drivers/hwmon/zx279133-pvt.c
++F:	drivers/net/mdio/mdio-zx279133.c
+ F:	drivers/nvmem/zx279133-efuse.c
+ F:	drivers/pinctrl/pinctrl-zx279133.c
+ F:	drivers/spi/spi-zx279133-sfc.c
+diff --git a/arch/arm64/boot/dts/zte/zx279133.dtsi b/arch/arm64/boot/dts/zte/zx279133.dtsi
+index a4335cd623664c94947e6fa5abc13214e05b9d19..9f26180a74828f9e1420f5a636d1bd212b1570d5 100644
+--- a/arch/arm64/boot/dts/zte/zx279133.dtsi
++++ b/arch/arm64/boot/dts/zte/zx279133.dtsi
+@@ -330,9 +330,35 @@ lsp1_clk: clock-controller@14f00000 {
+ 			reg = <0x0 0x14f00000 0x0 0x100>;
+ 			clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP1_PCLK>,
+ 				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_32K>,
+-				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_25M>;
+-			clock-names = "pclk", "wclk32k", "wclk25m";
++				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_25M>,
++				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_100M>;
++			clock-names = "pclk", "wclk32k", "wclk25m", "wclk100m";
+ 			#clock-cells = <1>;
++			#reset-cells = <1>;
++		};
++
++		mdio0: mdio@14f01000 {
++			compatible = "zte,zx279133-mdio";
++			reg = <0x0 0x14f01000 0x0 0x1000>;
++			clocks = <&lsp1_clk ZX279133_LSP1_CLK_MDIO0_PCLK>,
++				 <&lsp1_clk ZX279133_LSP1_CLK_MDIO0_WCLK>;
++			clock-names = "pclk", "wclk";
++			resets = <&lsp1_clk ZX279133_LSP1_RESET_MDIO0>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			status = "disabled";
++		};
++
++		mdio1: mdio@14f02000 {
++			compatible = "zte,zx279133-mdio";
++			reg = <0x0 0x14f02000 0x0 0x1000>;
++			clocks = <&lsp1_clk ZX279133_LSP1_CLK_MDIO1_PCLK>,
++				 <&lsp1_clk ZX279133_LSP1_CLK_MDIO1_WCLK>;
++			clock-names = "pclk", "wclk";
++			resets = <&lsp1_clk ZX279133_LSP1_RESET_MDIO1>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			status = "disabled";
+ 		};
+ 
+ 		pwm: pwm@14f10000 {
+diff --git a/drivers/clk/clk-zx279133.c b/drivers/clk/clk-zx279133.c
+index b9abaf1a5bf25d07ba6fa510f9bc917ebacd9a4c..40b706196a2575bd616eb304d392b1b2a0f8ca39 100644
+--- a/drivers/clk/clk-zx279133.c
++++ b/drivers/clk/clk-zx279133.c
+@@ -18,7 +18,7 @@
+ #define ZX279133_TOPCRM_SYS_MUX_CTRL	0x00
+ #define ZX279133_TOPCRM_CPU_CCI_MUX_CTRL	0x04
+ #define ZX279133_TOPCRM_BUS_DIV_CTRL	0x5c
+-#define ZX279133_TOPCRM_NUM_CLKS	(ZX279133_TOPCRM_CLK_A53_MCLK + 1)
++#define ZX279133_TOPCRM_NUM_CLKS	(ZX279133_TOPCRM_CLK_LSP1_100M + 1)
+ #define ZX279133_UART0_CLK_CTRL	0x24
+ #define ZX279133_UART_PCLK_GATE	0
+ #define ZX279133_UART_WCLK_GATE	1
+@@ -40,7 +40,17 @@
+ #define ZX279133_PWM_PCLK_GATE	0
+ #define ZX279133_PWM_WCLK_GATE	1
+ #define ZX279133_PWM_CLK_FLAGS	CLK_IGNORE_UNUSED
+-#define ZX279133_LSP1_NUM_CLKS	(ZX279133_LSP1_CLK_PWM_WCLK + 1)
++#define ZX279133_MDIO0_CLK_CTRL	0x04
++#define ZX279133_MDIO1_CLK_CTRL	0x08
++#define ZX279133_MDIO_PCLK_GATE	0
++#define ZX279133_MDIO_WCLK_GATE	1
++#define ZX279133_MDIO_RESET	4
++#define ZX279133_MDIO_WCLK_DIV_SHIFT	11
++#define ZX279133_MDIO_WCLK_DIV_WIDTH	7
++#define ZX279133_MDIO_CLK_FLAGS	CLK_IGNORE_UNUSED
++#define ZX279133_MDIO_RESET_DELAY_MIN_US	300
++#define ZX279133_MDIO_RESET_DELAY_MAX_US	400
++#define ZX279133_LSP1_NUM_CLKS	(ZX279133_LSP1_CLK_MDIO1_WCLK + 1)
+ #define ZX279133_TOPCRM_PVT_PCLK_GATE_CTRL	0x30
+ #define ZX279133_TOPCRM_PVT_PCLK_GATE	12
+ #define ZX279133_TOPCRM_PVT_DIV_CTRL	0x58
+@@ -108,6 +118,10 @@ struct zx279133_lsp1_clk {
+ 	spinlock_t lock; /* Protects the LSP1 clock control registers. */
+ 	struct clk_divider wdt_dividers[2];
+ 	struct clk_gate wdt_gates[2];
++	struct clk_divider mdio_dividers[2];
++	struct clk_gate mdio_gates[2];
++	struct reset_controller_dev rcdev;
++	void __iomem *mdio_regs[2];
+ 	struct clk_hw_onecell_data data;
+ };
+ 
+@@ -427,6 +441,16 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
+ 		priv->data.hws[index] = hw;
+ 	}
+ 
++	hw = devm_clk_hw_register_gate_parent_hw(dev, "lsp1_100m",
++						 priv->parents[ZX279133_PARENT_CLK100M],
++						 ZX279133_TOPCRM_GATE_FLAGS,
++						 base + ZX279133_TOPCRM_GATE_CTRL,
++						 20, 0, &priv->lock);
++	if (IS_ERR(hw))
++		return dev_err_probe(dev, PTR_ERR(hw),
++				     "failed to register lsp1_100m gate\n");
++	priv->data.hws[ZX279133_TOPCRM_CLK_LSP1_100M] = hw;
++
+ 	priv->data.num = ZX279133_TOPCRM_NUM_CLKS;
+ 	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get,
+ 					  &priv->data);
+@@ -555,6 +579,87 @@ static const struct clk_parent_data lsp1_wclk25m_parent = {
+ 	.fw_name = "wclk25m",
+ };
+ 
++static const struct clk_parent_data lsp1_wclk100m_parent = {
++	.fw_name = "wclk100m",
++};
++
++static int zx279133_lsp1_reset_update(struct reset_controller_dev *rcdev,
++				      unsigned long id, bool deassert)
++{
++	struct zx279133_lsp1_clk *priv =
++		container_of(rcdev, struct zx279133_lsp1_clk, rcdev);
++	unsigned long flags;
++	u32 value;
++
++	if (id >= ARRAY_SIZE(priv->mdio_regs))
++		return -EINVAL;
++
++	spin_lock_irqsave(&priv->lock, flags);
++	value = readl(priv->mdio_regs[id]);
++	if (deassert)
++		value |= BIT(ZX279133_MDIO_RESET);
++	else
++		value &= ~BIT(ZX279133_MDIO_RESET);
++	writel(value, priv->mdio_regs[id]);
++	spin_unlock_irqrestore(&priv->lock, flags);
++
++	return 0;
++}
++
++static int zx279133_lsp1_reset_assert(struct reset_controller_dev *rcdev,
++				      unsigned long id)
++{
++	return zx279133_lsp1_reset_update(rcdev, id, false);
++}
++
++static int zx279133_lsp1_reset_deassert(struct reset_controller_dev *rcdev,
++					unsigned long id)
++{
++	return zx279133_lsp1_reset_update(rcdev, id, true);
++}
++
++static int zx279133_lsp1_reset_reset(struct reset_controller_dev *rcdev,
++				     unsigned long id)
++{
++	int ret;
++
++	ret = zx279133_lsp1_reset_assert(rcdev, id);
++	if (ret)
++		return ret;
++
++	/* Match the vendor driver's assertion and post-deassertion delays. */
++	usleep_range(ZX279133_MDIO_RESET_DELAY_MIN_US,
++		     ZX279133_MDIO_RESET_DELAY_MAX_US);
++
++	ret = zx279133_lsp1_reset_deassert(rcdev, id);
++	if (ret)
++		return ret;
++
++	usleep_range(ZX279133_MDIO_RESET_DELAY_MIN_US,
++		     ZX279133_MDIO_RESET_DELAY_MAX_US);
++
++	return 0;
++}
++
++static int zx279133_lsp1_reset_status(struct reset_controller_dev *rcdev,
++				      unsigned long id)
++{
++	struct zx279133_lsp1_clk *priv =
++		container_of(rcdev, struct zx279133_lsp1_clk, rcdev);
++
++	if (id >= ARRAY_SIZE(priv->mdio_regs))
++		return -EINVAL;
++
++	return !(readl(priv->mdio_regs[id]) & BIT(ZX279133_MDIO_RESET));
++}
++
++static const struct reset_control_ops zx279133_lsp1_reset_ops = {
++	.assert = zx279133_lsp1_reset_assert,
++	.deassert = zx279133_lsp1_reset_deassert,
++	.reset = zx279133_lsp1_reset_reset,
++	.status = zx279133_lsp1_reset_status,
++};
++
+ static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
+ {
+ 	static const unsigned int offsets[] = {
+@@ -564,6 +669,13 @@ static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
+ 		{ "wdt0_pclk", "wdt0_wclk" },
+ 		{ "wdt1_pclk", "wdt1_wclk" },
+ 	};
++	static const unsigned int mdio_offsets[] = {
++		ZX279133_MDIO0_CLK_CTRL, ZX279133_MDIO1_CLK_CTRL,
++	};
++	static const char * const mdio_names[][2] = {
++		{ "mdio0_pclk", "mdio0_wclk" },
++		{ "mdio1_pclk", "mdio1_wclk" },
++	};
+ 	struct device *dev = &pdev->dev;
+ 	struct zx279133_lsp1_clk *priv;
+ 	struct clk_hw_onecell_data *data;
+@@ -661,8 +773,63 @@ static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
+ 				     "failed to register PWM WCLK\n");
+ 	priv->data.hws[ZX279133_LSP1_CLK_PWM_WCLK] = hw;
+ 
++	for (index = 0; index < ARRAY_SIZE(mdio_offsets); index++) {
++		struct clk_divider *divider = &priv->mdio_dividers[index];
++		struct clk_gate *gate = &priv->mdio_gates[index];
++		unsigned int clk_id = ZX279133_LSP1_CLK_MDIO0_PCLK + index * 2;
++
++		reg = base + mdio_offsets[index];
++		priv->mdio_regs[index] = reg;
++		hw = devm_clk_hw_register_gate_parent_data(dev,
++							   mdio_names[index][0],
++							   &lsp1_pclk_parent,
++							   ZX279133_MDIO_CLK_FLAGS,
++							   reg,
++							   ZX279133_MDIO_PCLK_GATE,
++							   0, &priv->lock);
++		if (IS_ERR(hw))
++			return dev_err_probe(dev, PTR_ERR(hw),
++					     "failed to register MDIO%u PCLK\n",
++					     index);
++		priv->data.hws[clk_id] = hw;
++
++		divider->reg = reg;
++		divider->shift = ZX279133_MDIO_WCLK_DIV_SHIFT;
++		divider->width = ZX279133_MDIO_WCLK_DIV_WIDTH;
++		divider->flags = CLK_DIVIDER_READ_ONLY;
++		divider->lock = &priv->lock;
++
++		gate->reg = reg;
++		gate->bit_idx = ZX279133_MDIO_WCLK_GATE;
++		gate->lock = &priv->lock;
++
++		hw = devm_clk_hw_register_composite_pdata(dev,
++							  mdio_names[index][1],
++							  &lsp1_wclk100m_parent, 1,
++							  NULL, NULL,
++							  &divider->hw,
++							  &clk_divider_ro_ops,
++							  &gate->hw,
++							  &clk_gate_ops,
++							  ZX279133_MDIO_CLK_FLAGS);
++		if (IS_ERR(hw))
++			return dev_err_probe(dev, PTR_ERR(hw),
++					     "failed to register MDIO%u WCLK\n",
++					     index);
++		priv->data.hws[clk_id + 1] = hw;
++	}
++
+ 	priv->data.num = ZX279133_LSP1_NUM_CLKS;
+ 	data = &priv->data;
++	priv->rcdev.ops = &zx279133_lsp1_reset_ops;
++	priv->rcdev.owner = THIS_MODULE;
++	priv->rcdev.of_node = dev->of_node;
++	priv->rcdev.nr_resets = ARRAY_SIZE(priv->mdio_regs);
++
++	ret = devm_reset_controller_register(dev, &priv->rcdev);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to register LSP1 reset controller\n");
+ 
+ 	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, data);
+ 	if (ret)
+diff --git a/drivers/net/mdio/Kconfig b/drivers/net/mdio/Kconfig
+index 44380378911b7d72e7289951fca90282d731913d..a844e539b453e8301de757feb709cc21d42deb39 100644
+--- a/drivers/net/mdio/Kconfig
++++ b/drivers/net/mdio/Kconfig
+@@ -104,6 +104,15 @@ config MDIO_HISI_FEMAC
+ 	  This module provides a driver for the MDIO busses found in the
+ 	  Hisilicon SoC that have an Fast Ethernet MAC.
+ 
++config MDIO_ZX279133
++	bool "ZTE ZX279133 MDIO bus controller"
++	depends on (ARM64 || COMPILE_TEST) && OF_MDIO && COMMON_CLK
++	help
++	  This driver supports the independent Clause 22 and Clause 45 MDIO
++	  controllers in the ZTE ZX279133 SoC. Each controller uses separate
++	  peripheral and working clocks and provides bounded polling for both
++	  native transaction formats.
++
+ config MDIO_I2C
+ 	tristate
+ 	depends on I2C
+diff --git a/drivers/net/mdio/Makefile b/drivers/net/mdio/Makefile
+index fbec636700e7a0956c30b17bbbccbfa1940f3bff..48cfdb68476d4c504ee7ce2a177202166c18fd1f 100644
+--- a/drivers/net/mdio/Makefile
++++ b/drivers/net/mdio/Makefile
+@@ -13,6 +13,7 @@ obj-$(CONFIG_MDIO_BITBANG)		+= mdio-bitbang.o
+ obj-$(CONFIG_MDIO_CAVIUM)		+= mdio-cavium.o
+ obj-$(CONFIG_MDIO_GPIO)			+= mdio-gpio.o
+ obj-$(CONFIG_MDIO_HISI_FEMAC)		+= mdio-hisi-femac.o
++obj-$(CONFIG_MDIO_ZX279133)		+= mdio-zx279133.o
+ obj-$(CONFIG_MDIO_I2C)			+= mdio-i2c.o
+ obj-$(CONFIG_MDIO_IPQ4019)		+= mdio-ipq4019.o
+ obj-$(CONFIG_MDIO_IPQ8064)		+= mdio-ipq8064.o
+diff --git a/drivers/net/mdio/mdio-zx279133.c b/drivers/net/mdio/mdio-zx279133.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..1c81616c621383a354952d9286fd05018faa133f
+--- /dev/null
++++ b/drivers/net/mdio/mdio-zx279133.c
+@@ -0,0 +1,246 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++#include <linux/bitfield.h>
++#include <linux/clk.h>
++#include <linux/iopoll.h>
++#include <linux/module.h>
++#include <linux/of_mdio.h>
++#include <linux/phy.h>
++#include <linux/platform_device.h>
++#include <linux/reset.h>
++
++#define ZX279133_MDIO_WRITE_DATA	0x04
++#define ZX279133_MDIO_READ_DATA		0x08
++#define ZX279133_MDIO_C45_REG		0x0c
++#define ZX279133_MDIO_STATUS		0x10
++#define ZX279133_MDIO_CONTROL		0x14
++
++#define ZX279133_MDIO_STATUS_DONE	BIT(0)
++
++#define ZX279133_MDIO_CONTROL_REG	GENMASK(4, 0)
++#define ZX279133_MDIO_CONTROL_PHY	GENMASK(9, 5)
++#define ZX279133_MDIO_CONTROL_OP	GENMASK(11, 10)
++#define ZX279133_MDIO_CONTROL_C22	BIT(12)
++#define ZX279133_MDIO_CONTROL_C45	BIT(13)
++#define ZX279133_MDIO_CONTROL_START	BIT(14)
++
++#define ZX279133_MDIO_OP_C45_ADDR	0
++#define ZX279133_MDIO_OP_WRITE		1
++#define ZX279133_MDIO_OP_C22_READ	2
++#define ZX279133_MDIO_OP_C45_READ	3
++
++#define ZX279133_MDIO_POLL_US		1
++#define ZX279133_MDIO_TIMEOUT_US	10000
++
++struct zx279133_mdio {
++	void __iomem *base;
++};
++
++static int zx279133_mdio_transfer(struct zx279133_mdio *priv, u32 control)
++{
++	u32 status;
++	int ret;
++
++	writel(0, priv->base + ZX279133_MDIO_STATUS);
++	writel(control | ZX279133_MDIO_CONTROL_START,
++	       priv->base + ZX279133_MDIO_CONTROL);
++
++	ret = readl_poll_timeout(priv->base + ZX279133_MDIO_STATUS, status,
++				 status & ZX279133_MDIO_STATUS_DONE,
++				 ZX279133_MDIO_POLL_US,
++				 ZX279133_MDIO_TIMEOUT_US);
++
++	writel(0, priv->base + ZX279133_MDIO_STATUS);
++	writel(control, priv->base + ZX279133_MDIO_CONTROL);
++
++	return ret;
++}
++
++static int zx279133_mdio_c22_control(int addr, int regnum, u32 op, u32 *control)
++{
++	if (addr < 0 || addr > 0x1f || regnum < 0 || regnum > 0x1f)
++		return -EINVAL;
++
++	*control = ZX279133_MDIO_CONTROL_C22 |
++		   FIELD_PREP(ZX279133_MDIO_CONTROL_OP, op) |
++		   FIELD_PREP(ZX279133_MDIO_CONTROL_PHY, addr) |
++		   FIELD_PREP(ZX279133_MDIO_CONTROL_REG, regnum);
++
++	return 0;
++}
++
++static int zx279133_mdio_read(struct mii_bus *bus, int addr, int regnum)
++{
++	struct zx279133_mdio *priv = bus->priv;
++	u32 control;
++	int ret;
++
++	ret = zx279133_mdio_c22_control(addr, regnum,
++					ZX279133_MDIO_OP_C22_READ, &control);
++	if (ret)
++		return ret;
++
++	ret = zx279133_mdio_transfer(priv, control);
++	if (ret)
++		return ret;
++
++	return readl(priv->base + ZX279133_MDIO_READ_DATA) & 0xffff;
++}
++
++static int zx279133_mdio_write(struct mii_bus *bus, int addr, int regnum,
++			       u16 value)
++{
++	struct zx279133_mdio *priv = bus->priv;
++	u32 control;
++	int ret;
++
++	ret = zx279133_mdio_c22_control(addr, regnum, ZX279133_MDIO_OP_WRITE,
++					&control);
++	if (ret)
++		return ret;
++
++	writel(value, priv->base + ZX279133_MDIO_WRITE_DATA);
++
++	return zx279133_mdio_transfer(priv, control);
++}
++
++static int zx279133_mdio_c45_control(int addr, int devnum, u32 *control)
++{
++	if (addr < 0 || addr > 0x1f || devnum < 0 || devnum > 0x1f)
++		return -EINVAL;
++
++	*control = ZX279133_MDIO_CONTROL_C45 |
++		   FIELD_PREP(ZX279133_MDIO_CONTROL_PHY, addr) |
++		   FIELD_PREP(ZX279133_MDIO_CONTROL_REG, devnum);
++
++	return 0;
++}
++
++static int zx279133_mdio_c45_address(struct zx279133_mdio *priv, u32 control,
++				     int regnum)
++{
++	if (regnum < 0 || regnum > 0xffff)
++		return -EINVAL;
++
++	writel(regnum, priv->base + ZX279133_MDIO_C45_REG);
++
++	return zx279133_mdio_transfer(priv,
++		control | FIELD_PREP(ZX279133_MDIO_CONTROL_OP,
++				     ZX279133_MDIO_OP_C45_ADDR));
++}
++
++static int zx279133_mdio_read_c45(struct mii_bus *bus, int addr, int devnum,
++				  int regnum)
++{
++	struct zx279133_mdio *priv = bus->priv;
++	u32 control;
++	int ret;
++
++	ret = zx279133_mdio_c45_control(addr, devnum, &control);
++	if (ret)
++		return ret;
++
++	ret = zx279133_mdio_c45_address(priv, control, regnum);
++	if (ret)
++		return ret;
++
++	control |= FIELD_PREP(ZX279133_MDIO_CONTROL_OP,
++			      ZX279133_MDIO_OP_C45_READ);
++	ret = zx279133_mdio_transfer(priv, control);
++	if (ret)
++		return ret;
++
++	return readl(priv->base + ZX279133_MDIO_READ_DATA) & 0xffff;
++}
++
++static int zx279133_mdio_write_c45(struct mii_bus *bus, int addr, int devnum,
++				   int regnum, u16 value)
++{
++	struct zx279133_mdio *priv = bus->priv;
++	u32 control;
++	int ret;
++
++	ret = zx279133_mdio_c45_control(addr, devnum, &control);
++	if (ret)
++		return ret;
++
++	ret = zx279133_mdio_c45_address(priv, control, regnum);
++	if (ret)
++		return ret;
++
++	writel(value, priv->base + ZX279133_MDIO_WRITE_DATA);
++
++	control |= FIELD_PREP(ZX279133_MDIO_CONTROL_OP,
++			      ZX279133_MDIO_OP_WRITE);
++
++	return zx279133_mdio_transfer(priv, control);
++}
++
++static int zx279133_mdio_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct zx279133_mdio *priv;
++	struct mii_bus *bus;
++	struct reset_control *reset;
++	struct clk *pclk;
++	struct clk *wclk;
++	int ret;
++
++	bus = devm_mdiobus_alloc_size(dev, sizeof(*priv));
++	if (!bus)
++		return -ENOMEM;
++
++	priv = bus->priv;
++	priv->base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(priv->base))
++		return PTR_ERR(priv->base);
++
++	pclk = devm_clk_get_enabled(dev, "pclk");
++	if (IS_ERR(pclk))
++		return dev_err_probe(dev, PTR_ERR(pclk),
++				     "failed to enable peripheral clock\n");
++
++	wclk = devm_clk_get_enabled(dev, "wclk");
++	if (IS_ERR(wclk))
++		return dev_err_probe(dev, PTR_ERR(wclk),
++				     "failed to enable working clock\n");
++
++	reset = devm_reset_control_get_exclusive(dev, NULL);
++	if (IS_ERR(reset))
++		return dev_err_probe(dev, PTR_ERR(reset),
++				     "failed to get controller reset\n");
++
++	ret = reset_control_reset(reset);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to reset controller\n");
++
++	bus->name = "ZX279133 MDIO";
++	bus->parent = dev;
++	bus->read = zx279133_mdio_read;
++	bus->write = zx279133_mdio_write;
++	bus->read_c45 = zx279133_mdio_read_c45;
++	bus->write_c45 = zx279133_mdio_write_c45;
++	bus->phy_mask = GENMASK(31, 0);
++	snprintf(bus->id, MII_BUS_ID_SIZE, "%s", dev_name(dev));
++
++	return devm_of_mdiobus_register(dev, bus, dev->of_node);
++}
++
++static const struct of_device_id zx279133_mdio_of_match[] = {
++	{ .compatible = "zte,zx279133-mdio" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, zx279133_mdio_of_match);
++
++static struct platform_driver zx279133_mdio_driver = {
++	.probe = zx279133_mdio_probe,
++	.driver = {
++		.name = "zx279133-mdio",
++		.of_match_table = zx279133_mdio_of_match,
++		.suppress_bind_attrs = true,
++	},
++};
++module_platform_driver(zx279133_mdio_driver);
++
++MODULE_DESCRIPTION("ZTE ZX279133 MDIO bus controller");
++MODULE_LICENSE("GPL");
+diff --git a/include/dt-bindings/clock/zte,zx279133-lsp.h b/include/dt-bindings/clock/zte,zx279133-lsp.h
+index b2f7326cf4ccd448fbe1b438035eea843a01aa0a..67244bad63027fa6c7e89947e1308d7c9059e3c4 100644
+--- a/include/dt-bindings/clock/zte,zx279133-lsp.h
++++ b/include/dt-bindings/clock/zte,zx279133-lsp.h
+@@ -15,5 +15,9 @@
+ #define ZX279133_LSP1_CLK_EFUSE_WCLK	5
+ #define ZX279133_LSP1_CLK_PWM_PCLK	6
+ #define ZX279133_LSP1_CLK_PWM_WCLK	7
++#define ZX279133_LSP1_CLK_MDIO0_PCLK	8
++#define ZX279133_LSP1_CLK_MDIO0_WCLK	9
++#define ZX279133_LSP1_CLK_MDIO1_PCLK	10
++#define ZX279133_LSP1_CLK_MDIO1_WCLK	11
+ 
+ #endif
+diff --git a/include/dt-bindings/clock/zte,zx279133-topcrm.h b/include/dt-bindings/clock/zte,zx279133-topcrm.h
+index c3d80aae3d5886e7b16969befe6cf967156224c6..13e53a444f2cbf007afac267cb432b03e49a9d53 100644
+--- a/include/dt-bindings/clock/zte,zx279133-topcrm.h
++++ b/include/dt-bindings/clock/zte,zx279133-topcrm.h
+@@ -19,5 +19,6 @@
+ #define ZX279133_TOPCRM_CLK_SYS_PCLK	14
+ #define ZX279133_TOPCRM_CLK_CCI_ACLK	15
+ #define ZX279133_TOPCRM_CLK_A53_MCLK	16
++#define ZX279133_TOPCRM_CLK_LSP1_100M	17
+ 
+ #endif
+diff --git a/include/dt-bindings/reset/zte,zx279133-lsp.h b/include/dt-bindings/reset/zte,zx279133-lsp.h
+index 3d911175a15e541d51b86304c9f6b4f85ee57f25..14ab2172d7b596c5c67466758e661a031c3b510d 100644
+--- a/include/dt-bindings/reset/zte,zx279133-lsp.h
++++ b/include/dt-bindings/reset/zte,zx279133-lsp.h
+@@ -5,4 +5,7 @@
+ #define ZX279133_LSP_RESET_UART0	0
+ #define ZX279133_LSP_RESET_SPIFC	1
+ 
++#define ZX279133_LSP1_RESET_MDIO0	0
++#define ZX279133_LSP1_RESET_MDIO1	1
++
+ #endif

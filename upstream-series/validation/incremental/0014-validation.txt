@@ -1,0 +1,71 @@
+Patch 0014: net: dsa: add ZX279133 connected RTL8372N switch
+
+Scope:
+- RTL8372N DSA switch driver for the SR1010 ports4..7/CPU8 topology
+- per-switch private-VLAN tagger and its DSA protocol registration
+- switch/tagger Kconfig and Makefile integration
+- DSA user documentation and MAINTAINERS coverage
+
+Changes:
+- add the MDIO-SMI switch core, PHY/SDS initialization, external CPU port 8,
+  XMAC0/XPCS0/Uni-SerDes ownership, reset and same-boot reload lifecycle
+- expose physical ports 4 through 7 as four DSA user ports
+- carry the source/user port through private transport VLANs 59 through 62
+- keep tagger access-VLAN state in per-switch ds->tagger_data with explicit
+  connect/disconnect lifetime
+- support software-owned bridge membership, MSTP state, access-VLAN add/delete,
+  VLAN-unaware FDB add/delete/dump, and evidence-backed MIB counters
+- keep private transport VLANs isolated to one user port plus CPU port 8 and do
+  not advertise hardware bridge forwarding
+- remove unwired diagnostic register/PHY/SDS dump functions and optional no-op
+  port_enable/port_disable callbacks
+- retain the mandatory DSA setup callback; probe completes hardware setup before
+  dsa_register_switch() and setup returns zero
+- replace sub-20ms legacy sleeps with fsleep() while retaining the same requested
+  delay values
+
+Static/build validation:
+- drivers/net/ethernet/zte/zx279133-rtl8372n.c, the tagger and public tagger
+  header each pass strict file checkpatch with 0 errors, warnings or checks
+- whole-patch strict checkpatch reports 0 errors and 0 checks; its sole warning
+  is the generic new-file MAINTAINERS reminder, while the patch adds coverage
+- git diff --check passes
+- patches 0001 through 0014 apply sequentially
+- the resulting files are byte-identical to the current worktree
+- a clean sequential-patch tree builds Image and all configured modules,
+  including zx279133-rtl8372n.ko and tag_zx279133_rtl8372n.ko
+- htmldocs was not available in the builder because sphinx-build and its Python
+  dependencies are absent; the RST is indexed and patch/checkpatch clean
+
+Exact board validation:
+- FIT SHA-256:
+  57157ef89349344b0a2957f58dbabe8419f755ba1c37514b960860fc4dbec615
+- installed/rootfs zx279133-rtl8372n.ko SHA-256 matched exactly:
+  e918a29d56ac1cb7b342ce237feeb21fd5bfd949eec4e847a480fbb1cd86df67
+- the initramfs artifacts were explicitly invalidated before the final rebuild,
+  closing an earlier stale-module validation hazard
+- cold boot brought WAN up at 2.5Gbps and interface-bound ping passed 5/5
+- RTL8372N reset/core/SDS/CPU-link setup and DSA registration completed
+- VLAN100 lan1 ping passed 7/7
+- five-second LAN iperf reached 939/937 Mbit/s host-to-board and 946/941
+  Mbit/s board-to-host; WAN remained reachable
+- same-boot RTL8372N unload/reload recreated the DSA tree and restored LAN and
+  WAN ping 5/5
+- no Oops, panic, BUG, watchdog, runtime-PM or timeout fault was observed
+
+Independent review status: technical GO
+
+Residual medium risk:
+- user ports are currently described as fixed 2500/full while the fixed-state
+  callback reports the live switch speed/duplex fields. This preserves the
+  board-validated 10/100/1000/2500 reporting path, but it exceeds phylink's
+  fixed-link model and advertised MAC_2500FD capability. A future upstream
+  cleanup should model the integrated PHY/status path through a standard PHY or
+  equivalent phylink ownership without changing the validated datapath.
+
+Documented scope limitations:
+- customer VLAN support is one PVID+untagged access VLAN per user port
+- VID 1 and transport VIDs 59 through 62 are reserved; VLAN-aware bridges must
+  use vlan_default_pvid 0
+- tagged/trunk customer VLANs and VLAN-aware static FDB offload are unsupported
+- reset is intentionally asserted on driver removal

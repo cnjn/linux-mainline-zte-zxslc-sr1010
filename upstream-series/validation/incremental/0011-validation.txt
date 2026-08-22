@@ -1,0 +1,24 @@
+Patch 0011: dt-bindings: soc: zte: add ZX279133 network syscons
+
+Scope:
+- Documentation/devicetree/bindings/soc/zte/zte,zx279133-idm-cci.yaml
+- Documentation/devicetree/bindings/soc/zte/zte,zx279133-pon-route.yaml
+- MAINTAINERS
+
+Changes:
+- document the single-register IDM CCI syscon used to enable the packet DMA
+  coherent interconnect path
+- document the single-register PON-route syscon used to select the NPPT/XMAC
+  route
+- add both schemas to the ZX279133 MAINTAINERS coverage
+
+Validation:
+- both schema source files pass strict checkpatch with 0 errors, 0 warnings,
+  and 0 checks
+- isolated dt_binding_check passes for both schemas
+- git diff --check passes
+- patch applies after patches 0001 through 0010
+
+Checkpatch note:
+- whole-patch checkpatch emits only its generic new-file MAINTAINERS reminder;
+  the same patch explicitly adds a matching MAINTAINERS wildcard.

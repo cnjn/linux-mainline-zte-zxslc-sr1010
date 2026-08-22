@@ -1,0 +1,327 @@
+From 760d3eab49a300ff17673d7f1a73187683821839 Mon Sep 17 00:00:00 2001
+From: cnjn <1779895255@qq.com>
+Date: Sat, 22 Aug 2026 20:00:12 +0800
+Subject: [PATCH 04/16] usb: host: add ZX279133 xHCI CCI clock support
+
+Consolidate 4 validated ZX279133 development commits into one functional stage.
+
+Original range: 4d9ee671df7dad1796b1b34d5fb5a9b4217ca7b3..04fcd8dc1fa7df5dace8666ace93800eb5080ed3
+
+Signed-off-by: cnjn <1779895255@qq.com>
+---
+ .../bindings/usb/zte,zx279133-xhci.yaml       | 64 +++++++++++++++++++
+ MAINTAINERS                                   |  1 +
+ arch/arm64/boot/dts/zte/zx279133.dtsi         |  7 +-
+ drivers/clk/clk-zx279133.c                    |  7 +-
+ drivers/usb/host/xhci-plat.c                  | 64 ++++++++++++++++---
+ drivers/usb/host/xhci-plat.h                  |  3 +
+ 6 files changed, 128 insertions(+), 18 deletions(-)
+ create mode 100644 Documentation/devicetree/bindings/usb/zte,zx279133-xhci.yaml
+
+diff --git a/Documentation/devicetree/bindings/usb/zte,zx279133-xhci.yaml b/Documentation/devicetree/bindings/usb/zte,zx279133-xhci.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..90393ec1da8bcc9bacd22fc815fbfe3166702113
+--- /dev/null
++++ b/Documentation/devicetree/bindings/usb/zte,zx279133-xhci.yaml
+@@ -0,0 +1,64 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/usb/zte,zx279133-xhci.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 USB xHCI controller
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description:
++  The ZX279133 xHCI controller has separate register, core AXI, and CCI AXI
++  interface clocks. All three clocks must remain enabled while the controller
++  can issue DMA transactions.
++
++allOf:
++  - $ref: usb-xhci.yaml#
++
++properties:
++  compatible:
++    const: zte,zx279133-xhci
++
++  reg:
++    maxItems: 1
++
++  interrupts:
++    maxItems: 1
++
++  clocks:
++    items:
++      - description: Core AXI clock
++      - description: Register interface clock
++      - description: CCI AXI interface clock
++
++  clock-names:
++    items:
++      - const: core
++      - const: reg
++      - const: cci
++
++  dma-coherent: true
++
++required:
++  - compatible
++  - reg
++  - interrupts
++  - clocks
++  - clock-names
++
++unevaluatedProperties: false
++
++examples:
++  - |
++    usb@15010000 {
++        compatible = "zte,zx279133-xhci";
++        reg = <0x15010000 0x4000>;
++        interrupts = <0 65 4>;
++        clocks = <&topcrm 9>, <&topcrm 7>, <&topcrm 8>;
++        clock-names = "core", "reg", "cci";
++        dma-coherent;
++    };
++
++...
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 5808a921d5fa4bc0bcd61c8ecd848881e7e5de88..5bedad06ae6c5f624a123555bee6df1279a4813b 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -28415,6 +28415,7 @@ F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
+ F:	Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
+ F:	Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
+ F:	Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
++F:	Documentation/devicetree/bindings/usb/zte,zx279133-xhci.yaml
+ F:	Documentation/devicetree/bindings/watchdog/zte,zx279133-watchdog.yaml
+ F:	arch/arm64/boot/dts/zte/zx279133*
+ F:	drivers/clk/clk-zx279133.c
+diff --git a/arch/arm64/boot/dts/zte/zx279133.dtsi b/arch/arm64/boot/dts/zte/zx279133.dtsi
+index 63de8363c9f81e99a9992e5c2f48bf0a0eb38b79..19db5f8d4ffdc1cb1c65e91130e0643cf490dfba 100644
+--- a/arch/arm64/boot/dts/zte/zx279133.dtsi
++++ b/arch/arm64/boot/dts/zte/zx279133.dtsi
+@@ -331,12 +331,13 @@ partition@5800000 {
+ 		};
+ 
+ 		usb3: usb3@15010000 {
+-			compatible = "generic-xhci";
++			compatible = "zte,zx279133-xhci";
+ 			reg = <0x0 0x15010000 0x0 0x4000>;
+ 			interrupts = <GIC_SPI 65 IRQ_TYPE_LEVEL_HIGH>;
+ 			clocks = <&topcrm ZX279133_TOPCRM_CLK_USB_ACLK>,
+-				 <&topcrm ZX279133_TOPCRM_CLK_USB_PCLK>;
+-			clock-names = "core", "reg";
++				 <&topcrm ZX279133_TOPCRM_CLK_USB_PCLK>,
++				 <&topcrm ZX279133_TOPCRM_CLK_USB_CCI_ACLK>;
++			clock-names = "core", "reg", "cci";
+ 			dma-coherent;
+ 			status = "disabled";
+ 		};
+diff --git a/drivers/clk/clk-zx279133.c b/drivers/clk/clk-zx279133.c
+index 46afa011932e61220f0ce067a55cc82b76360455..b2970f622fc997cb1d59f0f5164287aabacb609d 100644
+--- a/drivers/clk/clk-zx279133.c
++++ b/drivers/clk/clk-zx279133.c
+@@ -37,11 +37,6 @@
+ #define ZX279133_TOPCRM_SPIFC_GATE_BIT	16
+ #define ZX279133_TOPCRM_USB_GATE_CTRL	0x3c
+ #define ZX279133_TOPCRM_USB_GATE_FLAGS	0
+-/*
+- * generic-xhci does not manage the USB-to-CCI bridge clock. Firmware leaves
+- * it enabled, so keep late unused-clock pruning from breaking xHCI DMA.
+- */
+-#define ZX279133_TOPCRM_USB_CCI_GATE_FLAGS	CLK_IGNORE_UNUSED
+ #define ZX279133_LSP_SPIFC_CLK_CTRL	0x2c
+ #define ZX279133_LSP_SPIFC_PCLK_GATE	0
+ #define ZX279133_LSP_SPIFC_WCLK_GATE	1
+@@ -172,7 +167,7 @@ static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
+ 	[ZX279133_TOPCRM_CLK_USB_CCI_ACLK] = {
+ 		.name = "usb_cci_aclk",
+ 		.parent = &topcrm_cci_aclk_parent,
+-		.flags = ZX279133_TOPCRM_USB_CCI_GATE_FLAGS,
++		.flags = ZX279133_TOPCRM_USB_GATE_FLAGS,
+ 		.reg_offset = ZX279133_TOPCRM_USB_GATE_CTRL,
+ 		.bit_idx = 5,
+ 	},
+diff --git a/drivers/usb/host/xhci-plat.c b/drivers/usb/host/xhci-plat.c
+index 074d9c731639fa5a2fbca06b7dfb938a243d824b..f1025c7ebfa2255d0ceb2e6a80a1c29013107bb6 100644
+--- a/drivers/usb/host/xhci-plat.c
++++ b/drivers/usb/host/xhci-plat.c
+@@ -124,8 +124,15 @@ static const struct xhci_plat_priv xhci_plat_brcm = {
+ 	.quirks = XHCI_RESET_ON_RESUME | XHCI_SUSPEND_RESUME_CLKS,
+ };
+ 
++static const struct xhci_plat_priv xhci_plat_zx279133 = {
++	.extra_clk_name = "cci",
++};
++
+ static const struct of_device_id usb_xhci_of_match[] = {
+ 	{
++		.compatible = "zte,zx279133-xhci",
++		.data = &xhci_plat_zx279133,
++	}, {
+ 		.compatible = "generic-xhci",
+ 	}, {
+ 		.compatible = "xhci-platform",
+@@ -153,6 +160,20 @@ static const struct of_device_id usb_xhci_of_match[] = {
+ MODULE_DEVICE_TABLE(of, usb_xhci_of_match);
+ #endif
+ 
++static int xhci_plat_enable_extra_clk(struct xhci_hcd *xhci)
++{
++	struct xhci_plat_priv *priv = xhci_to_priv(xhci);
++
++	return clk_prepare_enable(priv->extra_clk);
++}
++
++static void xhci_plat_disable_extra_clk(struct xhci_hcd *xhci)
++{
++	struct xhci_plat_priv *priv = xhci_to_priv(xhci);
++
++	clk_disable_unprepare(priv->extra_clk);
++}
++
+ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const struct xhci_plat_priv *priv_match)
+ {
+ 	const struct hc_driver	*driver;
+@@ -162,7 +183,7 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
+ 	struct usb_hcd		*hcd, *usb3_hcd;
+ 	int			ret;
+ 	int			irq;
+-	struct xhci_plat_priv	*priv = NULL;
++	struct xhci_plat_priv	*priv;
+ 	const struct of_device_id *of_match;
+ 
+ 	if (usb_disabled())
+@@ -203,6 +224,9 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
+ 	hcd->rsrc_len = resource_size(res);
+ 
+ 	xhci = hcd_to_xhci(hcd);
++	priv = hcd_to_xhci_priv(hcd);
++	if (priv_match)
++		*priv = *priv_match;
+ 
+ 	xhci->allow_single_roothub = 1;
+ 
+@@ -222,6 +246,17 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
+ 		goto put_hcd;
+ 	}
+ 
++	if (priv->extra_clk_name) {
++		priv->extra_clk = devm_clk_get(&pdev->dev,
++					       priv->extra_clk_name);
++		if (IS_ERR(priv->extra_clk)) {
++			ret = dev_err_probe(&pdev->dev, PTR_ERR(priv->extra_clk),
++					    "failed to get %s clock\n",
++					    priv->extra_clk_name);
++			goto put_hcd;
++		}
++	}
++
+ 	xhci->reset = devm_reset_control_array_get_optional_shared(&pdev->dev);
+ 	if (IS_ERR(xhci->reset)) {
+ 		ret = PTR_ERR(xhci->reset);
+@@ -232,20 +267,18 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
+ 	if (ret)
+ 		goto put_hcd;
+ 
+-	ret = clk_prepare_enable(xhci->reg_clk);
++	ret = xhci_plat_enable_extra_clk(xhci);
+ 	if (ret)
+ 		goto err_reset;
+ 
++	ret = clk_prepare_enable(xhci->reg_clk);
++	if (ret)
++		goto disable_extra_clk;
++
+ 	ret = clk_prepare_enable(xhci->clk);
+ 	if (ret)
+ 		goto disable_reg_clk;
+ 
+-	if (priv_match) {
+-		priv = hcd_to_xhci_priv(hcd);
+-		/* Just copy data for now */
+-		*priv = *priv_match;
+-	}
+-
+ 	device_set_wakeup_capable(&pdev->dev, true);
+ 
+ 	xhci->main_hcd = hcd;
+@@ -379,6 +412,9 @@ int xhci_plat_probe(struct platform_device *pdev, struct device *sysdev, const s
+ disable_reg_clk:
+ 	clk_disable_unprepare(xhci->reg_clk);
+ 
++disable_extra_clk:
++	xhci_plat_disable_extra_clk(xhci);
++
+ err_reset:
+ 	reset_control_assert(xhci->reset);
+ 
+@@ -457,6 +493,7 @@ void xhci_plat_remove(struct platform_device *dev)
+ 
+ 	clk_disable_unprepare(clk);
+ 	clk_disable_unprepare(reg_clk);
++	xhci_plat_disable_extra_clk(xhci);
+ 	reset_control_assert(xhci->reset);
+ 	usb_put_hcd(hcd);
+ 
+@@ -489,6 +526,7 @@ static int xhci_plat_suspend_common(struct device *dev)
+ 	if (!device_may_wakeup(dev) && (xhci->quirks & XHCI_SUSPEND_RESUME_CLKS)) {
+ 		clk_disable_unprepare(xhci->clk);
+ 		clk_disable_unprepare(xhci->reg_clk);
++		xhci_plat_disable_extra_clk(xhci);
+ 	}
+ 
+ 	return 0;
+@@ -521,13 +559,20 @@ static int xhci_plat_resume_common(struct device *dev, bool power_lost)
+ 	int ret;
+ 
+ 	if (!device_may_wakeup(dev) && (xhci->quirks & XHCI_SUSPEND_RESUME_CLKS)) {
+-		ret = clk_prepare_enable(xhci->clk);
++		ret = xhci_plat_enable_extra_clk(xhci);
+ 		if (ret)
+ 			return ret;
+ 
++		ret = clk_prepare_enable(xhci->clk);
++		if (ret) {
++			xhci_plat_disable_extra_clk(xhci);
++			return ret;
++		}
++
+ 		ret = clk_prepare_enable(xhci->reg_clk);
+ 		if (ret) {
+ 			clk_disable_unprepare(xhci->clk);
++			xhci_plat_disable_extra_clk(xhci);
+ 			return ret;
+ 		}
+ 	}
+@@ -554,6 +599,7 @@ static int xhci_plat_resume_common(struct device *dev, bool power_lost)
+ 	if (!device_may_wakeup(dev) && (xhci->quirks & XHCI_SUSPEND_RESUME_CLKS)) {
+ 		clk_disable_unprepare(xhci->clk);
+ 		clk_disable_unprepare(xhci->reg_clk);
++		xhci_plat_disable_extra_clk(xhci);
+ 	}
+ 
+ 	return ret;
+diff --git a/drivers/usb/host/xhci-plat.h b/drivers/usb/host/xhci-plat.h
+index 00751d851831057a062ff83e05ab662b9767e992..b64ca880b740db62d39391aec8310b87ad784488 100644
+--- a/drivers/usb/host/xhci-plat.h
++++ b/drivers/usb/host/xhci-plat.h
+@@ -9,11 +9,14 @@
+ #define _XHCI_PLAT_H
+ 
+ struct device;
++struct clk;
+ struct platform_device;
+ struct usb_hcd;
+ 
+ struct xhci_plat_priv {
+ 	const char *firmware_name;
++	const char *extra_clk_name;
++	struct clk *extra_clk;
+ 	unsigned long long quirks;
+ 	bool power_lost;
+ 	unsigned sideband_at_suspend:1;

@@ -1,0 +1,344 @@
+From fc5c586566fe8bd484f8baa36bdd3a7121797de9 Mon Sep 17 00:00:00 2001
+From: cnjn <1779895255@qq.com>
+Date: Sat, 22 Aug 2026 20:00:10 +0800
+Subject: [PATCH 02/16] arm64: enable ZX279133 thermal, GPIO and USB support
+
+Consolidate 5 validated ZX279133 development commits into one functional stage.
+
+Original range: 6870b8bbfefb1b27c328b24301aa9e0ede219cdc..270ccb7778f524819496a37662a64718d40e6ee9
+
+Signed-off-by: cnjn <1779895255@qq.com>
+---
+ .../bindings/clock/zte,zx279133-topcrm.yaml   | 13 +++--
+ .../bindings/hwmon/zte,zx279133-pvt.yaml      |  9 ++--
+ arch/arm64/boot/dts/zte/zx279133-sr1010.dts   | 52 +++++++++++++++++++
+ arch/arm64/boot/dts/zte/zx279133.dtsi         | 19 +++++--
+ drivers/clk/clk-zx279133.c                    | 20 ++++++-
+ drivers/hwmon/zx279133-pvt.c                  | 34 +++++++++---
+ .../dt-bindings/clock/zte,zx279133-topcrm.h   |  1 +
+ 7 files changed, 130 insertions(+), 18 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml b/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
+index f3d5528224cbda100968643ba350bd812bafb9ad..148c72bd6df4d54fd4c2e6006adf2ae763d2975c 100644
+--- a/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
++++ b/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
+@@ -13,8 +13,11 @@ description:
+   The top clock and reset manager (TOPCRM) supplies clocks to the ZX279133
+   low-speed peripheral controllers, SPI flash controller, PVT temperature
+   sensor, and USB host controller. The PVT working clock uses a read-only
+-  divider followed by a gate. The USB clocks are gate3 outputs with fixed-rate
+-  system and CCI parent inputs until the full PLL/mux tree is modeled.
++  divider followed by a gate. The PVT peripheral clock gate consumes the
++  observed 172.032 MHz PLL output, modeled as a fixed-rate input until the full
++  PLL tree is implemented.
++  The USB clocks are gate3 outputs with fixed-rate system and CCI parent inputs
++  until the full PLL/mux tree is modeled.
+ 
+ properties:
+   compatible:
+@@ -35,6 +38,7 @@ properties:
+       - description: 125 MHz system peripheral clock parent for USB
+       - description: 500 MHz CCI clock parent for USB
+       - description: 250 MHz system AXI clock parent for USB
++      - description: 172.032 MHz PLL-derived PVT peripheral clock source
+ 
+   clock-names:
+     items:
+@@ -46,6 +50,7 @@ properties:
+       - const: sys_pclk
+       - const: cci_aclk
+       - const: sys_aclk
++      - const: clk172m
+ 
+   '#clock-cells':
+     const: 1
+@@ -67,9 +72,9 @@ examples:
+         compatible = "zte,zx279133-topcrm", "syscon";
+         reg = <0x10e10000 0x60>;
+         clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>, <&clk50m>,
+-                 <&clk125m>, <&cci_aclk>, <&sys_aclk>;
++                 <&clk125m>, <&cci_aclk>, <&sys_aclk>, <&clk172m>;
+         clock-names = "clk100m", "clk25m", "pclk", "clk32k", "clk50m",
+-                      "sys_pclk", "cci_aclk", "sys_aclk";
++                      "sys_pclk", "cci_aclk", "sys_aclk", "clk172m";
+         #clock-cells = <1>;
+     };
+ 
+diff --git a/Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml b/Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
+index 26d0d85f075d2a1a28abc41c420f305653f2801d..a1a38c1af3452bd28ece286e87aca5a98f8bba71 100644
+--- a/Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
++++ b/Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
+@@ -25,10 +25,13 @@ properties:
+     maxItems: 1
+ 
+   clocks:
+-    maxItems: 1
++    items:
++      - description: Peripheral register clock
++      - description: Temperature conversion working clock
+ 
+   clock-names:
+     items:
++      - const: pclk
+       - const: wclk
+ 
+   nvmem-cells:
+@@ -55,8 +58,8 @@ examples:
+     pvt@10e70000 {
+         compatible = "zte,zx279133-pvt";
+         reg = <0x10e70000 0x10000>;
+-        clocks = <&topcrm 5>;
+-        clock-names = "wclk";
++        clocks = <&topcrm 10>, <&topcrm 5>;
++        clock-names = "pclk", "wclk";
+         #thermal-sensor-cells = <0>;
+         status = "disabled";
+     };
+diff --git a/arch/arm64/boot/dts/zte/zx279133-sr1010.dts b/arch/arm64/boot/dts/zte/zx279133-sr1010.dts
+index b8e331412e5f0bb2c194caaa3c9fd54d9e407776..769a667e28ac53817fc579369f4471df7db2ed3e 100644
+--- a/arch/arm64/boot/dts/zte/zx279133-sr1010.dts
++++ b/arch/arm64/boot/dts/zte/zx279133-sr1010.dts
+@@ -1,6 +1,10 @@
+ // SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+ /dts-v1/;
+ 
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
++#include <dt-bindings/leds/common.h>
++
+ #include "zx279133.dtsi"
+ 
+ / {
+@@ -19,8 +23,56 @@ memory@80000000 {
+ 		device_type = "memory";
+ 		reg = <0x0 0x80000000 0x0 0x20000000>;
+ 	};
++
++	gpio-keys {
++		compatible = "gpio-keys";
++		label = "SR1010 reset button";
++
++		button-reset {
++			debounce-interval = <50>;
++			gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
++			label = "reset";
++			linux,code = <KEY_RESTART>;
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led-white {
++			color = <LED_COLOR_ID_WHITE>;
++			default-state = "keep";
++			function = LED_FUNCTION_STATUS;
++			gpios = <&gpio2 0 GPIO_ACTIVE_LOW>;
++			label = "sr1010:white";
++			retain-state-shutdown;
++		};
++
++		led-red {
++			color = <LED_COLOR_ID_RED>;
++			default-state = "keep";
++			function = LED_FUNCTION_STATUS;
++			gpios = <&gpio2 4 GPIO_ACTIVE_LOW>;
++			label = "sr1010:red";
++			retain-state-shutdown;
++		};
++	};
++
++	thermal-zones {
++		soc-thermal {
++			thermal-sensors = <&pvt>;
++		};
++	};
+ };
+ 
+ &uart0 {
+ 	status = "okay";
+ };
++
++&usb3 {
++	status = "okay";
++};
++
++&pvt {
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/zte/zx279133.dtsi b/arch/arm64/boot/dts/zte/zx279133.dtsi
+index 17a500cd59a3bca71a4abca3097a34200cf7f719..63de8363c9f81e99a9992e5c2f48bf0a0eb38b79 100644
+--- a/arch/arm64/boot/dts/zte/zx279133.dtsi
++++ b/arch/arm64/boot/dts/zte/zx279133.dtsi
+@@ -52,6 +52,14 @@ cci_aclk: clock-cci-aclk {
+ 		clock-output-names = "cci_aclk";
+ 	};
+ 
++	/* Temporary fixed-rate model until the PLL divider tree is added. */
++	clk172m: clock-172m032 {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <172032000>;
++		clock-output-names = "clk172m";
++	};
++
+ 	clk32k: clock-32k {
+ 		compatible = "fixed-clock";
+ 		#clock-cells = <0>;
+@@ -115,9 +123,11 @@ topcrm: clock-controller@10e10000 {
+ 			compatible = "zte,zx279133-topcrm", "syscon";
+ 			reg = <0x0 0x10e10000 0x0 0x60>;
+ 			clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>,
+-				 <&clk50m>, <&clk125m>, <&cci_aclk>, <&sys_aclk>;
++				 <&clk50m>, <&clk125m>, <&cci_aclk>, <&sys_aclk>,
++				 <&clk172m>;
+ 			clock-names = "clk100m", "clk25m", "pclk", "clk32k",
+-				      "clk50m", "sys_pclk", "cci_aclk", "sys_aclk";
++				      "clk50m", "sys_pclk", "cci_aclk", "sys_aclk",
++				      "clk172m";
+ 			#clock-cells = <1>;
+ 		};
+ 
+@@ -170,8 +180,9 @@ uart0: serial@10d0d000 {
+ 		pvt: temperature-sensor@10e70000 {
+ 			compatible = "zte,zx279133-pvt";
+ 			reg = <0x0 0x10e70000 0x0 0x10000>;
+-			clocks = <&topcrm ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK>;
+-			clock-names = "wclk";
++			clocks = <&topcrm ZX279133_TOPCRM_CLK_PVT_PCLK>,
++				 <&topcrm ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK>;
++			clock-names = "pclk", "wclk";
+ 			#thermal-sensor-cells = <0>;
+ 			status = "disabled";
+ 		};
+diff --git a/drivers/clk/clk-zx279133.c b/drivers/clk/clk-zx279133.c
+index fbf111f25016938ed0a28168fdb0e364c6ef6893..46afa011932e61220f0ce067a55cc82b76360455 100644
+--- a/drivers/clk/clk-zx279133.c
++++ b/drivers/clk/clk-zx279133.c
+@@ -29,12 +29,19 @@
+ #define ZX279133_WDT_WCLK_DIV_SHIFT	11
+ #define ZX279133_WDT_WCLK_DIV_WIDTH	10
+ #define ZX279133_WDT_CLK_FLAGS	CLK_IGNORE_UNUSED
++#define ZX279133_TOPCRM_PVT_PCLK_GATE_CTRL	0x30
++#define ZX279133_TOPCRM_PVT_PCLK_GATE	12
+ #define ZX279133_TOPCRM_PVT_DIV_CTRL	0x58
+ #define ZX279133_TOPCRM_PVT_GATE_CTRL	0x40
+ #define ZX279133_TOPCRM_SPIFC_GATE_CTRL	0x38
+ #define ZX279133_TOPCRM_SPIFC_GATE_BIT	16
+ #define ZX279133_TOPCRM_USB_GATE_CTRL	0x3c
+ #define ZX279133_TOPCRM_USB_GATE_FLAGS	0
++/*
++ * generic-xhci does not manage the USB-to-CCI bridge clock. Firmware leaves
++ * it enabled, so keep late unused-clock pruning from breaking xHCI DMA.
++ */
++#define ZX279133_TOPCRM_USB_CCI_GATE_FLAGS	CLK_IGNORE_UNUSED
+ #define ZX279133_LSP_SPIFC_CLK_CTRL	0x2c
+ #define ZX279133_LSP_SPIFC_PCLK_GATE	0
+ #define ZX279133_LSP_SPIFC_WCLK_GATE	1
+@@ -102,6 +109,10 @@ static const struct clk_parent_data topcrm_clk32k_parent = {
+ 	.fw_name = "clk32k",
+ };
+ 
++static const struct clk_parent_data topcrm_clk172m_parent = {
++	.fw_name = "clk172m",
++};
++
+ static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
+ 	[ZX279133_TOPCRM_CLK_LSP0_100M] = {
+ 		.name = "lsp0_100m",
+@@ -161,7 +172,7 @@ static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
+ 	[ZX279133_TOPCRM_CLK_USB_CCI_ACLK] = {
+ 		.name = "usb_cci_aclk",
+ 		.parent = &topcrm_cci_aclk_parent,
+-		.flags = ZX279133_TOPCRM_USB_GATE_FLAGS,
++		.flags = ZX279133_TOPCRM_USB_CCI_GATE_FLAGS,
+ 		.reg_offset = ZX279133_TOPCRM_USB_GATE_CTRL,
+ 		.bit_idx = 5,
+ 	},
+@@ -172,6 +183,13 @@ static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
+ 		.reg_offset = ZX279133_TOPCRM_USB_GATE_CTRL,
+ 		.bit_idx = 6,
+ 	},
++	[ZX279133_TOPCRM_CLK_PVT_PCLK] = {
++		.name = "pvt_pclk",
++		.parent = &topcrm_clk172m_parent,
++		.flags = 0,
++		.reg_offset = ZX279133_TOPCRM_PVT_PCLK_GATE_CTRL,
++		.bit_idx = ZX279133_TOPCRM_PVT_PCLK_GATE,
++	},
+ };
+ 
+ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
+diff --git a/drivers/hwmon/zx279133-pvt.c b/drivers/hwmon/zx279133-pvt.c
+index 2ef5c163c86ca1203b1052bba0810fec52782d8b..827f99a35c2ec076b34dd155656302a96f692e96 100644
+--- a/drivers/hwmon/zx279133-pvt.c
++++ b/drivers/hwmon/zx279133-pvt.c
+@@ -46,9 +46,15 @@ struct zx279133_pvt_coeff {
+ 	s64 a0;
+ };
+ 
++enum zx279133_pvt_clk {
++	ZX279133_PVT_CLK_PCLK,
++	ZX279133_PVT_CLK_WCLK,
++	ZX279133_PVT_NUM_CLKS,
++};
++
+ struct zx279133_pvt {
+ 	void __iomem *base;
+-	struct clk *wclk;
++	struct clk_bulk_data clks[ZX279133_PVT_NUM_CLKS];
+ 	struct zx279133_pvt_coeff coeff;
+ 	struct mutex lock; /* Serializes one-shot conversions. */
+ 	u8 trim;
+@@ -179,6 +185,13 @@ static int zx279133_pvt_get_trim(struct device *dev,
+ 	return 0;
+ }
+ 
++static void zx279133_pvt_disable_clks(void *data)
++{
++	struct zx279133_pvt *pvt = data;
++
++	clk_bulk_disable_unprepare(ZX279133_PVT_NUM_CLKS, pvt->clks);
++}
++
+ static int zx279133_pvt_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+@@ -197,12 +210,21 @@ static int zx279133_pvt_probe(struct platform_device *pdev)
+ 		return PTR_ERR(pvt->base);
+ 	mutex_init(&pvt->lock);
+ 
+-	pvt->wclk = devm_clk_get_enabled(dev, "wclk");
+-	if (IS_ERR(pvt->wclk))
+-		return dev_err_probe(dev, PTR_ERR(pvt->wclk),
+-				    "failed to enable working clock\n");
++	pvt->clks[ZX279133_PVT_CLK_PCLK].id = "pclk";
++	pvt->clks[ZX279133_PVT_CLK_WCLK].id = "wclk";
++	ret = devm_clk_bulk_get(dev, ZX279133_PVT_NUM_CLKS, pvt->clks);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to get clocks\n");
++
++	ret = clk_bulk_prepare_enable(ZX279133_PVT_NUM_CLKS, pvt->clks);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to enable clocks\n");
++
++	ret = devm_add_action_or_reset(dev, zx279133_pvt_disable_clks, pvt);
++	if (ret)
++		return ret;
+ 
+-	rate = clk_get_rate(pvt->wclk);
++	rate = clk_get_rate(pvt->clks[ZX279133_PVT_CLK_WCLK].clk);
+ 	if (!rate)
+ 		return dev_err_probe(dev, -EINVAL, "working clock has zero rate\n");
+ 
+diff --git a/include/dt-bindings/clock/zte,zx279133-topcrm.h b/include/dt-bindings/clock/zte,zx279133-topcrm.h
+index a37f7a910f6d566d682099072481d967c8a5e5fb..33fe0953eed9bf48f933e2051eaf9c36cb922884 100644
+--- a/include/dt-bindings/clock/zte,zx279133-topcrm.h
++++ b/include/dt-bindings/clock/zte,zx279133-topcrm.h
+@@ -12,5 +12,6 @@
+ #define ZX279133_TOPCRM_CLK_USB_PCLK	7
+ #define ZX279133_TOPCRM_CLK_USB_CCI_ACLK	8
+ #define ZX279133_TOPCRM_CLK_USB_ACLK	9
++#define ZX279133_TOPCRM_CLK_PVT_PCLK	10
+ 
+ #endif

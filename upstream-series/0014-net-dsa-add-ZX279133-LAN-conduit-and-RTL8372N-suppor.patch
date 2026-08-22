@@ -1,0 +1,4220 @@
+From 7d0ed1294c18a31b9d348a966ded9e49f5f73a42 Mon Sep 17 00:00:00 2001
+From: cnjn <1779895255@qq.com>
+Date: Sat, 22 Aug 2026 20:00:22 +0800
+Subject: [PATCH 14/16] net: dsa: add ZX279133 LAN conduit and RTL8372N support
+
+Consolidate 2 validated ZX279133 development commits into one functional stage.
+
+Original range: dede010cce022c1900e8904a299e65f78fffad4b..3e4b012aee5673840c9e9525e753f6fb7bd812b2
+
+Signed-off-by: cnjn <1779895255@qq.com>
+---
+ Documentation/networking/dsa/index.rst        |    1 +
+ .../networking/dsa/zx279133-rtl8372n.rst      |   43 +
+ MAINTAINERS                                   |    3 +
+ drivers/net/ethernet/zte/Kconfig              |   26 +-
+ drivers/net/ethernet/zte/Makefile             |    3 +
+ drivers/net/ethernet/zte/zx279133-idm.c       |  115 +-
+ .../net/ethernet/zte/zx279133-lan-conduit.c   |  150 +
+ drivers/net/ethernet/zte/zx279133-lan.h       |  213 ++
+ drivers/net/ethernet/zte/zx279133-main.c      |   12 +-
+ drivers/net/ethernet/zte/zx279133-netdev.c    |  379 ++-
+ drivers/net/ethernet/zte/zx279133-rtl8372n.c  | 2682 +++++++++++++++++
+ drivers/net/ethernet/zte/zx279133.h           |   23 +-
+ include/net/dsa.h                             |    2 +
+ include/net/dsa_zx279133_rtl8372n.h           |   53 +
+ net/dsa/Kconfig                               |    8 +
+ net/dsa/Makefile                              |    1 +
+ net/dsa/tag_zx279133_rtl8372n.c               |  162 +
+ 17 files changed, 3865 insertions(+), 11 deletions(-)
+ create mode 100644 Documentation/networking/dsa/zx279133-rtl8372n.rst
+ create mode 100644 drivers/net/ethernet/zte/zx279133-lan-conduit.c
+ create mode 100644 drivers/net/ethernet/zte/zx279133-lan.h
+ create mode 100644 drivers/net/ethernet/zte/zx279133-rtl8372n.c
+ create mode 100644 include/net/dsa_zx279133_rtl8372n.h
+ create mode 100644 net/dsa/tag_zx279133_rtl8372n.c
+
+diff --git a/Documentation/networking/dsa/index.rst b/Documentation/networking/dsa/index.rst
+index ee631e2d646fd5dad75679281112c4515a8c921e..13781dd8a042b671e8a7b887ad6c5c0f4775a4eb 100644
+--- a/Documentation/networking/dsa/index.rst
++++ b/Documentation/networking/dsa/index.rst
+@@ -10,4 +10,5 @@ Distributed Switch Architecture
+    bcm_sf2
+    lan9303
+    sja1105
++   zx279133-rtl8372n
+    configuration
+diff --git a/Documentation/networking/dsa/zx279133-rtl8372n.rst b/Documentation/networking/dsa/zx279133-rtl8372n.rst
+new file mode 100644
+index 0000000000000000000000000000000000000000..2e7e2800983f29b2bc918240857c7cf05858a7b1
+--- /dev/null
++++ b/Documentation/networking/dsa/zx279133-rtl8372n.rst
+@@ -0,0 +1,43 @@
++.. SPDX-License-Identifier: GPL-2.0-only
++
++===================================
++ZTE ZX279133 and RTL8372N DSA switch
++===================================
++
++The SR1010 connects RTL8372N user ports 4 through 7 to ZX279133 XMAC0 through
++switch CPU port 8.  The ``lan-cpu`` conduit is separate from the WAN netdev.
++
++CPU-link transport
++==================
++
++The switch and conduit carry the source user port in private VLAN IDs 59
++through 62.  These VLAN IDs are an internal CPU-link protocol and must not be
++configured as customer VLANs.  The DSA tagger removes the private VLAN on
++receive and inserts the appropriate private VLAN on transmit.
++
++Customer VLAN restrictions
++==========================
++
++The currently supported customer VLAN mode is one untagged access VLAN per
++user port.  A VLAN added to a user port must have both the ``pvid`` and
++``untagged`` flags.  Tagged or trunk VLANs are not supported.
++
++VID 1 is reserved by the initial switch state and private VIDs 59 through 62
++are reserved by the CPU-link transport.  Create a VLAN-aware bridge with
++``vlan_default_pvid 0`` before adding an RTL8372N user port.  For example::
++
++  ip link add br0 type bridge vlan_filtering 1 vlan_default_pvid 0
++  ip link set lan1 master br0
++  bridge vlan add dev lan1 vid 100 pvid untagged
++  bridge vlan add dev br0 vid 100 self
++
++The driver keeps each private transport VLAN isolated to one user port and CPU
++port 8.  Linux performs bridge forwarding; the driver does not advertise
++hardware bridge forwarding for this transport.
++
++FDB scope
++=========
++
++Static FDB operations are supported for VLAN-unaware bridges.  Static FDB
++offload for a nonzero customer VID is rejected because customer VLAN filtering
++is performed after the private transport tag is removed.
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 03b21db6f5f4467fa8befbe75158c73b964e1030..c89b973ed800ba6dbbc9199cc0804aa614d9be8b 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -28413,6 +28413,7 @@ F:	Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml
+ F:	Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
+ F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
+ F:	Documentation/devicetree/bindings/net/dsa/zte,zx279133-*.yaml
++F:	Documentation/networking/dsa/zx279133-rtl8372n.rst
+ F:	Documentation/devicetree/bindings/net/zte,sr1010-rtl8372n-id-audit.yaml
+ F:	Documentation/devicetree/bindings/net/zte,sr1010-zx279051-audit.yaml
+ F:	Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
+@@ -28425,6 +28426,8 @@ F:	Documentation/devicetree/bindings/soc/zte/zte,zx279133-*.yaml
+ F:	Documentation/devicetree/bindings/soc/zte,zx279133-pwm-audit.yaml
+ F:	Documentation/devicetree/bindings/soc/zte,zx279133-xpcs-nppt-audit.yaml
+ F:	drivers/net/ethernet/zte/
++F:	include/net/dsa_zx279133_rtl8372n.h
++F:	net/dsa/tag_zx279133_rtl8372n.c
+ F:	drivers/soc/zte/
+ F:	Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
+ F:	Documentation/devicetree/bindings/usb/zte,zx279133-xhci.yaml
+diff --git a/drivers/net/ethernet/zte/Kconfig b/drivers/net/ethernet/zte/Kconfig
+index 67f4f8914fccde8841bc3d91c03749b818ae70f0..dbb0455ff86acbeccbc35bebcb86f411cf361fae 100644
+--- a/drivers/net/ethernet/zte/Kconfig
++++ b/drivers/net/ethernet/zte/Kconfig
+@@ -22,6 +22,30 @@ config ZTE_ZX279133_ETH
+ 	  Enable support for the NPPT Ethernet controller and IDM packet DMA
+ 	  engine in the ZTE ZX279133 SoC. The driver provides phylink MAC/PCS
+ 	  integration, TX completion, page-pool RX, and the SR1010 WAN path.
+-	  It also manages the packet-processing firmware and reserved DMA pools.
++	  It also owns the shared packet-processing resources used by LAN.
++
++config ZTE_ZX279133_LAN_CONDUIT
++	bool "ZTE ZX279133 XMAC0 LAN conduit"
++	depends on ZTE_ZX279133_ETH
++	default y
++	help
++	  Build the XMAC0 LAN conduit netdev as a child of the ZX279133
++	  NPPT controller. The conduit is used as a DSA CPU-facing netdev.
++	  Shared DMA and datapath ownership remains in the parent driver,
++	  which coordinates WAN and LAN lifecycle and queue accounting.
++
++config ZTE_ZX279133_RTL8372N
++	tristate "ZTE ZX279133 RTL8372N DSA switch driver"
++	depends on ZTE_ZX279133_ETH
++	select ZTE_ZX279133_LAN_CONDUIT
++	depends on PHY_ZX279133_UNI_SERDES
++	depends on PCS_XPCS
++	depends on NET_DSA
++	select NET_DSA_TAG_ZX279133_RTL8372N
++	help
++	  Build the RTL8372N DSA switch driver for the SR1010 LAN path. The
++	  driver owns the external switch reset, XMAC0/XPCS0/Uni-SerDes link,
++	  physical ports 4 through 7, and CPU port 8. It registers four DSA
++	  user ports through the dedicated ZX279133 LAN conduit.
+ 
+ endif
+diff --git a/drivers/net/ethernet/zte/Makefile b/drivers/net/ethernet/zte/Makefile
+index 497b321f74b7da8eba62e4294076504af89e45c4..460c1e0d2bb1feba071987ade873d89ec0b3dc59 100644
+--- a/drivers/net/ethernet/zte/Makefile
++++ b/drivers/net/ethernet/zte/Makefile
+@@ -3,3 +3,6 @@
+ obj-$(CONFIG_ZTE_ZX279133_ETH) += zx279133.o
+ zx279133-y := zx279133-main.o zx279133-tm.o zx279133-np.o zx279133-idm.o \
+ 	       zx279133-mac.o zx279133-netdev.o
++
++obj-$(CONFIG_ZTE_ZX279133_LAN_CONDUIT) += zx279133-lan-conduit.o
++obj-$(CONFIG_ZTE_ZX279133_RTL8372N) += zx279133-rtl8372n.o
+diff --git a/drivers/net/ethernet/zte/zx279133-idm.c b/drivers/net/ethernet/zte/zx279133-idm.c
+index c2b02e0ee12fb80652d9e8d81cc2b6a2e662c2ef..d069897a0ce6bb1194a2163352c9e575a34dd199 100644
+--- a/drivers/net/ethernet/zte/zx279133-idm.c
++++ b/drivers/net/ethernet/zte/zx279133-idm.c
+@@ -2,6 +2,7 @@
+ 
+ #include <linux/dma-mapping.h>
+ #include <linux/etherdevice.h>
++#include <linux/if_vlan.h>
+ #include <linux/io.h>
+ #include <linux/interrupt.h>
+ #include <linux/prefetch.h>
+@@ -166,6 +167,33 @@ static struct page *zx279133_idm_rx_take_page(struct zx279133_eth *eth,
+ 
+ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth);
+ 
++static struct sk_buff *
++zx279133_idm_rx_insert_vlan(struct sk_buff *skb, u16 vid)
++{
++	return vlan_insert_tag_set_proto(skb, htons(ETH_P_8021Q), vid);
++}
++
++static void zx279133_idm_rx_put_vlan(struct sk_buff *skb, u16 vid)
++{
++	__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), vid);
++}
++
++static bool zx279133_idm_rx_normalize_vlan(struct vlan_ethhdr *vhdr)
++{
++	u16 tci;
++
++	if (vhdr->h_vlan_proto != htons(ETH_P_8021Q))
++		return false;
++
++	tci = ntohs(vhdr->h_vlan_TCI);
++	if ((tci & VLAN_VID_MASK) == ZX279133_LAN_INGRESS_VID) {
++		tci = (tci & ~VLAN_VID_MASK) | ZX279133_LAN_VID;
++		vhdr->h_vlan_TCI = htons(tci);
++	}
++
++	return true;
++}
++
+ static void zx279133_idm_rx_sync_for_device(struct zx279133_eth *eth,
+ 					    struct page *page, u16 len)
+ {
+@@ -301,9 +329,84 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
+ 		}
+ 
+ 		if (skb) {
+-			skb->protocol = eth_type_trans(skb, ndev);
++			struct net_device *rx_ndev = ndev;
++			u8 src_port = (word1 >> 16) & 0x3f;
++			bool lan_vlan_active;
++			bool lan_dsa_active;
++			bool lan_source;
++
++			/* LAN-only cold start exposes the native XMAC0 source as
++			 * logical port 5. That value is ambiguous once WAN owns its
++			 * port state too. Concurrent operation uses the SR1010 LAN
++			 * logical-port range 59..62; source 62 is board-validated.
++			 */
++			lan_source = (src_port >= ZX279133_LAN_SOURCE_PORT_MIN &&
++				      src_port <= ZX279133_LAN_SOURCE_PORT_MAX) ||
++				     (src_port == ZX279133_LAN_SOURCE_PORT_NATIVE &&
++				      !(READ_ONCE(eth->datapath_users) &
++					ZX279133_DATAPATH_USER_WAN));
++			lan_dsa_active = READ_ONCE(eth->lan_dsa_active);
++			lan_vlan_active = READ_ONCE(eth->lan_vlan62_active);
++			if (lan_source && !lan_dsa_active && !lan_vlan_active) {
++				if (eth->lan_ndev)
++					zx279133_stats_rx_dropped(eth, eth->lan_ndev);
++				dev_kfree_skb_any(skb);
++				goto release_desc;
++			}
++
++			if (lan_dsa_active && lan_source && eth->lan_ndev) {
++				bool vlan_header = false;
++				u16 transport_vid =
++					src_port == ZX279133_LAN_SOURCE_PORT_NATIVE ?
++					ZX279133_LAN_VID : src_port;
++
++				rx_ndev = eth->lan_ndev;
++				if (len >= sizeof(struct vlan_ethhdr)) {
++					struct vlan_ethhdr *vhdr =
++						(struct vlan_ethhdr *)skb->data;
++					u16 tci = ntohs(vhdr->h_vlan_TCI);
++					u16 ingress_vid = tci & VLAN_VID_MASK;
++
++					if (vhdr->h_vlan_proto == htons(ETH_P_8021Q) &&
++					    (ingress_vid == ZX279133_LAN_INGRESS_VID ||
++					     (ingress_vid >= ZX279133_LAN_SOURCE_PORT_MIN &&
++					      ingress_vid <= ZX279133_LAN_SOURCE_PORT_MAX))) {
++						/* The switch's private transport VID may arrive
++						 * as VID 1 or another transport VID. Normalize
++						 * that sideband to the descriptor-selected port.
++						 */
++						vlan_header = true;
++						tci = (tci & ~VLAN_VID_MASK) |
++						      transport_vid;
++						vhdr->h_vlan_TCI = htons(tci);
++					}
++				}
++				/* Preserve a customer VLAN already present in-band by
++				 * stacking the private transport VID outside it. The DSA
++				 * tagger removes only this outer sideband tag.
++				 */
++				if (!vlan_header) {
++					skb = zx279133_idm_rx_insert_vlan(skb, transport_vid);
++					if (!skb) {
++						zx279133_stats_rx_dropped(eth, rx_ndev);
++						goto release_desc;
++					}
++				}
++			} else if (lan_vlan_active && lan_source) {
++				bool vlan_header = false;
++
++				if (len >= sizeof(struct vlan_ethhdr)) {
++					struct vlan_ethhdr *vhdr;
++
++					vhdr = (struct vlan_ethhdr *)skb->data;
++					vlan_header = zx279133_idm_rx_normalize_vlan(vhdr);
++				}
++				if (!vlan_header)
++					zx279133_idm_rx_put_vlan(skb, ZX279133_LAN_VID);
++			}
++			skb->protocol = eth_type_trans(skb, rx_ndev);
+ 			napi_gro_receive(napi, skb);
+-			dev_sw_netstats_rx_add(ndev, len);
++			dev_sw_netstats_rx_add(rx_ndev, len);
+ 		}
+ 		goto release_desc;
+ 
+@@ -645,6 +748,12 @@ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth)
+ 	    eth->tx_pending < ZX279133_IDM_TX_DEPTH - 1) {
+ 		if (netif_queue_stopped(eth->ndev))
+ 			netif_wake_queue(eth->ndev);
++		if ((READ_ONCE(eth->datapath_users) &
++		     ZX279133_DATAPATH_USER_LAN) &&
++		    READ_ONCE(eth->lan_datapath_ready) && eth->lan_ndev &&
++		    netif_running(eth->lan_ndev) &&
++		    netif_queue_stopped(eth->lan_ndev))
++			netif_wake_queue(eth->lan_ndev);
+ 	}
+ 
+ 	return packets;
+@@ -824,6 +933,8 @@ int zx279133_idm_tx_prepare(struct zx279133_eth *eth)
+ 	memset(eth->tx_slots, 0,
+ 	       sizeof(*eth->tx_slots) * ZX279133_IDM_TX_DEPTH);
+ 	netdev_tx_reset_queue(netdev_get_tx_queue(eth->ndev, 0));
++	if (eth->lan_ndev)
++		netdev_tx_reset_queue(netdev_get_tx_queue(eth->lan_ndev, 0));
+ 	dev_dbg(eth->dev,
+ 		"IDM TX: queue %u, port 0x%02x, selector 0x%02x, pon_control %#x, word4 bit23 %u, cfg bit24 %u (doorbell %#x, done %#x)\n",
+ 		zx279133_tx_queue, zx279133_tx_port & 0xff,
+diff --git a/drivers/net/ethernet/zte/zx279133-lan-conduit.c b/drivers/net/ethernet/zte/zx279133-lan-conduit.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..04e1de04d4fe0515b148143109e84dd9c9fd2e71
+--- /dev/null
++++ b/drivers/net/ethernet/zte/zx279133-lan-conduit.c
+@@ -0,0 +1,150 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * ZTE ZX279133 XMAC0 LAN conduit netdev.
++ *
++ * The NPPT driver owns the shared datapath; this child owns the conduit
++ * netdev and forwards its operations through the typed parent service.
++ */
++
++#include <linux/etherdevice.h>
++#include <linux/module.h>
++#include <linux/netdevice.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++
++#include "zx279133-lan.h"
++
++#define zx279133_lan_conduit_priv zx279133_lan_netdev_priv
++
++static int zx279133_lan_conduit_open(struct net_device *ndev)
++{
++	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
++
++	return zx279133_lan_service_netdev_open(priv->service, ndev);
++}
++
++static int zx279133_lan_conduit_stop(struct net_device *ndev)
++{
++	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
++
++	return zx279133_lan_service_netdev_stop(priv->service, ndev);
++}
++
++static netdev_tx_t zx279133_lan_conduit_xmit(struct sk_buff *skb,
++					     struct net_device *ndev)
++{
++	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
++
++	return zx279133_lan_service_netdev_xmit(priv->service, skb, ndev);
++}
++
++static void zx279133_lan_conduit_tx_timeout(struct net_device *ndev,
++					    unsigned int txqueue)
++{
++	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
++
++	zx279133_lan_service_netdev_tx_timeout(priv->service, ndev, txqueue);
++}
++
++static void
++zx279133_lan_conduit_get_stats64(struct net_device *ndev,
++				 struct rtnl_link_stats64 *stats)
++{
++	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
++
++	zx279133_lan_service_netdev_get_stats64(priv->service, ndev, stats);
++}
++
++static int zx279133_lan_conduit_change_mtu(struct net_device *ndev,
++					   int new_mtu)
++{
++	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
++
++	return zx279133_lan_service_netdev_change_mtu(priv->service, ndev,
++						      new_mtu);
++}
++
++static const struct net_device_ops zx279133_lan_conduit_netdev_ops = {
++	.ndo_open = zx279133_lan_conduit_open,
++	.ndo_stop = zx279133_lan_conduit_stop,
++	.ndo_start_xmit = zx279133_lan_conduit_xmit,
++	.ndo_tx_timeout = zx279133_lan_conduit_tx_timeout,
++	.ndo_get_stats64 = zx279133_lan_conduit_get_stats64,
++	.ndo_change_mtu = zx279133_lan_conduit_change_mtu,
++	.ndo_set_mac_address = eth_mac_addr,
++	.ndo_validate_addr = eth_validate_addr,
++};
++
++static void zx279133_lan_conduit_teardown(void *data)
++{
++	struct net_device *ndev = data;
++	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
++
++	zx279133_lan_service_netdev_teardown(priv->service, ndev);
++}
++
++static int zx279133_lan_conduit_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct zx279133_lan_conduit_priv *priv;
++	struct zx279133_lan_service *service;
++	struct net_device *ndev;
++	int ret;
++
++	service = dev_get_drvdata(dev->parent);
++	if (!zx279133_lan_service_valid(service))
++		return dev_err_probe(dev, -EPROBE_DEFER,
++				     "NPPT LAN service is unavailable\n");
++
++	ndev = devm_alloc_etherdev(dev, sizeof(*priv));
++	if (!ndev)
++		return -ENOMEM;
++
++	SET_NETDEV_DEV(ndev, dev);
++	strscpy(ndev->name, "lan-cpu%d", IFNAMSIZ);
++	ndev->netdev_ops = &zx279133_lan_conduit_netdev_ops;
++	ndev->tstats = devm_netdev_alloc_pcpu_stats(dev,
++						    struct pcpu_sw_netstats);
++	if (!ndev->tstats)
++		return -ENOMEM;
++
++	priv = netdev_priv(ndev);
++	priv->service = service;
++	zx279133_netdev_stats_init(&priv->stats);
++
++	ret = zx279133_lan_service_netdev_setup(service, ndev);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to claim LAN conduit netdev\n");
++
++	ret = devm_add_action_or_reset(dev, zx279133_lan_conduit_teardown,
++				       ndev);
++	if (ret)
++		return ret;
++
++	ret = devm_register_netdev(dev, ndev);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to register LAN conduit netdev\n");
++
++	dev_info(dev, "LAN conduit netdev registered\n");
++	return 0;
++}
++
++static const struct of_device_id zx279133_lan_conduit_of_match[] = {
++	{ .compatible = "zte,zx279133-lan-conduit" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, zx279133_lan_conduit_of_match);
++
++static struct platform_driver zx279133_lan_conduit_driver = {
++	.probe = zx279133_lan_conduit_probe,
++	.driver = {
++		.name = "zx279133-lan-conduit",
++		.of_match_table = zx279133_lan_conduit_of_match,
++	},
++};
++module_platform_driver(zx279133_lan_conduit_driver);
++
++MODULE_DESCRIPTION("ZTE ZX279133 XMAC0 LAN conduit");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/net/ethernet/zte/zx279133-lan.h b/drivers/net/ethernet/zte/zx279133-lan.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a31284694262f9521131922541b7eaab5394696
+--- /dev/null
++++ b/drivers/net/ethernet/zte/zx279133-lan.h
+@@ -0,0 +1,213 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef __ZX279133_LAN_H
++#define __ZX279133_LAN_H
++
++#include <linux/netdevice.h>
++#include <linux/types.h>
++
++#include "zx279133-stats.h"
++
++/*
++ * Service boundary between the NPPT parent and the LAN switch child.
++ *
++ * The parent retains ownership of the shared MMIO mapping, XMAC lock, and
++ * shared datapath. The child accesses them only through this typed service;
++ * parent implementation details remain private to the NPPT driver.
++ */
++struct zx279133_lan_service;
++
++struct zx279133_lan_netdev_priv {
++	struct zx279133_lan_service *service;
++	struct zx279133_netdev_stats stats;
++};
++
++struct zx279133_lan_service_ops {
++	u32 (*nppt_read)(struct zx279133_lan_service *service, u32 offset);
++	void (*nppt_write)(struct zx279133_lan_service *service, u32 offset,
++			   u32 value);
++	void (*xmac_lock)(struct zx279133_lan_service *service);
++	void (*xmac_unlock)(struct zx279133_lan_service *service);
++	int (*datapath_get)(struct zx279133_lan_service *service);
++	void (*datapath_set_ready)(struct zx279133_lan_service *service, bool ready);
++	int (*datapath_quiesce)(struct zx279133_lan_service *service);
++	void (*datapath_put)(struct zx279133_lan_service *service);
++	void (*set_vlan62_active)(struct zx279133_lan_service *service, bool active);
++	void (*set_dsa_active)(struct zx279133_lan_service *service, bool active);
++	int (*netdev_setup)(struct zx279133_lan_service *service,
++			    struct net_device *ndev);
++	void (*netdev_teardown)(struct zx279133_lan_service *service,
++				struct net_device *ndev);
++	int (*netdev_open)(struct zx279133_lan_service *service,
++			   struct net_device *ndev);
++	int (*netdev_stop)(struct zx279133_lan_service *service,
++			   struct net_device *ndev);
++	netdev_tx_t (*netdev_xmit)(struct zx279133_lan_service *service,
++				   struct sk_buff *skb,
++				   struct net_device *ndev);
++	void (*netdev_tx_timeout)(struct zx279133_lan_service *service,
++				  struct net_device *ndev, unsigned int txqueue);
++	void (*netdev_get_stats64)(struct zx279133_lan_service *service,
++				   struct net_device *ndev,
++				   struct rtnl_link_stats64 *stats);
++	int (*netdev_change_mtu)(struct zx279133_lan_service *service,
++				 struct net_device *ndev, int new_mtu);
++};
++
++struct zx279133_lan_service {
++	const struct zx279133_lan_service_ops *ops;
++};
++
++static inline bool
++zx279133_lan_service_valid(const struct zx279133_lan_service *service)
++{
++	return service && service->ops && service->ops->nppt_read &&
++	       service->ops->nppt_write && service->ops->xmac_lock &&
++	       service->ops->xmac_unlock && service->ops->datapath_get &&
++	       service->ops->datapath_set_ready &&
++	       service->ops->datapath_quiesce && service->ops->datapath_put &&
++	       service->ops->set_vlan62_active && service->ops->set_dsa_active &&
++	       service->ops->netdev_setup && service->ops->netdev_teardown &&
++	       service->ops->netdev_open && service->ops->netdev_stop &&
++	       service->ops->netdev_xmit && service->ops->netdev_tx_timeout &&
++	       service->ops->netdev_get_stats64 &&
++	       service->ops->netdev_change_mtu;
++}
++
++static inline u32
++zx279133_lan_service_nppt_read(struct zx279133_lan_service *service, u32 offset)
++{
++	return service->ops->nppt_read(service, offset);
++}
++
++static inline void
++zx279133_lan_service_nppt_write(struct zx279133_lan_service *service, u32 offset,
++				u32 value)
++{
++	service->ops->nppt_write(service, offset, value);
++}
++
++static inline void
++zx279133_lan_service_xmac_lock(struct zx279133_lan_service *service)
++{
++	service->ops->xmac_lock(service);
++}
++
++static inline void
++zx279133_lan_service_xmac_unlock(struct zx279133_lan_service *service)
++{
++	service->ops->xmac_unlock(service);
++}
++
++static inline int
++zx279133_lan_service_datapath_get(struct zx279133_lan_service *service)
++{
++	return service->ops->datapath_get(service);
++}
++
++static inline void
++zx279133_lan_service_datapath_set_ready(struct zx279133_lan_service *service,
++					bool ready)
++{
++	service->ops->datapath_set_ready(service, ready);
++}
++
++static inline int
++zx279133_lan_service_datapath_quiesce(struct zx279133_lan_service *service)
++{
++	return service->ops->datapath_quiesce(service);
++}
++
++static inline void
++zx279133_lan_service_datapath_put(struct zx279133_lan_service *service)
++{
++	service->ops->datapath_put(service);
++}
++
++static inline void
++zx279133_lan_service_set_vlan62_active(struct zx279133_lan_service *service,
++				       bool active)
++{
++	service->ops->set_vlan62_active(service, active);
++}
++
++static inline void
++zx279133_lan_service_set_dsa_active(struct zx279133_lan_service *service,
++				    bool active)
++{
++	service->ops->set_dsa_active(service, active);
++}
++
++static inline int
++zx279133_lan_service_netdev_setup(struct zx279133_lan_service *service,
++				  struct net_device *ndev)
++{
++	return service->ops->netdev_setup(service, ndev);
++}
++
++static inline void
++zx279133_lan_service_netdev_teardown(struct zx279133_lan_service *service,
++				     struct net_device *ndev)
++{
++	service->ops->netdev_teardown(service, ndev);
++}
++
++static inline int
++zx279133_lan_service_netdev_open(struct zx279133_lan_service *service,
++				 struct net_device *ndev)
++{
++	return service->ops->netdev_open(service, ndev);
++}
++
++static inline int
++zx279133_lan_service_netdev_stop(struct zx279133_lan_service *service,
++				 struct net_device *ndev)
++{
++	return service->ops->netdev_stop(service, ndev);
++}
++
++static inline netdev_tx_t
++zx279133_lan_service_netdev_xmit(struct zx279133_lan_service *service,
++				 struct sk_buff *skb,
++				 struct net_device *ndev)
++{
++	return service->ops->netdev_xmit(service, skb, ndev);
++}
++
++static inline void
++zx279133_lan_service_netdev_tx_timeout(struct zx279133_lan_service *service,
++				       struct net_device *ndev,
++				       unsigned int txqueue)
++{
++	service->ops->netdev_tx_timeout(service, ndev, txqueue);
++}
++
++static inline void
++zx279133_lan_service_netdev_get_stats64(struct zx279133_lan_service *service,
++					struct net_device *ndev,
++					struct rtnl_link_stats64 *stats)
++{
++	service->ops->netdev_get_stats64(service, ndev, stats);
++}
++
++static inline int
++zx279133_lan_service_netdev_change_mtu(struct zx279133_lan_service *service,
++				       struct net_device *ndev,
++				       int new_mtu)
++{
++	return service->ops->netdev_change_mtu(service, ndev, new_mtu);
++}
++
++static inline void
++zx279133_fill_netdev_stats64(struct net_device *ndev,
++			     const struct zx279133_netdev_stats *sw_stats,
++				     struct rtnl_link_stats64 *stats)
++{
++	dev_get_tstats64(ndev, stats);
++	stats->rx_errors += atomic64_read(&sw_stats->rx_errors);
++	stats->tx_errors += atomic64_read(&sw_stats->tx_errors);
++	stats->rx_dropped += atomic64_read(&sw_stats->rx_dropped);
++	stats->tx_dropped += atomic64_read(&sw_stats->tx_dropped);
++	stats->rx_length_errors += atomic64_read(&sw_stats->rx_length_errors);
++}
++
++#endif /* __ZX279133_LAN_H */
+diff --git a/drivers/net/ethernet/zte/zx279133-main.c b/drivers/net/ethernet/zte/zx279133-main.c
+index 2052305bc6389132d7ab4dd7354246da19a711fd..fe4e48392e0eefe6a4ba91a79e95fc220d812b60 100644
+--- a/drivers/net/ethernet/zte/zx279133-main.c
++++ b/drivers/net/ethernet/zte/zx279133-main.c
+@@ -8,6 +8,7 @@
+ #include <linux/etherdevice.h>
+ #include <linux/firmware.h>
+ #include <linux/hash.h>
++#include <linux/if_vlan.h>
+ #include <linux/io.h>
+ #include <linux/iopoll.h>
+ #include <linux/ip.h>
+@@ -20,6 +21,7 @@
+ #include <linux/ethtool.h>
+ #include <linux/of.h>
+ #include <linux/of_net.h>
++#include <linux/of_platform.h>
+ #include <linux/of_reserved_mem.h>
+ #include <linux/pcs/pcs-xpcs.h>
+ #include <linux/phy/phy.h>
+@@ -534,7 +536,15 @@ static int zx279133_eth_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return dev_err_probe(dev, ret, "failed to register netdev\n");
+ 
+-	dev_info(dev, "WAN netdev registered\n");
++	eth->lan_service.ops = &zx279133_lan_service_ops;
++	platform_set_drvdata(pdev, &eth->lan_service);
++
++	ret = devm_of_platform_populate(dev);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to populate LAN child devices\n");
++
++	dev_info(dev, "WAN netdev and LAN child devices registered\n");
+ 
+ 	return 0;
+ }
+diff --git a/drivers/net/ethernet/zte/zx279133-netdev.c b/drivers/net/ethernet/zte/zx279133-netdev.c
+index 343866c5d54810ad1ba95af3f9c79f1006a52bc6..b55e0b5756a5040c5606d6059f96f1b7c4398ae8 100644
+--- a/drivers/net/ethernet/zte/zx279133-netdev.c
++++ b/drivers/net/ethernet/zte/zx279133-netdev.c
+@@ -4,6 +4,7 @@
+ #include <linux/dma-mapping.h>
+ #include <linux/etherdevice.h>
+ #include <linux/ethtool.h>
++#include <linux/if_vlan.h>
+ #include <linux/io.h>
+ #include <linux/ip.h>
+ #include <linux/netdevice.h>
+@@ -17,6 +18,7 @@
+ #include <net/page_pool/helpers.h>
+ 
+ #include "zx279133.h"
++#include "zx279133-lan.h"
+ 
+ static int zx279133_shared_idm_prepare(struct zx279133_eth *eth)
+ {
+@@ -95,6 +97,8 @@ static bool zx279133_shared_tx_pause(struct zx279133_eth *eth)
+ 	WRITE_ONCE(eth->tx_stopping, true);
+ 	if (netif_running(eth->ndev))
+ 		netif_tx_disable(eth->ndev);
++	if (eth->lan_ndev && netif_running(eth->lan_ndev))
++		netif_tx_disable(eth->lan_ndev);
+ 	cancel_delayed_work_sync(&eth->tx_reclaim_work);
+ 
+ 	return zx279133_idm_tx_drain(eth);
+@@ -114,6 +118,10 @@ static void zx279133_shared_tx_resume(struct zx279133_eth *eth)
+ 	if ((eth->datapath_users & ZX279133_DATAPATH_USER_WAN) &&
+ 	    netif_running(eth->ndev))
+ 		netif_wake_queue(eth->ndev);
++	if ((eth->datapath_users & ZX279133_DATAPATH_USER_LAN) &&
++	    eth->lan_datapath_ready && eth->lan_ndev &&
++	    netif_running(eth->lan_ndev))
++		netif_wake_queue(eth->lan_ndev);
+ }
+ 
+ static void zx279133_shared_idm_release(struct zx279133_eth *eth,
+@@ -222,7 +230,7 @@ static int zx279133_stop(struct net_device *ndev)
+ 	} else {
+ 		if (!tx_quiesced)
+ 			netdev_warn(ndev,
+-				    "shared TX did not quiesce while another user remains active\n");
++				    "shared TX did not quiesce while LAN remains active\n");
+ 		zx279133_shared_tx_resume(eth);
+ 	}
+ 	mutex_unlock(&eth->datapath_lock);
+@@ -250,13 +258,40 @@ static bool zx279133_tx_hw_csum_tcp(struct sk_buff *skb)
+ 		iph->protocol == IPPROTO_TCP;
+ }
+ 
++static u8 zx279133_tx_destination_port(struct zx279133_eth *eth,
++				       struct sk_buff *skb,
++					bool lan_tx)
++{
++	u16 vid;
++
++	if (lan_tx)
++		return ZX279133_LAN_TX_PORT;
++	if (!READ_ONCE(eth->lan_vlan62_active))
++		return zx279133_tx_port;
++	if (skb_vlan_tag_present(skb)) {
++		vid = skb_vlan_tag_get_id(skb);
++	} else if (skb->protocol == htons(ETH_P_8021Q)) {
++		const struct vlan_ethhdr *vhdr;
++
++		if (!pskb_may_pull(skb, sizeof(*vhdr)))
++			return zx279133_tx_port;
++		vhdr = vlan_eth_hdr(skb);
++		vid = ntohs(vhdr->h_vlan_TCI) & VLAN_VID_MASK;
++	} else {
++		return zx279133_tx_port;
++	}
++
++	return vid == ZX279133_LAN_VID ? ZX279133_LAN_TX_PORT :
++		zx279133_tx_port;
++}
++
+ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
+ 					      struct net_device *hw_ndev,
+ 					      struct net_device *ndev)
+ {
+ 	struct zx279133_eth *eth = netdev_priv(hw_ndev);
+-	/* BQL tracks the physical IDM TX queue rather than an individual
+-	 * origin netdev.
++	/* WAN and LAN share one IDM hardware TX queue, so BQL must track the
++	 * physical queue rather than either logical netdev independently.
+ 	 */
+ 	struct netdev_queue *txq = netdev_get_tx_queue(hw_ndev, 0);
+ 	struct zx279133_idm_desc *desc;
+@@ -299,7 +334,7 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
+ 		zx279133_stats_tx_dropped(eth, ndev);
+ 		return NETDEV_TX_OK;
+ 	}
+-	tx_port = zx279133_tx_port;
++	tx_port = zx279133_tx_destination_port(eth, skb, ndev != hw_ndev);
+ 
+ 	if (zx279133_tx_bounce_offset > 63)
+ 		goto drop;
+@@ -471,6 +506,8 @@ static void zx279133_tx_timeout_common(struct zx279133_eth *eth,
+ 	 * from immediately retriggering after the common recovery attempt.
+ 	 */
+ 	netif_trans_update(eth->ndev);
++	if (eth->lan_ndev)
++		netif_trans_update(eth->lan_ndev);
+ 
+ 	if (!prepared || stopping) {
+ 		netdev_warn(ndev,
+@@ -871,3 +908,337 @@ const struct net_device_ops zx279133_netdev_ops = {
+ 	.ndo_change_mtu		= zx279133_change_mtu,
+ 	.ndo_get_stats64	= zx279133_get_stats64,
+ };
++
++static struct zx279133_eth *
++zx279133_lan_service_to_eth(struct zx279133_lan_service *service);
++
++static int
++zx279133_lan_netdev_setup(struct zx279133_lan_service *service,
++			  struct net_device *ndev)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++	int ret = 0;
++
++	mutex_lock(&eth->datapath_lock);
++	if (eth->lan_ndev && eth->lan_ndev != ndev) {
++		ret = -EBUSY;
++		goto out_unlock;
++	}
++	eth->lan_ndev = ndev;
++	ndev->watchdog_timeo = eth->ndev->watchdog_timeo;
++	ndev->min_mtu = eth->ndev->min_mtu;
++	ndev->max_mtu = eth->ndev->max_mtu;
++	ndev->features = eth->ndev->features;
++	ndev->hw_features = eth->ndev->hw_features;
++	ndev->vlan_features = eth->ndev->vlan_features;
++	eth_hw_addr_set(ndev, eth->ndev->dev_addr);
++	netif_carrier_off(ndev);
++
++out_unlock:
++	mutex_unlock(&eth->datapath_lock);
++	return ret;
++}
++
++static void
++zx279133_lan_netdev_teardown(struct zx279133_lan_service *service,
++			     struct net_device *ndev)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++
++	mutex_lock(&eth->datapath_lock);
++	if (eth->lan_ndev == ndev)
++		eth->lan_ndev = NULL;
++	mutex_unlock(&eth->datapath_lock);
++}
++
++static int
++zx279133_lan_netdev_open(struct zx279133_lan_service *service,
++			 struct net_device *ndev)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++	int ret = 0;
++
++	mutex_lock(&eth->datapath_lock);
++	if (!(eth->datapath_users & ZX279133_DATAPATH_USER_LAN) ||
++	    !eth->lan_datapath_ready ||
++	    !READ_ONCE(eth->hardware_prepared)) {
++		ret = -ENETDOWN;
++		goto out_unlock;
++	}
++
++	netif_carrier_on(ndev);
++	netif_start_queue(ndev);
++
++out_unlock:
++	mutex_unlock(&eth->datapath_lock);
++	return ret;
++}
++
++static int
++zx279133_lan_netdev_stop(struct zx279133_lan_service *service,
++			 struct net_device *ndev)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++	bool tx_quiesced;
++
++	mutex_lock(&eth->datapath_lock);
++	if (eth->datapath_users & ZX279133_DATAPATH_USER_LAN) {
++		tx_quiesced = zx279133_shared_tx_pause(eth);
++		if (!tx_quiesced)
++			netdev_warn(ndev, "shared TX did not quiesce at LAN stop\n");
++		zx279133_shared_tx_resume(eth);
++	}
++	netif_stop_queue(ndev);
++	netif_carrier_off(ndev);
++	mutex_unlock(&eth->datapath_lock);
++
++	return 0;
++}
++
++static int
++zx279133_lan_netdev_change_mtu(struct zx279133_lan_service *service,
++			       struct net_device *ndev, int new_mtu)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++
++	if (new_mtu < ETH_MIN_MTU || new_mtu > eth->ndev->max_mtu)
++		return -EINVAL;
++
++	WRITE_ONCE(ndev->mtu, new_mtu);
++	return 0;
++}
++
++static netdev_tx_t
++zx279133_lan_netdev_xmit(struct zx279133_lan_service *service,
++			 struct sk_buff *skb, struct net_device *ndev)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++	netdev_tx_t ret;
++
++	if (!(READ_ONCE(eth->datapath_users) & ZX279133_DATAPATH_USER_LAN) ||
++	    !READ_ONCE(eth->lan_datapath_ready) ||
++	    !READ_ONCE(eth->hardware_prepared))
++		return NETDEV_TX_BUSY;
++
++	skb->dev = eth->ndev;
++	ret = zx279133_start_xmit_common(skb, eth->ndev, ndev);
++	if (ret == NETDEV_TX_BUSY)
++		skb->dev = ndev;
++
++	return ret;
++}
++
++static void
++zx279133_lan_netdev_tx_timeout(struct zx279133_lan_service *service,
++			       struct net_device *ndev, unsigned int txqueue)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++
++	zx279133_tx_timeout_common(eth, ndev, txqueue);
++}
++
++static void
++zx279133_lan_netdev_get_stats64(struct zx279133_lan_service *service,
++				struct net_device *ndev,
++			       struct rtnl_link_stats64 *stats)
++{
++	struct zx279133_lan_netdev_priv *priv = netdev_priv(ndev);
++
++	zx279133_fill_stats64(ndev, &priv->stats, stats);
++}
++
++static struct zx279133_eth *
++zx279133_lan_service_to_eth(struct zx279133_lan_service *service)
++{
++	return container_of(service, struct zx279133_eth, lan_service);
++}
++
++static int zx279133_lan_datapath_get(struct zx279133_lan_service *service)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++	bool first_user;
++	int ret = 0;
++
++	mutex_lock(&eth->datapath_lock);
++	if (eth->datapath_users & ZX279133_DATAPATH_USER_LAN) {
++		ret = -EBUSY;
++		goto out_unlock;
++	}
++	first_user = !eth->datapath_users;
++	if (first_user) {
++		ret = zx279133_hardware_prepare(eth);
++		if (ret)
++			goto out_unlock;
++
++		ret = pm_runtime_resume_and_get(eth->xpcs_mdiodev->bus->parent);
++		if (ret < 0)
++			goto err_hardware_unprepare;
++		eth->xpcs_runtime_held = true;
++
++		ret = zx279133_shared_idm_prepare(eth);
++		if (ret)
++			goto err_hardware_unprepare;
++		zx279133_shared_rx_start(eth);
++	}
++	eth->datapath_users |= ZX279133_DATAPATH_USER_LAN;
++	mutex_unlock(&eth->datapath_lock);
++
++	return 0;
++
++err_hardware_unprepare:
++	zx279133_hardware_unprepare(eth);
++	if (eth->xpcs_runtime_held) {
++		pm_runtime_put(eth->xpcs_mdiodev->bus->parent);
++		eth->xpcs_runtime_held = false;
++	}
++out_unlock:
++	mutex_unlock(&eth->datapath_lock);
++	return ret;
++}
++
++static void
++zx279133_lan_datapath_set_ready(struct zx279133_lan_service *service,
++				bool ready)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++
++	mutex_lock(&eth->datapath_lock);
++	eth->lan_datapath_ready = ready;
++	if (eth->lan_ndev && netif_running(eth->lan_ndev)) {
++		if (!ready) {
++			netif_tx_disable(eth->lan_ndev);
++			netif_carrier_off(eth->lan_ndev);
++		} else if ((eth->datapath_users & ZX279133_DATAPATH_USER_LAN) &&
++			   eth->hardware_prepared) {
++			netif_carrier_on(eth->lan_ndev);
++			netif_wake_queue(eth->lan_ndev);
++		}
++	}
++	mutex_unlock(&eth->datapath_lock);
++}
++
++static int
++zx279133_lan_datapath_quiesce(struct zx279133_lan_service *service)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++	bool tx_quiesced;
++	int ret = 0;
++
++	mutex_lock(&eth->datapath_lock);
++	if (!(eth->datapath_users & ZX279133_DATAPATH_USER_LAN))
++		goto out_unlock;
++	eth->lan_datapath_ready = false;
++	if (eth->lan_ndev && netif_running(eth->lan_ndev))
++		netif_tx_disable(eth->lan_ndev);
++	tx_quiesced = zx279133_shared_tx_pause(eth);
++	if (!tx_quiesced) {
++		netdev_err(eth->lan_ndev,
++			   "shared TX did not quiesce before LAN teardown\n");
++		ret = -ETIMEDOUT;
++		goto out_unlock;
++	}
++	zx279133_shared_tx_resume(eth);
++
++out_unlock:
++	mutex_unlock(&eth->datapath_lock);
++	return ret;
++}
++
++static void zx279133_lan_datapath_put(struct zx279133_lan_service *service)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++	bool last_user;
++	bool tx_quiesced;
++
++	mutex_lock(&eth->datapath_lock);
++	if (!(eth->datapath_users & ZX279133_DATAPATH_USER_LAN))
++		goto out_unlock;
++	last_user = eth->datapath_users == ZX279133_DATAPATH_USER_LAN;
++	if (last_user)
++		zx279133_shared_rx_stop(eth);
++	tx_quiesced = zx279133_shared_tx_pause(eth);
++	eth->datapath_users &= ~ZX279133_DATAPATH_USER_LAN;
++	if (last_user) {
++		zx279133_shared_idm_release(eth, eth->lan_ndev, tx_quiesced);
++		if (eth->xpcs_runtime_held) {
++			pm_runtime_put(eth->xpcs_mdiodev->bus->parent);
++			eth->xpcs_runtime_held = false;
++		}
++	} else {
++		if (!tx_quiesced)
++			netdev_warn(eth->lan_ndev,
++				    "shared TX did not quiesce while WAN remains active\n");
++		zx279133_shared_tx_resume(eth);
++	}
++
++out_unlock:
++	mutex_unlock(&eth->datapath_lock);
++}
++
++static void
++zx279133_lan_set_vlan62_active(struct zx279133_lan_service *service,
++			       bool active)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++
++	WRITE_ONCE(eth->lan_vlan62_active, active);
++}
++
++static void
++zx279133_lan_set_dsa_active(struct zx279133_lan_service *service, bool active)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++
++	WRITE_ONCE(eth->lan_dsa_active, active);
++}
++
++static u32 zx279133_lan_nppt_read(struct zx279133_lan_service *service,
++				  u32 offset)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++
++	return readl(eth->base + offset);
++}
++
++static void zx279133_lan_nppt_write(struct zx279133_lan_service *service,
++				    u32 offset, u32 value)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++
++	writel(value, eth->base + offset);
++}
++
++static void zx279133_lan_xmac_lock(struct zx279133_lan_service *service)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++
++	mutex_lock(&eth->xmac_lock);
++}
++
++static void zx279133_lan_xmac_unlock(struct zx279133_lan_service *service)
++{
++	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
++
++	mutex_unlock(&eth->xmac_lock);
++}
++
++const struct zx279133_lan_service_ops zx279133_lan_service_ops = {
++	.nppt_read = zx279133_lan_nppt_read,
++	.nppt_write = zx279133_lan_nppt_write,
++	.xmac_lock = zx279133_lan_xmac_lock,
++	.xmac_unlock = zx279133_lan_xmac_unlock,
++	.datapath_get = zx279133_lan_datapath_get,
++	.datapath_set_ready = zx279133_lan_datapath_set_ready,
++	.datapath_quiesce = zx279133_lan_datapath_quiesce,
++	.datapath_put = zx279133_lan_datapath_put,
++	.set_vlan62_active = zx279133_lan_set_vlan62_active,
++	.set_dsa_active = zx279133_lan_set_dsa_active,
++	.netdev_setup = zx279133_lan_netdev_setup,
++	.netdev_teardown = zx279133_lan_netdev_teardown,
++	.netdev_open = zx279133_lan_netdev_open,
++	.netdev_stop = zx279133_lan_netdev_stop,
++	.netdev_xmit = zx279133_lan_netdev_xmit,
++	.netdev_tx_timeout = zx279133_lan_netdev_tx_timeout,
++	.netdev_get_stats64 = zx279133_lan_netdev_get_stats64,
++	.netdev_change_mtu = zx279133_lan_netdev_change_mtu,
++};
+diff --git a/drivers/net/ethernet/zte/zx279133-rtl8372n.c b/drivers/net/ethernet/zte/zx279133-rtl8372n.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..f9734582d449b036944629bf1772b332dad603ac
+--- /dev/null
++++ b/drivers/net/ethernet/zte/zx279133-rtl8372n.c
+@@ -0,0 +1,2682 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * ZTE ZX279133 / RTL8372N DSA switch driver.
++ *
++ * The module owns the XMAC0/XPCS0/Uni-SerDes CPU path, the validated
++ * RTL8372N ports4..7-to-CPU8 private transport image, and the board's
++ * active-low switch reset line. Removal restores the SoC-side state and
++ * holds the switch reset.
++ */
++
++#include <linux/bitfield.h>
++#include <linux/delay.h>
++#include <linux/etherdevice.h>
++#include <linux/ethtool.h>
++#include <linux/gpio/consumer.h>
++#include <linux/if_vlan.h>
++#include <linux/if_bridge.h>
++#include <linux/iopoll.h>
++#include <linux/mdio.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/of_mdio.h>
++#include <linux/phy.h>
++#include <linux/phy/phy.h>
++#include <linux/platform_device.h>
++#include <linux/pm_runtime.h>
++#include <linux/slab.h>
++
++#include <net/dsa.h>
++#include <net/dsa_zx279133_rtl8372n.h>
++
++#include "zx279133-lan.h"
++
++#define ZX279133_XMAC0_BASE		0x140000
++#define ZX279133_XMAC_TX_CTRL		0x0000
++#define ZX279133_XMAC_RX_CTRL		0x0010
++#define ZX279133_XMAC_FRAME_CFG		0x0020
++#define ZX279133_XMAC_MODE_CFG		0x0280
++#define ZX279133_XMAC_DUPLEX		0x0500
++#define ZX279133_XMAC_MISC_CFG		0x3400
++#define ZX279133_XMAC_HALF_DUPLEX	BIT(24)
++#define ZX279133_XMAC_RESET_REG		0x2c0004
++#define ZX279133_XMAC0_RESET		BIT(10)
++#define ZX279133_XMAC_RESET_US		1718
++
++#define ZX279133_XPCS_VR_MII_DIG_CTRL1	0x8000
++#define ZX279133_XPCS_VR_MII_AN_CTRL	0x8001
++#define ZX279133_XPCS_VR_XS_PCS_DIG_CTRL1 0x8000
++#define ZX279133_XPCS_VR_XS_PCS_KR_CTRL	0x8007
++#define ZX279133_XPCS_USXG_EN		BIT(9)
++#define ZX279133_XPCS_VSMMD1_EN	BIT(13)
++#define ZX279133_XPCS_VR_RST		BIT(15)
++#define ZX279133_XPCS_USXG_MODE_MASK	GENMASK(12, 10)
++#define ZX279133_XPCS_AN_INTR_EN	BIT(0)
++#define ZX279133_XPCS_AN_ENABLE		BIT(12)
++/* Vendor mode-5 USXGMII image before the datapath tail disables AN. */
++#define ZX279133_XPCS_USXGMII_AN_BMCR	0x3140
++#define ZX279133_XPCS_BYPASS_REG	0x8005
++#define ZX279133_XPCS_BYPASS_EN	BIT(4)
++
++#define ZX279133_NPPT_XMAC_LINK		0x0084
++#define ZX279133_NPPT_XPCS0_STATUS	0x0090
++#define ZX279133_XMAC0_SOPC_READY	0x342a4
++#define ZX279133_XMAC0_SOPC_SEND	0x342c0
++#define ZX279133_XMAC_SOPC_DUPLEX	0x343f0
++#define ZX279133_XMAC0_SOPC_DUPLEX_MASK BIT(4)
++
++#define RTL8372N_SMI_CTRL		0x15
++#define RTL8372N_SMI_BUSY		BIT(2)
++#define RTL8372N_SMI_ADDR		0x16
++#define RTL8372N_SMI_DATA_LOW		0x17
++#define RTL8372N_SMI_DATA_HIGH		0x18
++#define RTL8372N_SMI_READ_CMD		0x001b
++#define RTL8372N_SMI_WRITE_CMD		0x0019
++#define RTL8372N_SMI_POLL_MAX		1000
++#define RTL8372N_CHIP_ID			0x0004
++#define RTL8372N_PHY_PORT_SELECT	0x6438
++#define RTL8372N_PHY_CTRL		0x643c
++#define RTL8372N_PHY_DATA		0x6444
++#define RTL8372N_PHY_BUSY		BIT(0)
++#define RTL8372N_PHY_OP_STATUS		GENMASK(26, 24)
++#define RTL8372N_PHY_WRITE_CMD		0x7
++#define RTL8372N_SDS_CTRL		0x03f8
++#define RTL8372N_SDS_READ_DATA		0x03fc
++#define RTL8372N_SDS_WRITE_DATA	0x0400
++#define RTL8372N_VERSION			0x000c
++#define RTL8372N_PORT8_FORCE_ABILITY	0x6364
++#define RTL8372N_ABILITY_STATUS		0x63e8
++#define RTL8372N_MEDIA_STATUS		0x63ec
++#define RTL8372N_SPEED_STATUS0		0x63f0
++#define RTL8372N_SPEED_STATUS1		0x63f4
++#define RTL8372N_DUPLEX_STATUS		0x63f8
++#define RTL8372N_LINK_STATUS		0x63fc
++#define RTL8372N_EXTERNAL_CPU_PORT	0x6724
++#define RTL8372N_SDS_TOP_MODE		0x7b20
++#define RTL8372N_SDS1_MODE_MASK	GENMASK(9, 5)
++#define RTL8372N_SDS1_SUBMODE_MASK	GENMASK(20, 16)
++#define RTL8372N_CFG_MAC8_8221B	BIT(22)
++#define RTL8372N_SDS_MODE_10GUSXG	13
++#define RTL8372N_PORT8_FORCE_10G	0x0227
++#define RTL8372N_VLAN_CTRL		0x4e14
++#define RTL8372N_MSTP0_STATE		0x5310
++#define RTL8372N_VLAN_IGR_FILTER	0x4e18
++#define RTL8372N_PORT_PVID_4_5		0x4e24
++#define RTL8372N_PORT_PVID_6_7		0x4e28
++#define RTL8372N_PORT_PVID_8_9		0x4e2c
++#define RTL8372N_PORT_FID_ENABLE	0x4e38
++#define RTL8372N_PORT_FID_4_7		0x4e3c
++#define RTL8372N_PORT7_ACCEPT		0x4e10
++#define RTL8372N_PORT_ISOLATION_BASE	0x50c0
++#define RTL8372N_PORT7_ISOLATION	0x50dc
++#define RTL8372N_PORT8_ISOLATION	0x50e0
++#define RTL8372N_SVLAN_SERVICE_PORT	0x57c0
++#define RTL8372N_TABLE_CTRL		0x5cac
++#define RTL8372N_L2_CTRL		0x5cb0
++#define RTL8372N_TABLE_WRITE_DATA0	0x5cb8
++#define RTL8372N_TABLE_WRITE_DATA1	0x5cbc
++#define RTL8372N_TABLE_WRITE_DATA2	0x5cc0
++#define RTL8372N_TABLE_READ_DATA0	0x5ccc
++#define RTL8372N_TABLE_READ_DATA1	0x5cd0
++#define RTL8372N_TABLE_READ_DATA2	0x5cd4
++#define RTL8372N_L2_READ_METHOD_MASK	GENMASK(17, 14)
++#define RTL8372N_L2_READ_METHOD_NEXT_UC	(3 << 14)
++#define RTL8372N_L2_LOOKUP_HIT		BIT(12)
++#define RTL8372N_L2_MAX_ADDRESS		0x0fff
++#define RTL8372N_L2_TABLE_COMMAND	(4 << 8)
++#define RTL8372N_L2_READ_COMMAND	(RTL8372N_L2_TABLE_COMMAND | BIT(0))
++#define RTL8372N_L2_WRITE_COMMAND	(RTL8372N_L2_TABLE_COMMAND | BIT(1) | BIT(0))
++#define RTL8372N_MIB_CTRL		0x0f60
++#define RTL8372N_MIB_DATA_LOW		0x0f64
++#define RTL8372N_MIB_DATA_HIGH		0x0f68
++#define RTL8372N_MIB_TX_GOOD_HIGH	92
++#define RTL8372N_MIB_RX_GOOD_HIGH	94
++#define RTL8372N_MIB_RX_ERROR		96
++#define RTL8372N_MIB_TX_ERROR		97
++#define RTL8372N_MIB_TX_GOOD_PHY_HIGH	98
++#define RTL8372N_MIB_RX_GOOD_PHY_HIGH	100
++#define RTL8372N_MIB_RX_ERROR_PHY	102
++#define RTL8372N_MIB_TX_ERROR_PHY	103
++#define RTL8372N_SVLAN_TPID		0x6044
++#define RTL8372N_PORT_TAG_MODE_6_9	0x6738
++#define RTL8372N_USER_PORT_MIN		4
++#define RTL8372N_USER_PORT_MAX		7
++#define RTL8372N_USER_PORT_MASK		GENMASK(7, 4)
++#define RTL8372N_CPU_PORT		8
++#define RTL8372N_TRANSPORT_VID_BASE	55
++#define RTL8372N_VLAN_MBR_MASK		GENMASK(9, 0)
++#define RTL8372N_VLAN_UNTAG_SHIFT	10
++#define RTL8372N_VLAN_UNTAG_MASK	GENMASK(19, 10)
++#define RTL8372N_VLAN_IVL		BIT(25)
++#define RTL8372N_INIT_STATE		0x7f60
++#define RTL8372N_RESET_ASSERT_MS	100
++#define RTL8372N_RESET_DEASSERT_MS	100
++
++struct zx279133_rtl8372n {
++	struct zx279133_lan_service *service;
++	struct mdio_device *xpcs_mdiodev;
++	struct mdio_device *switch_mdiodev;
++	struct gpio_desc *reset_gpio;
++	struct phy *serdes;
++	struct dsa_switch *ds;
++	u16 saved_pcs_ctrl2;
++	u16 saved_pcs_dig1;
++	u16 saved_pcs_kr_ctrl;
++	u16 saved_vend2_bmcr;
++	u16 saved_vend2_an_ctrl;
++	u16 saved_xpcs_bypass;
++	u32 saved_xmac_tx;
++	u32 saved_xmac_rx;
++	u32 saved_xmac_frame;
++	u32 saved_xmac_mode;
++	u32 saved_xmac_duplex;
++	u32 saved_xmac_misc;
++	u32 saved_xmac_reset;
++	u32 saved_sopc_duplex;
++	u32 saved_sopc_send;
++	bool parent_datapath_held;
++	bool parent_datapath_ready;
++	bool serdes_powered;
++	bool xpcs_runtime_held;
++	bool xpcs_configured;
++	bool xmac_configured;
++	bool datapath_enabled;
++	bool switch_touched;
++	bool switch_reset_asserted;
++	bool switch_initialized;
++	bool switch_cpu8_configured;
++	bool vlan62_tx_active;
++	bool dsa_registered;
++	unsigned long vlan_filtering_mask;
++	u16 bridge_pvid[9];
++	bool bridge_pvid_valid[9];
++};
++
++static u32 zx279133_lan_nppt_read(struct zx279133_rtl8372n *priv, u32 offset)
++{
++	return zx279133_lan_service_nppt_read(priv->service, offset);
++}
++
++static void zx279133_lan_nppt_write(struct zx279133_rtl8372n *priv,
++				    u32 offset, u32 value)
++{
++	zx279133_lan_service_nppt_write(priv->service, offset, value);
++}
++
++static void zx279133_lan_xmac_lock(struct zx279133_rtl8372n *priv)
++{
++	zx279133_lan_service_xmac_lock(priv->service);
++}
++
++static void zx279133_lan_xmac_unlock(struct zx279133_rtl8372n *priv)
++{
++	zx279133_lan_service_xmac_unlock(priv->service);
++}
++
++struct rtl8372n_sds_patch {
++	u8 page;
++	u8 reg;
++	u16 value;
++};
++
++struct rtl8372n_sds_step {
++	u8 page;
++	u8 reg;
++	u16 mask;
++	u16 value;
++	u16 delay_us;
++};
++
++/* RTL8372N revision-2 10.3125-Gbaud analog and MAC-side digital image. */
++static const struct rtl8372n_sds_patch rtl8372n_sds_10g_chipb[] = {
++	{ 0x21, 0x10, 0x4480 }, { 0x21, 0x13, 0x0400 },
++	{ 0x21, 0x18, 0x6d02 }, { 0x21, 0x1b, 0x424e },
++	{ 0x21, 0x1d, 0x0002 }, { 0x36, 0x1c, 0x1390 },
++	{ 0x36, 0x14, 0x003f }, { 0x36, 0x10, 0x0200 },
++	{ 0x2e, 0x04, 0x0080 }, { 0x2e, 0x06, 0x0408 },
++	{ 0x2e, 0x07, 0x020d }, { 0x2e, 0x09, 0x0601 },
++	{ 0x2e, 0x0b, 0x222c }, { 0x2e, 0x0c, 0xa217 },
++	{ 0x2e, 0x0d, 0xfe40 }, { 0x2e, 0x15, 0xf5c1 },
++	{ 0x2e, 0x16, 0x0443 }, { 0x2e, 0x1d, 0xabb0 },
++};
++
++static const struct rtl8372n_sds_patch rtl8372n_sds_mac_digital[] = {
++	{ 0x06, 0x12, 0x5078 }, { 0x07, 0x06, 0x9401 },
++	{ 0x07, 0x08, 0x9401 }, { 0x07, 0x0a, 0x9401 },
++	{ 0x07, 0x0c, 0x9401 }, { 0x1f, 0x0b, 0x0003 },
++	{ 0x06, 0x03, 0xc45c }, { 0x06, 0x1f, 0x2100 },
++};
++
++static const struct rtl8372n_sds_step rtl8372n_sds_mode_pre[] = {
++	{ 0x20, 0, 0x0030, 0x0030, 10 },
++	{ 0x20, 0, 0x0030, 0x0010, 100 },
++	{ 0x20, 0, 0x00c0, 0x0040, 10 },
++	{ 0x20, 0, 0x00c0, 0x00c0, 100 },
++	{ 0x20, 0, 0x0c00, 0x0c00, 10 },
++	{ 0x20, 0, 0x0c00, 0x0400, 100 },
++};
++
++static const struct rtl8372n_sds_step rtl8372n_sds_mode_reset[] = {
++	{ 0x20, 0, 0x0030, 0x0030, 10 },
++	{ 0x20, 0, 0x0030, 0x0010, 100 },
++	{ 0x20, 0, 0x00c0, 0x0040, 10 },
++	{ 0x20, 0, 0x00c0, 0x00c0, 100 },
++	{ 0x20, 0, 0x0c00, 0x0c00, 10 },
++	{ 0x20, 0, 0x0c00, 0x0400, 10 },
++	{ 0x20, 0, 0x0c00, 0x0400, 10 },
++	{ 0x20, 0, 0x0c00, 0x0c00, 100 },
++	{ 0x20, 0, 0x0c00, 0x0000, 10 },
++	{ 0x20, 0, 0x00c0, 0x00c0, 10 },
++	{ 0x20, 0, 0x00c0, 0x0040, 100 },
++	{ 0x20, 0, 0x00c0, 0x0000, 10 },
++	{ 0x20, 0, 0x0030, 0x0010, 10 },
++	{ 0x20, 0, 0x0030, 0x0030, 100 },
++	{ 0x20, 0, 0x0030, 0x0000, 100 },
++	{ 0x1f, 0, 0xffff, 0x000b, 100 },
++	{ 0x1f, 0, 0xffff, 0x0000, 100 },
++};
++
++static void rtl8372n_reset_assert(struct zx279133_rtl8372n *priv)
++{
++	if (!priv->reset_gpio || priv->switch_reset_asserted)
++		return;
++
++	gpiod_set_value_cansleep(priv->reset_gpio, 1);
++	priv->switch_reset_asserted = true;
++	priv->switch_touched = false;
++	priv->switch_initialized = false;
++	priv->switch_cpu8_configured = false;
++}
++
++static void rtl8372n_hw_reset(struct device *dev,
++			      struct zx279133_rtl8372n *priv)
++{
++	rtl8372n_reset_assert(priv);
++	msleep(RTL8372N_RESET_ASSERT_MS);
++	gpiod_set_value_cansleep(priv->reset_gpio, 0);
++	priv->switch_reset_asserted = false;
++	msleep(RTL8372N_RESET_DEASSERT_MS);
++	dev_info(dev, "RTL8372N hardware reset completed\n");
++}
++
++static int rtl8372n_wait_ready(struct mdio_device *mdiodev)
++{
++	unsigned int i;
++	int value;
++
++	for (i = 0; i < RTL8372N_SMI_POLL_MAX; i++) {
++		value = __mdiodev_read(mdiodev, RTL8372N_SMI_CTRL);
++		if (value < 0)
++			return value;
++		if (!(value & RTL8372N_SMI_BUSY))
++			return 0;
++		if (i + 1 < RTL8372N_SMI_POLL_MAX)
++			usleep_range(100, 200);
++	}
++
++	return -ETIMEDOUT;
++}
++
++static int rtl8372n_read_reg(struct mdio_device *mdiodev, u16 reg, u32 *value)
++{
++	int low;
++	int high;
++	int ret;
++
++	ret = rtl8372n_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = __mdiodev_write(mdiodev, RTL8372N_SMI_ADDR, reg);
++	if (ret)
++		return ret;
++	ret = __mdiodev_write(mdiodev, RTL8372N_SMI_CTRL,
++			      RTL8372N_SMI_READ_CMD);
++	if (ret)
++		return ret;
++	ret = rtl8372n_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	low = __mdiodev_read(mdiodev, RTL8372N_SMI_DATA_LOW);
++	if (low < 0)
++		return low;
++	high = __mdiodev_read(mdiodev, RTL8372N_SMI_DATA_HIGH);
++	if (high < 0)
++		return high;
++	*value = (u32)low | (u32)high << 16;
++
++	return 0;
++}
++
++static int rtl8372n_write_reg(struct mdio_device *mdiodev, u16 reg, u32 value)
++{
++	int ret;
++
++	ret = rtl8372n_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = __mdiodev_write(mdiodev, RTL8372N_SMI_ADDR, reg);
++	if (ret)
++		return ret;
++	ret = __mdiodev_write(mdiodev, RTL8372N_SMI_DATA_LOW,
++			      value & 0xffff);
++	if (ret)
++		return ret;
++	ret = __mdiodev_write(mdiodev, RTL8372N_SMI_DATA_HIGH, value >> 16);
++	if (ret)
++		return ret;
++	ret = __mdiodev_write(mdiodev, RTL8372N_SMI_CTRL,
++			      RTL8372N_SMI_WRITE_CMD);
++	if (ret)
++		return ret;
++
++	return rtl8372n_wait_ready(mdiodev);
++}
++
++static int rtl8372n_modify_reg(struct mdio_device *mdiodev, u16 reg,
++			       u32 mask, u32 set)
++{
++	u32 value;
++	int ret;
++
++	ret = rtl8372n_read_reg(mdiodev, reg, &value);
++	if (ret)
++		return ret;
++
++	return rtl8372n_write_reg(mdiodev, reg,
++				  (value & ~mask) | (set & mask));
++}
++
++static int rtl8372n_table_wait_ready(struct mdio_device *mdiodev)
++{
++	unsigned int i;
++	u32 value;
++	int ret;
++
++	for (i = 0; i < RTL8372N_SMI_POLL_MAX; i++) {
++		ret = rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_CTRL, &value);
++		if (ret)
++			return ret;
++		if (!(value & BIT(0)))
++			return 0;
++		if (i + 1 < RTL8372N_SMI_POLL_MAX)
++			fsleep(10);
++	}
++
++	return -ETIMEDOUT;
++}
++
++static int rtl8372n_vlan_write(struct mdio_device *mdiodev, u16 vid,
++			       u32 value)
++{
++	int ret;
++
++	ret = rtl8372n_table_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_WRITE_DATA0, value);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_CTRL,
++				 (vid << 16) | (3 << 8) | BIT(1) | BIT(0));
++	if (ret)
++		return ret;
++
++	return rtl8372n_table_wait_ready(mdiodev);
++}
++
++static int rtl8372n_vlan_read(struct mdio_device *mdiodev, u16 vid,
++			      u32 *value)
++{
++	int ret;
++
++	ret = rtl8372n_table_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_CTRL,
++				 (vid << 16) | (3 << 8) | BIT(0));
++	if (ret)
++		return ret;
++	ret = rtl8372n_table_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++
++	return rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_READ_DATA0, value);
++}
++
++static bool rtl8372n_is_transport_vid(u16 vid)
++{
++	return vid >= RTL8372N_TRANSPORT_VID_BASE + RTL8372N_USER_PORT_MIN &&
++	       vid <= RTL8372N_TRANSPORT_VID_BASE + RTL8372N_USER_PORT_MAX;
++}
++
++static int rtl8372n_port_pvid_field(int port, u16 *reg, u32 *mask,
++				    unsigned int *shift)
++{
++	switch (port) {
++	case 4:
++		*reg = RTL8372N_PORT_PVID_4_5;
++		*shift = 0;
++		break;
++	case 5:
++		*reg = RTL8372N_PORT_PVID_4_5;
++		*shift = 12;
++		break;
++	case 6:
++		*reg = RTL8372N_PORT_PVID_6_7;
++		*shift = 0;
++		break;
++	case 7:
++		*reg = RTL8372N_PORT_PVID_6_7;
++		*shift = 12;
++		break;
++	default:
++		return -EINVAL;
++	}
++	*mask = GENMASK(*shift + 11, *shift);
++	return 0;
++}
++
++static int rtl8372n_port_pvid_write(struct mdio_device *mdiodev, int port,
++				    u16 pvid)
++{
++	unsigned int shift;
++	u32 mask;
++	u32 value;
++	u16 reg;
++	int ret;
++
++	ret = rtl8372n_port_pvid_field(port, &reg, &mask, &shift);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, reg, mask, (u32)pvid << shift);
++	if (ret)
++		return ret;
++	ret = rtl8372n_read_reg(mdiodev, reg, &value);
++	if (ret)
++		return ret;
++
++	return ((value & mask) >> shift) == pvid ? 0 : -EIO;
++}
++
++static int rtl8372n_port_pvid_read(struct mdio_device *mdiodev, int port,
++				   u16 *pvid)
++{
++	unsigned int shift;
++	u32 mask;
++	u32 value;
++	u16 reg;
++	int ret;
++
++	ret = rtl8372n_port_pvid_field(port, &reg, &mask, &shift);
++	if (ret)
++		return ret;
++	ret = rtl8372n_read_reg(mdiodev, reg, &value);
++	if (ret)
++		return ret;
++	*pvid = (value & mask) >> shift;
++	return 0;
++}
++
++static void rtl8372n_l2_encode_key(const unsigned char *addr, u16 fid,
++				   bool ivl, u32 words[3])
++{
++	words[0] = addr[5] | ((u32)addr[4] << 8) |
++		   ((u32)addr[3] << 16) | ((u32)addr[2] << 24);
++	words[1] = addr[1] | ((u32)addr[0] << 8) |
++		   ((u32)(fid & 0xfff) << 16) |
++		   (ivl ? BIT(29) : 0);
++	words[2] = 0;
++}
++
++static int rtl8372n_l2_write_words(struct mdio_device *mdiodev,
++				   const u32 words[3])
++{
++	u32 ctrl;
++	int ret;
++
++	ret = rtl8372n_table_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_WRITE_DATA0,
++				 words[0]);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_WRITE_DATA1,
++				 words[1]);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_WRITE_DATA2,
++				 words[2]);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_CTRL,
++				 RTL8372N_L2_WRITE_COMMAND);
++	if (ret)
++		return ret;
++	ret = rtl8372n_table_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_L2_CTRL, &ctrl);
++	if (ret)
++		return ret;
++
++	return ctrl & RTL8372N_L2_LOOKUP_HIT ? 0 : -ENOSPC;
++}
++
++static int rtl8372n_l2_lookup(struct mdio_device *mdiodev,
++			      const unsigned char *addr, u16 fid, bool ivl,
++			       u32 words[3])
++{
++	u32 key[3];
++	u32 ctrl;
++	int ret;
++
++	rtl8372n_l2_encode_key(addr, fid, ivl, key);
++	ret = rtl8372n_table_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_L2_CTRL,
++				  RTL8372N_L2_READ_METHOD_MASK, 0);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_WRITE_DATA0, key[0]);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_WRITE_DATA1, key[1]);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_WRITE_DATA2, key[2]);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_CTRL,
++				 RTL8372N_L2_READ_COMMAND);
++	if (ret)
++		return ret;
++	ret = rtl8372n_table_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_L2_CTRL, &ctrl);
++	if (ret)
++		return ret;
++	if (!(ctrl & RTL8372N_L2_LOOKUP_HIT))
++		return -ENOENT;
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_READ_DATA0,
++				&words[0]);
++	if (ret)
++		return ret;
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_READ_DATA1,
++				&words[1]);
++	if (ret)
++		return ret;
++
++	return rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_READ_DATA2,
++				 &words[2]);
++}
++
++static int rtl8372n_l2_next_uc(struct mdio_device *mdiodev, u16 start,
++			       u16 *address, u32 words[3])
++{
++	u32 ctrl;
++	int ret;
++
++	ret = rtl8372n_table_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_L2_CTRL,
++				  RTL8372N_L2_READ_METHOD_MASK,
++				  RTL8372N_L2_READ_METHOD_NEXT_UC);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_CTRL,
++				 RTL8372N_L2_READ_COMMAND | ((u32)start << 16));
++	if (ret)
++		return ret;
++	ret = rtl8372n_table_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_L2_CTRL, &ctrl);
++	if (ret)
++		return ret;
++	if (!(ctrl & RTL8372N_L2_LOOKUP_HIT))
++		return -ENOENT;
++
++	*address = ctrl & RTL8372N_L2_MAX_ADDRESS;
++	if (*address < start)
++		return -EIO;
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_READ_DATA0,
++				&words[0]);
++	if (ret)
++		return ret;
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_READ_DATA1,
++				&words[1]);
++	if (ret)
++		return ret;
++
++	return rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_READ_DATA2,
++				 &words[2]);
++}
++
++static int rtl8372n_mib_read(struct mdio_device *mdiodev, unsigned int port,
++			     unsigned int counter, u64 *value)
++{
++	unsigned int i;
++	u32 low, high, ctrl;
++	int ret;
++
++	ctrl = BIT(0) | ((port & 0xf) << 1) |
++	       (((counter / 2) & 0x3f) << 5);
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_MIB_CTRL, ctrl);
++	if (ret)
++		return ret;
++	for (i = 0; i < 100; i++) {
++		ret = rtl8372n_read_reg(mdiodev, RTL8372N_MIB_CTRL, &ctrl);
++		if (ret)
++			return ret;
++		if (!(ctrl & BIT(0)))
++			break;
++		fsleep(10);
++	}
++	if (i == 100)
++		return -ETIMEDOUT;
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_MIB_DATA_LOW, &low);
++	if (ret)
++		return ret;
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_MIB_DATA_HIGH, &high);
++	if (ret)
++		return ret;
++
++	*value = ((u64)low << 32) | high;
++	return 0;
++}
++
++static int rtl8372n_phy_wait_ready(struct mdio_device *mdiodev)
++{
++	unsigned int i;
++	u32 value;
++	int ret;
++
++	for (i = 0; i < RTL8372N_SMI_POLL_MAX; i++) {
++		ret = rtl8372n_read_reg(mdiodev, RTL8372N_PHY_CTRL, &value);
++		if (ret)
++			return ret;
++		if (!(value & RTL8372N_PHY_BUSY) &&
++		    !(value & RTL8372N_PHY_OP_STATUS))
++			return 0;
++		if (i + 1 < RTL8372N_SMI_POLL_MAX)
++			fsleep(10);
++	}
++
++	return -ETIMEDOUT;
++}
++
++static int rtl8372n_phy_write(struct mdio_device *mdiodev, u32 port_mask,
++			      u16 page, u16 reg, u16 value)
++{
++	u32 command;
++	int ret;
++
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_PHY_PORT_SELECT, port_mask);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PHY_DATA,
++				  GENMASK(15, 0), value);
++	if (ret)
++		return ret;
++	command = (u32)page << 19 | (u32)reg << 3 | RTL8372N_PHY_WRITE_CMD;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_PHY_CTRL, command);
++	if (ret)
++		return ret;
++
++	return rtl8372n_phy_wait_ready(mdiodev);
++}
++
++static int rtl8372n_sds_wait_ready(struct mdio_device *mdiodev)
++{
++	unsigned int i;
++	u32 value;
++	int ret;
++
++	for (i = 0; i < RTL8372N_SMI_POLL_MAX; i++) {
++		ret = rtl8372n_read_reg(mdiodev, RTL8372N_SDS_CTRL, &value);
++		if (ret)
++			return ret;
++		if (!(value & BIT(15)))
++			return 0;
++		if (i + 1 < RTL8372N_SMI_POLL_MAX)
++			fsleep(10);
++	}
++
++	return -ETIMEDOUT;
++}
++
++static int rtl8372n_sds_read(struct mdio_device *mdiodev, unsigned int sds,
++			     unsigned int page, unsigned int reg, u32 *value)
++{
++	int ret;
++
++	ret = rtl8372n_sds_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_CTRL, BIT(0),
++				  sds ? BIT(0) : 0);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_CTRL, GENMASK(6, 1),
++				  page << 1);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_CTRL,
++				  GENMASK(11, 7), reg << 7);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_CTRL, BIT(14), 0);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_CTRL,
++				  BIT(15), BIT(15));
++	if (ret)
++		return ret;
++	ret = rtl8372n_sds_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++
++	return rtl8372n_read_reg(mdiodev, RTL8372N_SDS_READ_DATA, value);
++}
++
++static int rtl8372n_sds_write(struct mdio_device *mdiodev, unsigned int sds,
++			      unsigned int page, unsigned int reg, u32 value)
++{
++	int ret;
++
++	ret = rtl8372n_sds_wait_ready(mdiodev);
++	if (ret)
++		return ret;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_SDS_WRITE_DATA, value);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_CTRL, BIT(0),
++				  sds ? BIT(0) : 0);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_CTRL, GENMASK(6, 1),
++				  page << 1);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_CTRL,
++				  GENMASK(11, 7), reg << 7);
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_CTRL,
++				  BIT(14), BIT(14));
++	if (ret)
++		return ret;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_CTRL,
++				  BIT(15), BIT(15));
++	if (ret)
++		return ret;
++
++	return rtl8372n_sds_wait_ready(mdiodev);
++}
++
++static int rtl8372n_sds_modify(struct mdio_device *mdiodev, unsigned int sds,
++			       unsigned int page, unsigned int reg,
++			       u32 mask, u32 set)
++{
++	u32 value;
++	int ret;
++
++	ret = rtl8372n_sds_read(mdiodev, sds, page, reg, &value);
++	if (ret)
++		return ret;
++
++	return rtl8372n_sds_write(mdiodev, sds, page, reg,
++				   (value & ~mask) | (set & mask));
++}
++
++static int rtl8372n_fw_reset_flow(struct mdio_device *mdiodev,
++				  unsigned int sds)
++{
++	u32 value;
++	int ret;
++
++	ret = rtl8372n_sds_read(mdiodev, sds, 0x20, 0, &value);
++	if (ret || FIELD_GET(GENMASK(5, 4), value) == 1)
++		return ret;
++	ret = rtl8372n_sds_modify(mdiodev, sds, 0x21, 0, BIT(2), BIT(2));
++	if (ret)
++		return ret;
++	ret = rtl8372n_sds_modify(mdiodev, sds, 0x36, 5,
++				  GENMASK(14, 11), 8 << 11);
++	if (ret)
++		return ret;
++	ret = rtl8372n_sds_write(mdiodev, sds, 0x1f, 2, 0x1f);
++	if (ret)
++		return ret;
++	ret = rtl8372n_sds_read(mdiodev, sds, 0x1f, 0x15, &value);
++	if (ret)
++		return ret;
++	if (!(value & BIT(6)) && (value & BIT(7)))
++		return 0;
++	ret = rtl8372n_sds_read(mdiodev, sds, 5, 0, &value);
++	if (ret)
++		return ret;
++	if (value & BIT(0)) {
++		ret = rtl8372n_sds_read(mdiodev, sds, 5, 0, &value);
++		if (ret)
++			return ret;
++		if (!(value & BIT(1)) && (value & BIT(12)))
++			return 0;
++	}
++
++	ret = rtl8372n_sds_modify(mdiodev, sds, 0x20, 0,
++				  GENMASK(5, 4), 3 << 4);
++	if (ret)
++		return ret;
++	ret = rtl8372n_sds_modify(mdiodev, sds, 0x20, 0,
++				  GENMASK(5, 4), 1 << 4);
++	if (ret)
++		return ret;
++	ret = rtl8372n_sds_modify(mdiodev, sds, 0x20, 0,
++				  GENMASK(5, 4), 3 << 4);
++	if (ret)
++		return ret;
++	ret = rtl8372n_sds_modify(mdiodev, sds, 0x20, 0,
++				  GENMASK(5, 4), 0);
++	if (ret)
++		return ret;
++
++	if (!(value & BIT(0)))
++		return rtl8372n_sds_read(mdiodev, sds, 5, 0, &value);
++
++	return 0;
++}
++
++static int rtl8372n_sds_apply_patches(struct mdio_device *mdiodev,
++				      const struct rtl8372n_sds_patch *patches,
++				       size_t count)
++{
++	size_t i;
++	int ret;
++
++	for (i = 0; i < count; i++) {
++		ret = rtl8372n_sds_write(mdiodev, 1, patches[i].page,
++					 patches[i].reg, patches[i].value);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
++static int rtl8372n_sds_run_steps(struct mdio_device *mdiodev,
++				  const struct rtl8372n_sds_step *steps,
++				   size_t count)
++{
++	size_t i;
++	int ret;
++
++	for (i = 0; i < count; i++) {
++		ret = rtl8372n_sds_modify(mdiodev, 1, steps[i].page,
++					  steps[i].reg, steps[i].mask,
++					steps[i].value);
++		if (ret)
++			return ret;
++		if (steps[i].delay_us)
++			fsleep(steps[i].delay_us);
++	}
++
++	return 0;
++}
++
++static int rtl8372n_cpu8_link_init(struct device *dev,
++				   struct zx279133_rtl8372n *priv)
++{
++	struct mdio_device *mdiodev = priv->switch_mdiodev;
++	u32 value;
++	int ret;
++
++	mutex_lock(&mdiodev->bus->mdio_lock);
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_CHIP_ID, &value);
++	if (ret)
++		goto out_unlock;
++	if ((value >> 8) != 0x837270) {
++		ret = -ENODEV;
++		goto out_unlock;
++	}
++	ret = rtl8372n_read_reg(mdiodev, 0x632c, &value);
++	if (ret)
++		goto out_unlock;
++	if ((value & 0x1ff000) != 0x1f8000) {
++		dev_err(dev, "RTL8372N core is not initialized: reg632c=%#x\n",
++			value);
++		ret = -EAGAIN;
++		goto out_unlock;
++	}
++
++	priv->switch_touched = true;
++
++	/* Vendor board contract forces port 8 to 10G/full/link before SDS1. */
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_PORT8_FORCE_ABILITY,
++				 RTL8372N_PORT8_FORCE_10G);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_TOP_MODE,
++				  RTL8372N_CFG_MAC8_8221B, 0);
++	if (ret)
++		goto out_unlock;
++	usleep_range(1000, 1100);
++	ret = rtl8372n_sds_run_steps(mdiodev, rtl8372n_sds_mode_pre,
++				     ARRAY_SIZE(rtl8372n_sds_mode_pre));
++	if (ret)
++		goto out_unlock;
++
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SDS_TOP_MODE,
++				  RTL8372N_SDS1_MODE_MASK |
++				 RTL8372N_SDS1_SUBMODE_MASK,
++				 RTL8372N_SDS_MODE_10GUSXG << 5);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_apply_patches(mdiodev, rtl8372n_sds_10g_chipb,
++					 ARRAY_SIZE(rtl8372n_sds_10g_chipb));
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_apply_patches(mdiodev,
++					 rtl8372n_sds_mac_digital,
++					 ARRAY_SIZE(rtl8372n_sds_mac_digital));
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_modify(mdiodev, 1, 0x07, 0x11, 0x000f, 0x000f);
++	if (ret)
++		goto out_unlock;
++	usleep_range(1000, 1100);
++	ret = rtl8372n_sds_run_steps(mdiodev, rtl8372n_sds_mode_reset,
++				     ARRAY_SIZE(rtl8372n_sds_mode_reset));
++	if (ret)
++		goto out_unlock;
++	fsleep(50);
++	ret = rtl8372n_fw_reset_flow(mdiodev, 1);
++	if (ret)
++		goto out_unlock;
++	fsleep(50);
++
++	/* SR1010-specific polarity and 64b/66b settings after mode selection. */
++	ret = rtl8372n_sds_modify(mdiodev, 1, 0, 0, 0x0200, 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_modify(mdiodev, 1, 6, 2, 0x2000, 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_modify(mdiodev, 1, 0, 0, 0x0100, 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_modify(mdiodev, 1, 6, 2, 0x4000, 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_write(mdiodev, 1, 0x20, 0, 0x0010);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_write(mdiodev, 1, 0x20, 0, 0x0000);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_modify(mdiodev, 1, 0x07, 0x11, 0x000f, 0);
++	if (ret)
++		goto out_unlock;
++
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_EXTERNAL_CPU_PORT,
++				  GENMASK(3, 0), 8);
++	if (ret)
++		goto out_unlock;
++	/* zte_priv_init() marks external CPU port 8 as an SVLAN service port. */
++	ret = rtl8372n_modify_reg(mdiodev, 0x57c0, BIT(8), BIT(8));
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_write(mdiodev, 1, 0x20, 0, 0x0010);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_write(mdiodev, 1, 0x20, 0, 0x0000);
++	if (ret)
++		goto out_unlock;
++
++	priv->switch_cpu8_configured = true;
++
++out_unlock:
++	mutex_unlock(&mdiodev->bus->mdio_lock);
++	if (ret) {
++		dev_err(dev,
++			"RTL8372N CPU-port-8 setup failed; hardware reset will be asserted: %d\n",
++			ret);
++		return ret;
++	}
++
++	dev_info(dev,
++		 "RTL8372N SDS1 mode 13 and forced external CPU port 8 configured\n");
++	return 0;
++}
++
++static int rtl8372n_port7_vlan_init(struct device *dev,
++				    struct zx279133_rtl8372n *priv)
++{
++	struct mdio_device *mdiodev = priv->switch_mdiodev;
++	u32 value;
++	int ret;
++
++	mutex_lock(&mdiodev->bus->mdio_lock);
++	priv->switch_touched = true;
++
++	/*
++	 * Mainline tag_8021q bring-up contract: keep 0x8100 as an ordinary
++	 * C-tag, assign untagged port7 traffic to VID 62, and strip VID 62
++	 * again on egress to port7.  CPU port8 therefore carries tagged VID 62.
++	 */
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_SVLAN_TPID, 0x88a8);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SVLAN_SERVICE_PORT,
++				  BIT(8), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT7_ACCEPT,
++				  GENMASK(15, 14), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_vlan_write(mdiodev, 62, 0x00020180);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_PORT7_ISOLATION, 0x180);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_write_reg(mdiodev, RTL8372N_PORT8_ISOLATION, 0x1ff);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_ENABLE,
++				  BIT(7), BIT(7));
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_4_7,
++				  GENMASK(31, 28), 1 << 28);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_PVID_6_7,
++				  GENMASK(23, 12), 62 << 12);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_PVID_8_9,
++				  GENMASK(11, 0), 1);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_TAG_MODE_6_9,
++				  GENMASK(17, 14), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_CTRL, BIT(2), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_IGR_FILTER,
++				  BIT(7) | BIT(8), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_vlan_read(mdiodev, 62, &value);
++	if (ret)
++		goto out_unlock;
++	if (value != 0x00020180) {
++		dev_err(dev, "RTL8372N VLAN62 readback mismatch: %#x\n", value);
++		ret = -EIO;
++		goto out_unlock;
++	}
++
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT7_ACCEPT,
++				  GENMASK(9, 8), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_vlan_write(mdiodev, 59, 0x00004110);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_write_reg(mdiodev, 0x50d0, 0x110);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_ENABLE,
++				  BIT(4), BIT(4));
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_4_7,
++				  GENMASK(19, 16), 1 << 16);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, 0x4e24,
++				  GENMASK(11, 0), 59);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_TAG_MODE_6_9,
++				  GENMASK(9, 8), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_IGR_FILTER,
++				  BIT(4), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_vlan_read(mdiodev, 59, &value);
++	if (ret)
++		goto out_unlock;
++	if (value != 0x00004110) {
++		dev_err(dev, "RTL8372N VLAN59 readback mismatch: %#x\n",
++			value);
++		ret = -EIO;
++		goto out_unlock;
++	}
++
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT7_ACCEPT,
++				  GENMASK(11, 10), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_vlan_write(mdiodev, 60, 0x00008120);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_write_reg(mdiodev, 0x50d4, 0x120);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_ENABLE,
++				  BIT(5), BIT(5));
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_4_7,
++				  GENMASK(23, 20), 1 << 20);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, 0x4e24,
++				  GENMASK(23, 12), 60 << 12);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_TAG_MODE_6_9,
++				  GENMASK(11, 10), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_IGR_FILTER,
++				  BIT(5), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_vlan_read(mdiodev, 60, &value);
++	if (ret)
++		goto out_unlock;
++	if (value != 0x00008120) {
++		dev_err(dev, "RTL8372N VLAN60 readback mismatch: %#x\n",
++			value);
++		ret = -EIO;
++		goto out_unlock;
++	}
++
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT7_ACCEPT,
++				  GENMASK(13, 12), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_vlan_write(mdiodev, 61, 0x00010140);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_write_reg(mdiodev, 0x50d8, 0x140);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_ENABLE,
++				  BIT(6), BIT(6));
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_4_7,
++				  GENMASK(27, 24), 1 << 24);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_PVID_6_7,
++				  GENMASK(11, 0), 61);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_TAG_MODE_6_9,
++				  GENMASK(13, 12), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_IGR_FILTER,
++				  BIT(6), 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_vlan_read(mdiodev, 61, &value);
++	if (ret)
++		goto out_unlock;
++	if (value != 0x00010140) {
++		dev_err(dev, "RTL8372N VLAN61 readback mismatch: %#x\n",
++			value);
++		ret = -EIO;
++		goto out_unlock;
++	}
++
++ out_unlock:
++	mutex_unlock(&mdiodev->bus->mdio_lock);
++	if (ret) {
++		dev_err(dev,
++			"RTL8372N LAN transport VLAN setup failed; hardware reset will be asserted: %d\n",
++			ret);
++		return ret;
++	}
++
++	dev_info(dev,
++		 "RTL8372N C-VLAN59..62 ports4..7-to-CPU8 image configured after validated port7 sequence\n");
++	return 0;
++}
++
++static int rtl8372n_minimal_core_init(struct device *dev,
++				      struct zx279133_rtl8372n *priv)
++{
++	struct mdio_device *mdiodev = priv->switch_mdiodev;
++	u32 value;
++	u32 core_632c;
++	u32 core_6330;
++	u32 core_6334;
++	u32 core_6454;
++	unsigned int port;
++	unsigned int reg;
++	bool phy_disabled = false;
++	int recovery_ret;
++	int ret;
++
++	mutex_lock(&mdiodev->bus->mdio_lock);
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_CHIP_ID, &value);
++	if (ret)
++		goto out_unlock;
++	if ((value >> 8) != 0x837270) {
++		dev_err(dev, "unsupported switch chip ID %#x\n", value);
++		ret = -ENODEV;
++		goto out_unlock;
++	}
++	ret = rtl8372n_read_reg(mdiodev, RTL8372N_INIT_STATE, &value);
++	if (ret)
++		goto out_unlock;
++	if ((value & GENMASK(1, 0)) != 2) {
++		dev_err(dev, "RTL8372N unsupported init state %#x\n", value);
++		ret = -ENODEV;
++		goto out_unlock;
++	}
++
++	ret = rtl8372n_read_reg(mdiodev, 0x632c, &core_632c);
++	if (!ret)
++		ret = rtl8372n_read_reg(mdiodev, 0x6330, &core_6330);
++	if (!ret)
++		ret = rtl8372n_read_reg(mdiodev, 0x6334, &core_6334);
++	if (!ret)
++		ret = rtl8372n_read_reg(mdiodev, 0x6454, &core_6454);
++	if (ret)
++		goto out_unlock;
++	if (core_632c == 0x001f8540 && core_6330 == 0x00005515 &&
++	    core_6334 == 0x000000f0 && core_6454 == 0x00007000) {
++		mutex_unlock(&mdiodev->bus->mdio_lock);
++		priv->switch_initialized = true;
++		dev_info(dev, "RTL8372N core already initialized; reusing state\n");
++		return 0;
++	}
++
++	priv->switch_touched = true;
++	ret = rtl8372n_modify_reg(mdiodev, 0x6330, 0x30000, 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, 0x6330, 0x00c0, 0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, 0x6334, 0x00f0, 0x00f0);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_modify_reg(mdiodev, 0x6454, 0x7000, 0x7000);
++	if (ret)
++		goto out_unlock;
++	fsleep(1000);
++
++	/* Vendor rtl8372n_init() primes both switch SerDes before reset flow. */
++	ret = rtl8372n_sds_modify(mdiodev, 0, 0, 0, 0x0200, 0x0200);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_modify(mdiodev, 1, 0, 0, 0x0200, 0x0200);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_modify(mdiodev, 0, 6, 2, 0x2000, 0x2000);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_sds_modify(mdiodev, 1, 6, 2, 0x2000, 0x2000);
++	if (ret)
++		goto out_unlock;
++	fsleep(5000);
++	ret = rtl8372n_fw_reset_flow(mdiodev, 1);
++	if (ret)
++		goto out_unlock;
++	fsleep(5000);
++	ret = rtl8372n_fw_reset_flow(mdiodev, 0);
++	if (ret)
++		goto out_unlock;
++
++	ret = rtl8372n_phy_write(mdiodev, 0xf0, 0x1f, 0xa610, 0x2858);
++	if (ret)
++		goto out_unlock;
++	phy_disabled = true;
++	ret = rtl8372n_modify_reg(mdiodev, 0x5fd4, 0x180000, 0x180000);
++	if (ret)
++		goto out_unlock;
++	for (port = 3; port <= 8; port++) {
++		reg = 0x1238 + port * 0x100;
++		ret = rtl8372n_modify_reg(mdiodev, reg, BIT(4) | BIT(8),
++					  BIT(4) | BIT(8));
++		if (ret)
++			goto out_unlock;
++	}
++	ret = rtl8372n_modify_reg(mdiodev, 0x0b7c, BIT(5), BIT(5));
++	if (ret)
++		goto out_unlock;
++	for (reg = 0x7124; reg < 0x714c; reg += 4) {
++		ret = rtl8372n_write_reg(mdiodev, reg, 0x1050);
++		if (ret)
++			goto out_unlock;
++	}
++	ret = rtl8372n_modify_reg(mdiodev, 0x6040, BIT(0), BIT(0));
++	if (ret)
++		goto out_unlock;
++	msleep(100);
++
++	/* Firmware-version-conditioned RTCT/AFE patches remain deferred. */
++	ret = rtl8372n_phy_write(mdiodev, 0xf0, 0x1f, 0xa610, 0x2058);
++	if (ret)
++		goto out_unlock;
++	phy_disabled = false;
++	ret = rtl8372n_modify_reg(mdiodev, 0x632c, 0x1ff000, 0x1f8000);
++	if (ret)
++		goto out_unlock;
++	msleep(50);
++
++out_unlock:
++	if (ret && phy_disabled) {
++		recovery_ret = rtl8372n_phy_write(mdiodev, 0xf0, 0x1f,
++						  0xa610, 0x2058);
++		if (recovery_ret)
++			dev_err(dev, "failed to re-enable RTL8372N PHYs: %d\n",
++				recovery_ret);
++	}
++	mutex_unlock(&mdiodev->bus->mdio_lock);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "RTL8372N minimal core init failed; probe unwind will reset the switch\n");
++
++	priv->switch_initialized = true;
++	dev_info(dev, "RTL8372N core initialized\n");
++	return 0;
++}
++
++static int zx279133_lan_xpcs_read(struct zx279133_rtl8372n *priv,
++				  int devad, u16 reg)
++{
++	return mdiodev_c45_read(priv->xpcs_mdiodev, devad, reg);
++}
++
++static int zx279133_lan_xpcs_write(struct zx279133_rtl8372n *priv,
++				   int devad, u16 reg, u16 val)
++{
++	return mdiodev_c45_write(priv->xpcs_mdiodev, devad, reg, val);
++}
++
++static int zx279133_lan_xpcs_modify(struct zx279133_rtl8372n *priv,
++				    int devad, u16 reg, u16 mask, u16 set)
++{
++	int val;
++
++	val = zx279133_lan_xpcs_read(priv, devad, reg);
++	if (val < 0)
++		return val;
++
++	return zx279133_lan_xpcs_write(priv, devad, reg,
++					 (val & ~mask) | (set & mask));
++}
++
++static void zx279133_lan_xpcs_restore(struct zx279133_rtl8372n *priv)
++{
++	if (!priv->xpcs_configured)
++		return;
++
++	zx279133_lan_xpcs_write(priv, MDIO_MMD_VEND2,
++				ZX279133_XPCS_VR_MII_AN_CTRL,
++				 priv->saved_vend2_an_ctrl);
++	zx279133_lan_xpcs_write(priv, MDIO_MMD_VEND2, MDIO_CTRL1,
++				priv->saved_vend2_bmcr);
++	zx279133_lan_xpcs_write(priv, MDIO_MMD_PCS,
++				ZX279133_XPCS_VR_XS_PCS_KR_CTRL,
++				 priv->saved_pcs_kr_ctrl);
++	zx279133_lan_xpcs_write(priv, MDIO_MMD_PCS,
++				ZX279133_XPCS_VR_XS_PCS_DIG_CTRL1,
++				 priv->saved_pcs_dig1);
++	zx279133_lan_xpcs_write(priv, MDIO_MMD_PCS, MDIO_CTRL2,
++				priv->saved_pcs_ctrl2);
++	priv->xpcs_configured = false;
++}
++
++static int zx279133_lan_xpcs_configure(struct zx279133_rtl8372n *priv)
++{
++	int val;
++	int ret;
++
++	val = zx279133_lan_xpcs_read(priv, MDIO_MMD_PCS, MDIO_CTRL2);
++	if (val < 0)
++		return val;
++	priv->saved_pcs_ctrl2 = val;
++	val = zx279133_lan_xpcs_read(priv, MDIO_MMD_PCS,
++				     ZX279133_XPCS_VR_XS_PCS_DIG_CTRL1);
++	if (val < 0)
++		return val;
++	priv->saved_pcs_dig1 = val;
++	val = zx279133_lan_xpcs_read(priv, MDIO_MMD_PCS,
++				     ZX279133_XPCS_VR_XS_PCS_KR_CTRL);
++	if (val < 0)
++		return val;
++	priv->saved_pcs_kr_ctrl = val;
++	val = zx279133_lan_xpcs_read(priv, MDIO_MMD_VEND2, MDIO_CTRL1);
++	if (val < 0)
++		return val;
++	priv->saved_vend2_bmcr = val;
++	val = zx279133_lan_xpcs_read(priv, MDIO_MMD_VEND2,
++				     ZX279133_XPCS_VR_MII_AN_CTRL);
++	if (val < 0)
++		return val;
++	priv->saved_vend2_an_ctrl = val;
++	priv->xpcs_configured = true;
++
++	ret = read_poll_timeout(zx279133_lan_xpcs_read, val,
++				val >= 0 && !(val & ZX279133_XPCS_VR_RST),
++				1000, 400000, false, priv,
++				MDIO_MMD_PCS, MDIO_CTRL1);
++	if (ret)
++		goto err_restore;
++	ret = read_poll_timeout(zx279133_lan_xpcs_read, val,
++				val >= 0 && !(val & ZX279133_XPCS_VR_RST),
++				1000, 400000, false, priv,
++				MDIO_MMD_VEND2, MDIO_CTRL1);
++	if (ret)
++		goto err_restore;
++
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_VEND2,
++				       ZX279133_XPCS_VR_MII_AN_CTRL,
++					BIT(3) | BIT(8), 0);
++	if (ret)
++		goto err_restore;
++	ret = zx279133_lan_xpcs_write(priv, MDIO_MMD_PCS, MDIO_CTRL2, 0);
++	if (ret)
++		goto err_restore;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_PCS,
++				       ZX279133_XPCS_VR_XS_PCS_DIG_CTRL1,
++					ZX279133_XPCS_USXG_EN |
++					ZX279133_XPCS_VSMMD1_EN,
++					ZX279133_XPCS_USXG_EN |
++					ZX279133_XPCS_VSMMD1_EN);
++	if (ret)
++		goto err_restore;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_PCS,
++				       ZX279133_XPCS_VR_XS_PCS_KR_CTRL,
++					ZX279133_XPCS_USXG_MODE_MASK, 0);
++	if (ret)
++		goto err_restore;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_PCS,
++				       ZX279133_XPCS_VR_XS_PCS_DIG_CTRL1,
++					ZX279133_XPCS_VR_RST,
++					ZX279133_XPCS_VR_RST);
++	if (ret)
++		goto err_restore;
++	ret = read_poll_timeout(zx279133_lan_xpcs_read, val,
++				val >= 0 && !(val & ZX279133_XPCS_VR_RST),
++				1000, 400000, false, priv, MDIO_MMD_PCS,
++				ZX279133_XPCS_VR_XS_PCS_DIG_CTRL1);
++	if (ret)
++		goto err_restore;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_VEND2,
++				       ZX279133_XPCS_VR_MII_AN_CTRL,
++					ZX279133_XPCS_AN_INTR_EN,
++					ZX279133_XPCS_AN_INTR_EN);
++	if (ret)
++		goto err_restore;
++	ret = zx279133_lan_xpcs_write(priv, MDIO_MMD_VEND2, MDIO_CTRL1,
++				      ZX279133_XPCS_USXGMII_AN_BMCR);
++	if (ret)
++		goto err_restore;
++
++	return 0;
++
++err_restore:
++	zx279133_lan_xpcs_restore(priv);
++	return ret;
++}
++
++static int
++zx279133_lan_xpcs_reapply_after_switch(struct zx279133_rtl8372n *priv)
++{
++	u32 status;
++	int val;
++	int ret;
++
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_VEND2,
++				       ZX279133_XPCS_VR_MII_AN_CTRL,
++					BIT(3) | BIT(8), 0);
++	if (ret)
++		return ret;
++	ret = zx279133_lan_xpcs_write(priv, MDIO_MMD_PCS, MDIO_CTRL2, 0);
++	if (ret)
++		return ret;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_PCS,
++				       ZX279133_XPCS_VR_XS_PCS_DIG_CTRL1,
++					ZX279133_XPCS_USXG_EN |
++					ZX279133_XPCS_VSMMD1_EN,
++					ZX279133_XPCS_USXG_EN |
++					ZX279133_XPCS_VSMMD1_EN);
++	if (ret)
++		return ret;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_PCS,
++				       ZX279133_XPCS_VR_XS_PCS_KR_CTRL,
++					ZX279133_XPCS_USXG_MODE_MASK, 0);
++	if (ret)
++		return ret;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_PCS,
++				       ZX279133_XPCS_VR_XS_PCS_DIG_CTRL1,
++					ZX279133_XPCS_VR_RST,
++					ZX279133_XPCS_VR_RST);
++	if (ret)
++		return ret;
++	ret = read_poll_timeout(zx279133_lan_xpcs_read, val,
++				val >= 0 && !(val & ZX279133_XPCS_VR_RST),
++				1000, 400000, false, priv, MDIO_MMD_PCS,
++				ZX279133_XPCS_VR_XS_PCS_DIG_CTRL1);
++	if (ret)
++		return ret;
++
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_VEND2,
++				       ZX279133_XPCS_VR_MII_AN_CTRL,
++					ZX279133_XPCS_AN_INTR_EN, 0);
++	if (ret)
++		return ret;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_VEND2, MDIO_CTRL1,
++				       ZX279133_XPCS_AN_ENABLE, 0);
++	if (ret)
++		return ret;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_PCS,
++				       ZX279133_XPCS_BYPASS_REG,
++					ZX279133_XPCS_BYPASS_EN,
++					ZX279133_XPCS_BYPASS_EN);
++	if (ret)
++		return ret;
++
++	return read_poll_timeout(zx279133_lan_nppt_read, status,
++				 (status & 0x3800) == 0x3800, 1000, 400000,
++				 false, priv, ZX279133_NPPT_XPCS0_STATUS);
++}
++
++static void zx279133_lan_datapath_restore(struct zx279133_rtl8372n *priv)
++{
++	u32 xmac = ZX279133_XMAC0_BASE;
++	u32 value;
++
++	if (!priv->datapath_enabled)
++		return;
++
++	zx279133_lan_xmac_lock(priv);
++	value = zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_RX_CTRL);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_RX_CTRL,
++				value & ~BIT(0));
++	value = zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_TX_CTRL);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_TX_CTRL,
++				value & ~BIT(0));
++	zx279133_lan_nppt_write(priv, ZX279133_XMAC0_SOPC_SEND,
++				priv->saved_sopc_send);
++	zx279133_lan_nppt_write(priv, ZX279133_XMAC_SOPC_DUPLEX,
++				priv->saved_sopc_duplex);
++	zx279133_lan_xmac_unlock(priv);
++	zx279133_lan_xpcs_write(priv, MDIO_MMD_PCS,
++				ZX279133_XPCS_BYPASS_REG,
++				 priv->saved_xpcs_bypass);
++	priv->datapath_enabled = false;
++}
++
++static int zx279133_lan_datapath_enable(struct zx279133_rtl8372n *priv)
++{
++	u32 xmac = ZX279133_XMAC0_BASE;
++	int val;
++	int ret;
++	u32 value;
++
++	/* Vendor SR1010 tail disables XPCS0 AN after mode-5 auto setup. */
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_VEND2,
++				       ZX279133_XPCS_VR_MII_AN_CTRL,
++					ZX279133_XPCS_AN_INTR_EN, 0);
++	if (ret)
++		return ret;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_VEND2, MDIO_CTRL1,
++				       ZX279133_XPCS_AN_ENABLE, 0);
++	if (ret)
++		return ret;
++
++	val = zx279133_lan_xpcs_read(priv, MDIO_MMD_PCS,
++				     ZX279133_XPCS_BYPASS_REG);
++	if (val < 0)
++		return val;
++	priv->saved_xpcs_bypass = val;
++	ret = zx279133_lan_xpcs_modify(priv, MDIO_MMD_PCS,
++				       ZX279133_XPCS_BYPASS_REG,
++					ZX279133_XPCS_BYPASS_EN,
++					ZX279133_XPCS_BYPASS_EN);
++	if (ret)
++		return ret;
++
++	zx279133_lan_xmac_lock(priv);
++	priv->saved_sopc_duplex =
++		zx279133_lan_nppt_read(priv, ZX279133_XMAC_SOPC_DUPLEX);
++	priv->saved_sopc_send =
++		zx279133_lan_nppt_read(priv, ZX279133_XMAC0_SOPC_SEND);
++	value = priv->saved_sopc_duplex & ~ZX279133_XMAC0_SOPC_DUPLEX_MASK;
++	zx279133_lan_nppt_write(priv, ZX279133_XMAC_SOPC_DUPLEX, value);
++	usleep_range(4295, 4395);
++	zx279133_lan_nppt_write(priv, ZX279133_XMAC0_SOPC_SEND, 1);
++	value = zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_RX_CTRL);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_RX_CTRL,
++				value | BIT(0));
++	value = zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_TX_CTRL);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_TX_CTRL,
++				value | BIT(0));
++	zx279133_lan_xmac_unlock(priv);
++	priv->datapath_enabled = true;
++
++	return 0;
++}
++
++static void zx279133_lan_xmac_restore(struct zx279133_rtl8372n *priv)
++{
++	u32 xmac = ZX279133_XMAC0_BASE;
++
++	if (!priv->xmac_configured)
++		return;
++
++	zx279133_lan_xmac_lock(priv);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_TX_CTRL,
++				priv->saved_xmac_tx);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_RX_CTRL,
++				priv->saved_xmac_rx);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_FRAME_CFG,
++				priv->saved_xmac_frame);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_MODE_CFG,
++				priv->saved_xmac_mode);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_DUPLEX,
++				priv->saved_xmac_duplex);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_MISC_CFG,
++				priv->saved_xmac_misc);
++	zx279133_lan_nppt_write(priv, ZX279133_XMAC_RESET_REG,
++				priv->saved_xmac_reset);
++	zx279133_lan_xmac_unlock(priv);
++	priv->xmac_configured = false;
++}
++
++static void zx279133_lan_xmac_configure(struct zx279133_rtl8372n *priv)
++{
++	u32 xmac = ZX279133_XMAC0_BASE;
++	u32 value;
++
++	zx279133_lan_xmac_lock(priv);
++	priv->saved_xmac_tx =
++		zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_TX_CTRL);
++	priv->saved_xmac_rx =
++		zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_RX_CTRL);
++	priv->saved_xmac_frame =
++		zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_FRAME_CFG);
++	priv->saved_xmac_mode =
++		zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_MODE_CFG);
++	priv->saved_xmac_duplex =
++		zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_DUPLEX);
++	priv->saved_xmac_misc =
++		zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_MISC_CFG);
++	priv->saved_xmac_reset =
++		zx279133_lan_nppt_read(priv, ZX279133_XMAC_RESET_REG);
++	priv->xmac_configured = true;
++
++	zx279133_lan_nppt_write(priv, ZX279133_XMAC_RESET_REG,
++				priv->saved_xmac_reset & ~ZX279133_XMAC0_RESET);
++	usleep_range(ZX279133_XMAC_RESET_US, ZX279133_XMAC_RESET_US + 100);
++	zx279133_lan_nppt_write(priv, ZX279133_XMAC_RESET_REG,
++				priv->saved_xmac_reset | ZX279133_XMAC0_RESET);
++
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_TX_CTRL,
++				0x00010000);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_RX_CTRL,
++				0x3e800086);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_FRAME_CFG,
++				0x80000001);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_MODE_CFG,
++				0x00000002);
++	value = zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_DUPLEX);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_DUPLEX,
++				value & ~ZX279133_XMAC_HALF_DUPLEX);
++	value = zx279133_lan_nppt_read(priv, xmac + ZX279133_XMAC_MISC_CFG);
++	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_MISC_CFG,
++				value | BIT(9));
++	zx279133_lan_xmac_unlock(priv);
++}
++
++static enum dsa_tag_protocol
++zx279133_rtl8372n_get_tag_protocol(struct dsa_switch *ds, int port,
++				   enum dsa_tag_protocol conduit_proto)
++{
++	return DSA_TAG_PROTO_ZX279133_RTL8372N;
++}
++
++static int zx279133_rtl8372n_setup(struct dsa_switch *ds)
++{
++	/* Probe completes the reset, CPU-link and transport setup first. */
++	return 0;
++}
++
++static int
++zx279133_rtl8372n_port_bridge_join(struct dsa_switch *ds, int port,
++				   struct dsa_bridge bridge,
++				  bool *tx_fwd_offload,
++				  struct netlink_ext_ack *extack)
++{
++	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
++		return -EOPNOTSUPP;
++
++	/* Private transport VLANs remain isolated to one user port plus CPU8.
++	 * Linux owns all bridge forwarding and customer VLAN filtering.
++	 */
++	*tx_fwd_offload = false;
++	dev_info(ds->dev, "port %d joined bridge %s\n", port,
++		 bridge.dev->name);
++	return 0;
++}
++
++static void
++zx279133_rtl8372n_port_bridge_leave(struct dsa_switch *ds, int port,
++				    struct dsa_bridge bridge)
++{
++	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
++		return;
++
++	dev_info(ds->dev, "port %d left bridge %s\n", port,
++		 bridge.dev->name);
++}
++
++static int
++zx279133_rtl8372n_port_vlan_filtering(struct dsa_switch *ds, int port,
++				      bool vlan_filtering,
++				     struct netlink_ext_ack *extack)
++{
++	struct zx279133_rtl8372n *priv = ds->priv;
++
++	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
++		return -EOPNOTSUPP;
++
++	/* Customer VLANs are nested inside the fixed per-port CPU-link VLAN.
++	 * Keep the validated transport PVID and hardware filtering policy intact;
++	 * the Linux bridge applies the customer VLAN policy after the DSA tagger
++	 * removes the private outer tag.
++	 */
++	if (vlan_filtering)
++		set_bit(port, &priv->vlan_filtering_mask);
++	else
++		clear_bit(port, &priv->vlan_filtering_mask);
++	dev_dbg(ds->dev, "software VLAN filtering port %d=%u mask=%#lx\n",
++		port, vlan_filtering, priv->vlan_filtering_mask);
++	return 0;
++}
++
++static int rtl8372n_customer_vlan_check(u16 vid,
++					struct netlink_ext_ack *extack)
++{
++	if (!vid || vid >= VLAN_N_VID) {
++		NL_SET_ERR_MSG_MOD(extack, "VLAN ID out of range");
++		return -EINVAL;
++	}
++	if (vid == 1) {
++		NL_SET_ERR_MSG_MOD(extack,
++				   "VID 1 is reserved; create the bridge with vlan_default_pvid 0");
++		return -EBUSY;
++	}
++	if (rtl8372n_is_transport_vid(vid)) {
++		NL_SET_ERR_MSG_MOD(extack,
++				   "VLAN ID reserved by the ZX279133 private DSA transport");
++		return -EBUSY;
++	}
++	return 0;
++}
++
++static int
++zx279133_rtl8372n_port_vlan_add(struct dsa_switch *ds, int port,
++				const struct switchdev_obj_port_vlan *vlan,
++			       struct netlink_ext_ack *extack)
++{
++	struct zx279133_rtl8372n *priv = ds->priv;
++	struct mdio_device *mdiodev = priv->switch_mdiodev;
++	bool old_pvid_valid;
++	u16 old_bridge_pvid;
++	u16 old_hw_pvid;
++	u32 old_entry;
++	u32 new_entry;
++	u32 readback;
++	u32 members;
++	u32 untag;
++	int ret;
++
++	if (port == RTL8372N_CPU_PORT)
++		return 0;
++	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
++		return -EINVAL;
++	ret = rtl8372n_customer_vlan_check(vlan->vid, extack);
++	if (ret)
++		return ret;
++	if (!(vlan->flags & BRIDGE_VLAN_INFO_PVID) ||
++	    !(vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED)) {
++		NL_SET_ERR_MSG_MOD(extack,
++				   "only untagged access VLANs are supported over the private CPU-link transport");
++		return -EOPNOTSUPP;
++	}
++
++	mutex_lock(&mdiodev->bus->mdio_lock);
++	ret = rtl8372n_vlan_read(mdiodev, vlan->vid, &old_entry);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_port_pvid_read(mdiodev, port, &old_hw_pvid);
++	if (ret)
++		goto out_unlock;
++	old_pvid_valid = priv->bridge_pvid_valid[port];
++	old_bridge_pvid = priv->bridge_pvid[port];
++	if (old_pvid_valid && old_bridge_pvid != vlan->vid) {
++		NL_SET_ERR_MSG_MOD(extack,
++				   "delete the current access VLAN before selecting another PVID");
++		ret = -EBUSY;
++		goto out_unlock;
++	}
++
++	members = (old_entry & RTL8372N_VLAN_MBR_MASK) |
++		  BIT(port) | BIT(RTL8372N_CPU_PORT);
++	untag = (old_entry & RTL8372N_VLAN_UNTAG_MASK) >>
++		RTL8372N_VLAN_UNTAG_SHIFT;
++	if (vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED)
++		untag |= BIT(port);
++	else
++		untag &= ~BIT(port);
++	untag &= ~BIT(RTL8372N_CPU_PORT);
++	new_entry = old_entry & ~(RTL8372N_VLAN_MBR_MASK |
++				 RTL8372N_VLAN_UNTAG_MASK);
++	new_entry |= members | (untag << RTL8372N_VLAN_UNTAG_SHIFT) |
++		     RTL8372N_VLAN_IVL;
++
++	ret = rtl8372n_vlan_write(mdiodev, vlan->vid, new_entry);
++	if (ret)
++		goto restore;
++	if (vlan->flags & BRIDGE_VLAN_INFO_PVID) {
++		priv->bridge_pvid[port] = vlan->vid;
++		priv->bridge_pvid_valid[port] = true;
++	}
++	ret = rtl8372n_vlan_read(mdiodev, vlan->vid, &readback);
++	if (ret)
++		goto restore;
++	if (readback != new_entry) {
++		ret = -EIO;
++		goto restore;
++	}
++	if (vlan->flags & BRIDGE_VLAN_INFO_PVID) {
++		ret = zx279133_tagger_set_access_vlan(ds, port, vlan->vid,
++						      !!(vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED));
++		if (ret)
++			goto restore;
++	}
++	dev_dbg(ds->dev, "access VLAN add port %d vid %u entry=%#x\n",
++		port, vlan->vid, readback);
++	goto out_unlock;
++
++restore:
++	priv->bridge_pvid_valid[port] = old_pvid_valid;
++	priv->bridge_pvid[port] = old_bridge_pvid;
++	rtl8372n_vlan_write(mdiodev, vlan->vid, old_entry);
++	rtl8372n_port_pvid_write(mdiodev, port, old_hw_pvid);
++out_unlock:
++	mutex_unlock(&mdiodev->bus->mdio_lock);
++	return ret;
++}
++
++static int
++zx279133_rtl8372n_port_vlan_del(struct dsa_switch *ds, int port,
++				const struct switchdev_obj_port_vlan *vlan)
++{
++	struct zx279133_rtl8372n *priv = ds->priv;
++	struct mdio_device *mdiodev = priv->switch_mdiodev;
++	bool old_pvid_valid;
++	u16 old_bridge_pvid;
++	u16 old_hw_pvid;
++	u32 old_entry;
++	u32 new_entry;
++	u32 readback;
++	u32 members;
++	u32 untag;
++	int ret;
++
++	if (port == RTL8372N_CPU_PORT)
++		return 0;
++	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
++		return -EINVAL;
++	if (!vlan->vid || vlan->vid >= VLAN_N_VID ||
++	    vlan->vid == 1 || rtl8372n_is_transport_vid(vlan->vid))
++		return -EINVAL;
++
++	mutex_lock(&mdiodev->bus->mdio_lock);
++	ret = rtl8372n_vlan_read(mdiodev, vlan->vid, &old_entry);
++	if (ret)
++		goto out_unlock;
++	ret = rtl8372n_port_pvid_read(mdiodev, port, &old_hw_pvid);
++	if (ret)
++		goto out_unlock;
++	old_pvid_valid = priv->bridge_pvid_valid[port];
++	old_bridge_pvid = priv->bridge_pvid[port];
++
++	members = (old_entry & RTL8372N_VLAN_MBR_MASK) & ~BIT(port);
++	untag = ((old_entry & RTL8372N_VLAN_UNTAG_MASK) >>
++		 RTL8372N_VLAN_UNTAG_SHIFT) & ~BIT(port);
++	if (!(members & RTL8372N_USER_PORT_MASK))
++		members &= ~BIT(RTL8372N_CPU_PORT);
++	if (!members) {
++		new_entry = 0;
++	} else {
++		new_entry = old_entry & ~(RTL8372N_VLAN_MBR_MASK |
++					 RTL8372N_VLAN_UNTAG_MASK);
++		new_entry |= members | (untag << RTL8372N_VLAN_UNTAG_SHIFT);
++	}
++
++	ret = rtl8372n_vlan_write(mdiodev, vlan->vid, new_entry);
++	if (ret)
++		goto restore;
++	if (priv->bridge_pvid_valid[port] &&
++	    priv->bridge_pvid[port] == vlan->vid)
++		priv->bridge_pvid_valid[port] = false;
++	ret = rtl8372n_vlan_read(mdiodev, vlan->vid, &readback);
++	if (ret)
++		goto restore;
++	if (readback != new_entry) {
++		ret = -EIO;
++		goto restore;
++	}
++	if (old_pvid_valid && old_bridge_pvid == vlan->vid) {
++		ret = zx279133_tagger_set_access_vlan(ds, port, 0, false);
++		if (ret)
++			goto restore;
++	}
++	goto out_unlock;
++
++restore:
++	priv->bridge_pvid_valid[port] = old_pvid_valid;
++	priv->bridge_pvid[port] = old_bridge_pvid;
++	rtl8372n_vlan_write(mdiodev, vlan->vid, old_entry);
++	rtl8372n_port_pvid_write(mdiodev, port, old_hw_pvid);
++out_unlock:
++	mutex_unlock(&mdiodev->bus->mdio_lock);
++	return ret;
++}
++
++static void zx279133_rtl8372n_port_stp_state_set(struct dsa_switch *ds,
++						 int port, u8 state)
++{
++	struct zx279133_rtl8372n *priv = ds->priv;
++	u32 hw_state;
++	u32 value;
++	int ret;
++
++	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
++		return;
++
++	switch (state) {
++	case BR_STATE_DISABLED:
++		hw_state = 0;
++		break;
++	case BR_STATE_BLOCKING:
++	case BR_STATE_LISTENING:
++		hw_state = 1;
++		break;
++	case BR_STATE_LEARNING:
++		hw_state = 2;
++		break;
++	case BR_STATE_FORWARDING:
++		hw_state = 3;
++		break;
++	default:
++		dev_err(ds->dev, "unsupported STP state %u for port %d\n",
++			state, port);
++		return;
++	}
++
++	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
++	ret = rtl8372n_modify_reg(priv->switch_mdiodev,
++				  RTL8372N_MSTP0_STATE,
++				  GENMASK(port * 2 + 1, port * 2),
++				  hw_state << (port * 2));
++	if (!ret)
++		ret = rtl8372n_read_reg(priv->switch_mdiodev,
++					RTL8372N_MSTP0_STATE, &value);
++	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
++	if (ret) {
++		dev_err(ds->dev, "failed to set STP state %u on port %d: %d\n",
++			state, port, ret);
++		return;
++	}
++	if (((value >> (port * 2)) & 0x3) != hw_state)
++		dev_err(ds->dev,
++			"STP state readback mismatch on port %d: reg=%#x expected=%u\n",
++			port, value, hw_state);
++}
++
++static int zx279133_rtl8372n_port_fdb_add(struct dsa_switch *ds, int port,
++					  const unsigned char *addr,
++					  u16 vid, struct dsa_db db)
++{
++	struct zx279133_rtl8372n *priv = ds->priv;
++	u32 words[3];
++	u32 readback[3];
++	u16 fid = vid ? vid : 1;
++	bool ivl = !!vid;
++	int ret;
++
++	if (port == RTL8372N_CPU_PORT)
++		return 0;
++	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
++		return -EINVAL;
++	if (!is_unicast_ether_addr(addr) || vid > 4095)
++		return -EINVAL;
++	if (vid && test_bit(port, &priv->vlan_filtering_mask))
++		return -EOPNOTSUPP;
++
++	rtl8372n_l2_encode_key(addr, fid, ivl, words);
++	words[1] |= (u32)(port & 0x3) << 30;
++	words[2] = (port >> 2) | (6 << 2) | BIT(5) | BIT(16);
++
++	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
++	ret = rtl8372n_l2_write_words(priv->switch_mdiodev, words);
++	if (!ret)
++		ret = rtl8372n_l2_lookup(priv->switch_mdiodev, addr, fid, ivl,
++					 readback);
++	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
++	if (ret)
++		return ret;
++	if (readback[0] != words[0] || readback[1] != words[1] ||
++	    readback[2] != words[2]) {
++		dev_err(ds->dev,
++			"FDB add readback mismatch for %pM vid %u port %d: %08x/%08x/%08x\n",
++			addr, vid, port, readback[0], readback[1], readback[2]);
++		return -EIO;
++	}
++
++	return 0;
++}
++
++static int zx279133_rtl8372n_port_fdb_del(struct dsa_switch *ds, int port,
++					  const unsigned char *addr,
++					  u16 vid, struct dsa_db db)
++{
++	struct zx279133_rtl8372n *priv = ds->priv;
++	u32 words[3];
++	u16 fid = vid ? vid : 1;
++	bool ivl = !!vid;
++	int ret;
++
++	if (port == RTL8372N_CPU_PORT)
++		return 0;
++	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
++		return -EINVAL;
++	if (!is_unicast_ether_addr(addr) || vid > 4095)
++		return -EINVAL;
++	if (vid && test_bit(port, &priv->vlan_filtering_mask))
++		return -EOPNOTSUPP;
++
++	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
++	ret = rtl8372n_l2_lookup(priv->switch_mdiodev, addr, fid, ivl, words);
++	if (ret == -ENOENT) {
++		ret = 0;
++		goto out_unlock;
++	}
++	if (ret)
++		goto out_unlock;
++
++	rtl8372n_l2_encode_key(addr, fid, ivl, words);
++	ret = rtl8372n_l2_write_words(priv->switch_mdiodev, words);
++	if (!ret) {
++		ret = rtl8372n_l2_lookup(priv->switch_mdiodev, addr, fid, ivl,
++					 words);
++		if (ret == -ENOENT)
++			ret = 0;
++		else if (!ret)
++			ret = -EIO;
++	}
++
++out_unlock:
++	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
++	return ret;
++}
++
++static int zx279133_rtl8372n_port_fdb_dump(struct dsa_switch *ds, int port,
++					   dsa_fdb_dump_cb_t *cb,
++					   void *data)
++{
++	struct zx279133_rtl8372n *priv = ds->priv;
++	u32 words[3];
++	unsigned char addr[ETH_ALEN];
++	u16 start = 0;
++	u16 entry;
++	u16 fid;
++	u16 vid;
++	unsigned int spa;
++	bool is_static;
++	bool ivl;
++	int ret = 0;
++
++	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
++		return -EINVAL;
++	if (test_bit(port, &priv->vlan_filtering_mask))
++		return 0;
++
++	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
++	for (;;) {
++		ret = rtl8372n_l2_next_uc(priv->switch_mdiodev, start, &entry,
++					  words);
++		if (ret == -ENOENT) {
++			ret = 0;
++			break;
++		}
++		if (ret)
++			break;
++
++		spa = ((words[1] >> 30) & 0x3) | ((words[2] & 0x3) << 2);
++		fid = (words[1] >> 16) & 0xfff;
++		ivl = !!(words[1] & BIT(29));
++		if (spa == port && (ivl || fid == 1)) {
++			addr[5] = words[0];
++			addr[4] = words[0] >> 8;
++			addr[3] = words[0] >> 16;
++			addr[2] = words[0] >> 24;
++			addr[1] = words[1];
++			addr[0] = words[1] >> 8;
++			vid = ivl ? fid : 0;
++			is_static = !!(words[2] & BIT(16));
++			ret = cb(addr, vid, is_static, data);
++			if (ret)
++				break;
++		}
++
++		if (entry == RTL8372N_L2_MAX_ADDRESS)
++			break;
++		start = entry + 1;
++	}
++	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
++
++	return ret;
++}
++
++static void
++zx279133_rtl8372n_phylink_fixed_state(struct dsa_switch *ds, int port,
++				      struct phylink_link_state *state)
++{
++	struct zx279133_rtl8372n *priv = ds->priv;
++	u32 link;
++	u32 speed;
++	u32 duplex;
++	int ret;
++
++	if (port == 8) {
++		state->link = true;
++		state->speed = SPEED_10000;
++		state->duplex = DUPLEX_FULL;
++		return;
++	}
++	if (port < RTL8372N_USER_PORT_MIN ||
++	    port > RTL8372N_USER_PORT_MAX || !priv->switch_mdiodev) {
++		state->link = false;
++		return;
++	}
++
++	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
++	ret = rtl8372n_read_reg(priv->switch_mdiodev,
++				RTL8372N_LINK_STATUS, &link);
++	if (!ret)
++		ret = rtl8372n_read_reg(priv->switch_mdiodev,
++					RTL8372N_SPEED_STATUS0, &speed);
++	if (!ret)
++		ret = rtl8372n_read_reg(priv->switch_mdiodev,
++					RTL8372N_DUPLEX_STATUS, &duplex);
++	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
++	if (ret) {
++		state->link = false;
++		return;
++	}
++
++	state->link = !!(link & BIT(port));
++	state->duplex = duplex & BIT(port) ? DUPLEX_FULL : DUPLEX_HALF;
++	switch ((speed >> ((port & 7) * 4)) & 0xf) {
++	case 0:
++		state->speed = SPEED_10;
++		break;
++	case 1:
++		state->speed = SPEED_100;
++		break;
++	case 2:
++		state->speed = SPEED_1000;
++		break;
++	case 4:
++		state->speed = SPEED_10000;
++		break;
++	case 5:
++		state->speed = SPEED_2500;
++		break;
++	case 6:
++		state->speed = SPEED_5000;
++		break;
++	default:
++		state->link = false;
++		state->speed = SPEED_UNKNOWN;
++		break;
++	}
++}
++
++static void zx279133_rtl8372n_phylink_get_caps(struct dsa_switch *ds,
++					       int port,
++					       struct phylink_config *config)
++{
++	if (port >= RTL8372N_USER_PORT_MIN &&
++	    port <= RTL8372N_USER_PORT_MAX) {
++		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
++			  config->supported_interfaces);
++		config->mac_capabilities = MAC_2500FD | MAC_SYM_PAUSE |
++					   MAC_ASYM_PAUSE;
++	} else if (port == 8) {
++		__set_bit(PHY_INTERFACE_MODE_10GBASER,
++			  config->supported_interfaces);
++		config->mac_capabilities = MAC_10000FD | MAC_SYM_PAUSE |
++					   MAC_ASYM_PAUSE;
++	}
++}
++
++struct zx279133_rtl8372n_stat {
++	char name[ETH_GSTRING_LEN];
++	unsigned int counter;
++};
++
++static const struct zx279133_rtl8372n_stat zx279133_rtl8372n_stats[] = {
++	{ "hw_tx_good_frames", RTL8372N_MIB_TX_GOOD_HIGH },
++	{ "hw_rx_good_frames", RTL8372N_MIB_RX_GOOD_HIGH },
++	{ "phy_tx_good_frames", RTL8372N_MIB_TX_GOOD_PHY_HIGH },
++	{ "phy_rx_good_frames", RTL8372N_MIB_RX_GOOD_PHY_HIGH },
++};
++
++static int zx279133_rtl8372n_get_sset_count(struct dsa_switch *ds, int port,
++					    int sset)
++{
++	if (sset != ETH_SS_STATS)
++		return 0;
++
++	return ARRAY_SIZE(zx279133_rtl8372n_stats);
++}
++
++static void zx279133_rtl8372n_get_strings(struct dsa_switch *ds, int port,
++					  u32 stringset, u8 *data)
++{
++	unsigned int i;
++
++	if (stringset != ETH_SS_STATS)
++		return;
++
++	for (i = 0; i < ARRAY_SIZE(zx279133_rtl8372n_stats); i++)
++		ethtool_puts(&data, zx279133_rtl8372n_stats[i].name);
++}
++
++static void zx279133_rtl8372n_get_ethtool_stats(struct dsa_switch *ds,
++						int port, u64 *data)
++{
++	struct zx279133_rtl8372n *priv = ds->priv;
++	unsigned int i;
++	int first_error = 0;
++	int ret;
++
++	memset(data, 0, sizeof(*data) * ARRAY_SIZE(zx279133_rtl8372n_stats));
++	if (!priv->switch_mdiodev || port > 8)
++		return;
++
++	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
++	for (i = 0; i < ARRAY_SIZE(zx279133_rtl8372n_stats); i++) {
++		ret = rtl8372n_mib_read(priv->switch_mdiodev, port,
++					zx279133_rtl8372n_stats[i].counter,
++					 &data[i]);
++		if (ret && !first_error)
++			first_error = ret;
++	}
++	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
++
++	if (first_error)
++		dev_warn_ratelimited(ds->dev,
++				     "failed to read port %d MIB counters: %d\n",
++				     port, first_error);
++}
++
++static const struct dsa_switch_ops zx279133_rtl8372n_dsa_ops = {
++	.get_tag_protocol = zx279133_rtl8372n_get_tag_protocol,
++	.setup = zx279133_rtl8372n_setup,
++	.port_bridge_join = zx279133_rtl8372n_port_bridge_join,
++	.port_bridge_leave = zx279133_rtl8372n_port_bridge_leave,
++	.port_vlan_filtering = zx279133_rtl8372n_port_vlan_filtering,
++	.port_vlan_add = zx279133_rtl8372n_port_vlan_add,
++	.port_vlan_del = zx279133_rtl8372n_port_vlan_del,
++	.port_stp_state_set = zx279133_rtl8372n_port_stp_state_set,
++	.port_fdb_add = zx279133_rtl8372n_port_fdb_add,
++	.port_fdb_del = zx279133_rtl8372n_port_fdb_del,
++	.port_fdb_dump = zx279133_rtl8372n_port_fdb_dump,
++	.phylink_get_caps = zx279133_rtl8372n_phylink_get_caps,
++	.phylink_fixed_state = zx279133_rtl8372n_phylink_fixed_state,
++	.get_sset_count = zx279133_rtl8372n_get_sset_count,
++	.get_strings = zx279133_rtl8372n_get_strings,
++	.get_ethtool_stats = zx279133_rtl8372n_get_ethtool_stats,
++};
++
++static int zx279133_rtl8372n_dsa_register(struct device *dev,
++					  struct zx279133_rtl8372n *priv)
++{
++	struct dsa_switch *ds;
++	int ret;
++
++	ds = devm_kzalloc(dev, sizeof(*ds), GFP_KERNEL);
++	if (!ds)
++		return -ENOMEM;
++
++	ds->dev = dev;
++	ds->num_ports = 9;
++	ds->ops = &zx279133_rtl8372n_dsa_ops;
++	ds->priv = priv;
++
++	ret = dsa_register_switch(ds);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to register RTL8372N DSA switch\n");
++
++	priv->ds = ds;
++	priv->dsa_registered = true;
++	dev_info(dev, "registered RTL8372N DSA switch\n");
++
++	return 0;
++}
++
++static int zx279133_rtl8372n_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct device_node *parent_np = dev->parent->of_node;
++	struct zx279133_rtl8372n *priv;
++	struct device_node *pcs_np;
++	struct device_node *switch_np;
++	int ret;
++
++	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
++	if (!priv)
++		return -ENOMEM;
++
++	priv->service = dev_get_drvdata(dev->parent);
++	if (!priv->service)
++		return dev_err_probe(dev, -EPROBE_DEFER,
++				     "NPPT LAN service is not ready\n");
++	if (!zx279133_lan_service_valid(priv->service))
++		return dev_err_probe(dev, -EINVAL,
++				     "incomplete NPPT LAN service\n");
++	if (!parent_np)
++		return dev_err_probe(dev, -ENODEV,
++				     "NPPT parent device tree node is missing\n");
++
++	ret = zx279133_lan_service_datapath_get(priv->service);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to acquire shared NPPT/IDM datapath\n");
++	priv->parent_datapath_held = true;
++
++	switch_np = of_parse_phandle(dev->of_node, "zte,mdio-handle", 0);
++	if (!switch_np) {
++		ret = -ENODEV;
++		dev_err(dev, "RTL8372N MDIO phandle is missing\n");
++		goto err_parent_datapath_put;
++	}
++	priv->switch_mdiodev =
++		fwnode_mdio_find_device(of_fwnode_handle(switch_np));
++	of_node_put(switch_np);
++	if (!priv->switch_mdiodev) {
++		ret = -EPROBE_DEFER;
++		dev_err(dev, "RTL8372N MDIO device is unavailable\n");
++		goto err_parent_datapath_put;
++	}
++
++	priv->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(priv->reset_gpio)) {
++		ret = dev_err_probe(dev, PTR_ERR(priv->reset_gpio),
++				    "failed to acquire RTL8372N reset GPIO\n");
++		priv->reset_gpio = NULL;
++		goto err_switch_put;
++	}
++	priv->switch_reset_asserted = true;
++	rtl8372n_hw_reset(dev, priv);
++
++	priv->serdes = devm_of_phy_get(dev, parent_np, "lan-serdes");
++	if (IS_ERR(priv->serdes)) {
++		ret = dev_err_probe(dev, PTR_ERR(priv->serdes),
++				    "Uni SerDes PHY is unavailable\n");
++		goto err_switch_put;
++	}
++
++	ret = phy_set_mode_ext(priv->serdes, PHY_MODE_ETHERNET,
++			       PHY_INTERFACE_MODE_USXGMII);
++	if (ret) {
++		dev_err_probe(dev, ret,
++			      "failed to select Uni SerDes USXGMII mode\n");
++		goto err_switch_put;
++	}
++
++	ret = phy_power_on(priv->serdes);
++	if (ret) {
++		dev_warn(dev, "Uni SerDes first lock attempt failed: %d; retrying\n",
++			 ret);
++		msleep(20);
++		ret = phy_power_on(priv->serdes);
++	}
++	if (ret) {
++		dev_err_probe(dev, ret,
++			      "failed to power on Uni SerDes\n");
++		goto err_switch_put;
++	}
++	priv->serdes_powered = true;
++
++	pcs_np = of_parse_phandle(parent_np, "zte,lan-pcs-handle", 0);
++	if (!pcs_np) {
++		ret = -ENODEV;
++		dev_err(dev, "LAN PCS phandle is missing\n");
++		goto err_power_off;
++	}
++
++	priv->xpcs_mdiodev = fwnode_mdio_find_device(of_fwnode_handle(pcs_np));
++	of_node_put(pcs_np);
++	if (!priv->xpcs_mdiodev) {
++		ret = -EPROBE_DEFER;
++		dev_err(dev, "XPCS0 MDIO device is unavailable\n");
++		goto err_power_off;
++	}
++
++	ret = pm_runtime_resume_and_get(priv->xpcs_mdiodev->bus->parent);
++	if (ret < 0) {
++		mdio_device_put(priv->xpcs_mdiodev);
++		dev_err(dev, "failed to enable XPCS0 CSR clock: %d\n", ret);
++		goto err_power_off;
++	}
++	priv->xpcs_runtime_held = true;
++	platform_set_drvdata(pdev, priv);
++
++	ret = zx279133_lan_xpcs_configure(priv);
++	if (ret) {
++		dev_err(dev, "failed to configure XPCS0 USXGMII mode: %d\n", ret);
++		goto err_xpcs_runtime;
++	}
++
++	zx279133_lan_xmac_configure(priv);
++	ret = zx279133_lan_datapath_enable(priv);
++	if (ret) {
++		dev_err(dev, "failed to enable XMAC0 datapath: %d\n", ret);
++		goto err_xmac_restore;
++	}
++	usleep_range(10000, 11000);
++	if (!priv->switch_mdiodev) {
++		ret = -ENODEV;
++		dev_err(dev, "RTL8372N MDIO device is unavailable\n");
++		goto err_datapath_restore;
++	}
++
++	ret = rtl8372n_minimal_core_init(dev, priv);
++	if (ret)
++		goto err_datapath_restore;
++	msleep(5000);
++
++	if (!priv->switch_initialized) {
++		dev_err(dev, "RTL8372N core initialization incomplete\n");
++		ret = -EINVAL;
++		goto err_datapath_restore;
++	}
++	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
++	ret = rtl8372n_phy_write(priv->switch_mdiodev, BIT(7),
++				 0x1f, 0xa5d0, 0);
++	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
++	if (ret)
++		goto err_datapath_restore;
++	dev_dbg(dev, "RTL8372N PHY7 page31:a5d0 set to 0\n");
++
++	ret = rtl8372n_cpu8_link_init(dev, priv);
++	if (ret)
++		goto err_datapath_restore;
++	msleep(1000);
++	ret = zx279133_lan_xpcs_reapply_after_switch(priv);
++	if (ret) {
++		dev_err(dev, "XPCS0 did not relock after switch setup: %d\n", ret);
++		goto err_datapath_restore;
++	}
++	msleep(1000);
++
++	ret = rtl8372n_port7_vlan_init(dev, priv);
++	if (ret)
++		goto err_datapath_restore;
++	zx279133_lan_service_datapath_set_ready(priv->service, true);
++	priv->parent_datapath_ready = true;
++	ret = zx279133_rtl8372n_dsa_register(dev, priv);
++	if (ret)
++		goto err_datapath_restore;
++	zx279133_lan_service_set_dsa_active(priv->service, true);
++	msleep(2000);
++	dev_info(dev, "XMAC0/RTL8372N DSA datapath enabled\n");
++
++	return 0;
++
++err_datapath_restore:
++	if (priv->parent_datapath_ready) {
++		int quiesce_ret;
++
++		zx279133_lan_service_datapath_set_ready(priv->service, false);
++		priv->parent_datapath_ready = false;
++		quiesce_ret =
++			zx279133_lan_service_datapath_quiesce(priv->service);
++		if (quiesce_ret)
++			dev_err(dev,
++				"LAN probe unwind is not quiescent; forcing hardware reset and cleanup: %d\n",
++				quiesce_ret);
++	}
++	if (priv->vlan62_tx_active) {
++		zx279133_lan_service_set_vlan62_active(priv->service, false);
++		priv->vlan62_tx_active = false;
++	}
++	zx279133_lan_datapath_restore(priv);
++err_xmac_restore:
++	zx279133_lan_xmac_restore(priv);
++	zx279133_lan_xpcs_restore(priv);
++
++err_xpcs_runtime:
++
++	pm_runtime_put(priv->xpcs_mdiodev->bus->parent);
++	priv->xpcs_runtime_held = false;
++	mdio_device_put(priv->xpcs_mdiodev);
++	if (priv->switch_mdiodev) {
++		mdio_device_put(priv->switch_mdiodev);
++		priv->switch_mdiodev = NULL;
++	}
++err_power_off:
++	if (priv->serdes_powered) {
++		phy_power_off(priv->serdes);
++		priv->serdes_powered = false;
++	}
++err_switch_put:
++	if (priv->reset_gpio) {
++		rtl8372n_reset_assert(priv);
++		msleep(RTL8372N_RESET_ASSERT_MS);
++	}
++	if (priv->switch_mdiodev) {
++		mdio_device_put(priv->switch_mdiodev);
++		priv->switch_mdiodev = NULL;
++	}
++err_parent_datapath_put:
++	if (priv->parent_datapath_held) {
++		zx279133_lan_service_datapath_put(priv->service);
++		priv->parent_datapath_held = false;
++	}
++	return ret;
++}
++
++static void zx279133_rtl8372n_remove(struct platform_device *pdev)
++{
++	struct zx279133_rtl8372n *priv = platform_get_drvdata(pdev);
++	int ret;
++
++	if (priv->parent_datapath_ready) {
++		zx279133_lan_service_datapath_set_ready(priv->service, false);
++		priv->parent_datapath_ready = false;
++	}
++	zx279133_lan_service_set_dsa_active(priv->service, false);
++	synchronize_net();
++	if (priv->dsa_registered) {
++		dsa_unregister_switch(priv->ds);
++		priv->dsa_registered = false;
++	}
++	if (priv->parent_datapath_held) {
++		ret = zx279133_lan_service_datapath_quiesce(priv->service);
++		if (ret)
++			dev_err(&pdev->dev,
++				"LAN teardown is not quiescent; forcing hardware reset and cleanup: %d\n",
++				ret);
++	}
++	if (priv->vlan62_tx_active) {
++		zx279133_lan_service_set_vlan62_active(priv->service, false);
++		priv->vlan62_tx_active = false;
++	}
++	rtl8372n_reset_assert(priv);
++	msleep(RTL8372N_RESET_ASSERT_MS);
++	dev_info(&pdev->dev, "RTL8372N hardware reset asserted\n");
++	zx279133_lan_datapath_restore(priv);
++	zx279133_lan_xmac_restore(priv);
++	zx279133_lan_xpcs_restore(priv);
++	if (priv->xpcs_runtime_held)
++		pm_runtime_put(priv->xpcs_mdiodev->bus->parent);
++	mdio_device_put(priv->xpcs_mdiodev);
++	if (priv->switch_mdiodev)
++		mdio_device_put(priv->switch_mdiodev);
++	if (priv->serdes_powered)
++		phy_power_off(priv->serdes);
++	if (priv->parent_datapath_held) {
++		zx279133_lan_service_datapath_put(priv->service);
++		priv->parent_datapath_held = false;
++	}
++}
++
++static const struct of_device_id zx279133_rtl8372n_of_match[] = {
++	{ .compatible = "zte,zx279133-rtl8372n" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, zx279133_rtl8372n_of_match);
++
++static struct platform_driver zx279133_rtl8372n_driver = {
++	.probe = zx279133_rtl8372n_probe,
++	.remove = zx279133_rtl8372n_remove,
++	.driver = {
++		.name = "zx279133-rtl8372n",
++		.of_match_table = zx279133_rtl8372n_of_match,
++	},
++};
++module_platform_driver(zx279133_rtl8372n_driver);
++
++MODULE_DESCRIPTION("ZTE ZX279133 RTL8372N DSA switch driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/net/ethernet/zte/zx279133.h b/drivers/net/ethernet/zte/zx279133.h
+index fea7ab7de1624a9f570222a15fdd19680a43b375..96dde3e544d7b3028f258c0d2caa12fb40aacbf0 100644
+--- a/drivers/net/ethernet/zte/zx279133.h
++++ b/drivers/net/ethernet/zte/zx279133.h
+@@ -12,15 +12,23 @@
+ #include <linux/workqueue.h>
+ 
+ #include "zx279133-stats.h"
++#include "zx279133-lan.h"
+ 
+ #define ZX279133_NUM_CLOCKS	6
+ #define ZX279133_NUM_IRQS	5
+ 
+-/* Validated WAN hardware constants. */
++/* Validated WAN/LAN hardware constants. */
+ #define zx279133_tx_queue		1
+ #define zx279133_tx_port		6
++#define ZX279133_LAN_TX_PORT		5
++#define ZX279133_LAN_SOURCE_PORT_MIN	59
++#define ZX279133_LAN_SOURCE_PORT_MAX	62
++#define ZX279133_LAN_SOURCE_PORT_NATIVE	5
++#define ZX279133_LAN_INGRESS_VID	1
++#define ZX279133_LAN_VID		62
+ #define ZX279133_TX_RECLAIM_DELAY_MS	10
+ #define ZX279133_DATAPATH_USER_WAN	BIT(0)
++#define ZX279133_DATAPATH_USER_LAN	BIT(1)
+ #define zx279133_tx_selector		0x0f
+ #define zx279133_tx_pon_control		0x08000000
+ #define zx279133_tx_word4_bit23		0
+@@ -489,6 +497,8 @@ struct zx279133_eth;
+ struct zx279133_eth {
+ 	struct device *dev;
+ 	struct net_device *ndev;
++	struct net_device *lan_ndev;
++	struct zx279133_lan_service lan_service;
+ 	struct zx279133_netdev_stats stats;
+ 	void __iomem *base;
+ 	void __iomem *pps_base;
+@@ -598,7 +608,7 @@ struct zx279133_eth {
+ 	spinlock_t tx_lock;
+ 	/* Serializes RX and local interrupt enable state. */
+ 	spinlock_t irq_lock;
+-	/* Serializes XMAC reset and SOPC state. */
++	/* Serializes shared XMAC reset and SOPC state with the LAN child. */
+ 	struct mutex xmac_lock;
+ 	/* Serializes ownership of the shared NPPT/IDM datapath. */
+ 	struct mutex datapath_lock;
+@@ -607,6 +617,9 @@ struct zx279133_eth {
+ 	struct delayed_work rx_refill_work;
+ 	unsigned long datapath_users;
+ 	bool hardware_prepared;
++	bool lan_datapath_ready;
++	bool lan_vlan62_active;
++	bool lan_dsa_active;
+ 	bool serdes_powered;
+ 	bool np_reset_prepared;
+ 	bool greg_prepared;
+@@ -645,7 +658,10 @@ struct zx279133_eth {
+ static inline struct zx279133_netdev_stats *
+ zx279133_netdev_stats(struct zx279133_eth *eth, struct net_device *ndev)
+ {
+-	return &eth->stats;
++	if (ndev == eth->ndev)
++		return &eth->stats;
++
++	return &((struct zx279133_lan_netdev_priv *)netdev_priv(ndev))->stats;
+ }
+ 
+ static inline void
+@@ -712,5 +728,6 @@ int zx279133_hardware_prepare(struct zx279133_eth *eth);
+ void zx279133_hardware_unprepare(struct zx279133_eth *eth);
+ extern const struct ethtool_ops zx279133_ethtool_ops;
+ extern const struct net_device_ops zx279133_netdev_ops;
++extern const struct zx279133_lan_service_ops zx279133_lan_service_ops;
+ 
+ #endif /* __ZX279133_H__ */
+diff --git a/include/net/dsa.h b/include/net/dsa.h
+index 5cb456bf46394bcb9db6f5d4206aa36a44000136..be1d387a9f7104f19d22efea83afd8d73ee50eb5 100644
+--- a/include/net/dsa.h
++++ b/include/net/dsa.h
+@@ -55,6 +55,7 @@ struct tc_action;
+ #define DSA_TAG_PROTO_LAN937X_VALUE		27
+ #define DSA_TAG_PROTO_VSC73XX_8021Q_VALUE	28
+ #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
++#define DSA_TAG_PROTO_ZX279133_RTL8372N_VALUE	30
+ 
+ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
+@@ -87,6 +88,7 @@ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_RZN1_A5PSW	= DSA_TAG_PROTO_RZN1_A5PSW_VALUE,
+ 	DSA_TAG_PROTO_LAN937X		= DSA_TAG_PROTO_LAN937X_VALUE,
+ 	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
++	DSA_TAG_PROTO_ZX279133_RTL8372N = DSA_TAG_PROTO_ZX279133_RTL8372N_VALUE,
+ };
+ 
+ struct dsa_switch;
+diff --git a/include/net/dsa_zx279133_rtl8372n.h b/include/net/dsa_zx279133_rtl8372n.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..7b81d06cfb3e0db274bbbee8d0faf932192235e5
+--- /dev/null
++++ b/include/net/dsa_zx279133_rtl8372n.h
+@@ -0,0 +1,53 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _NET_DSA_ZX279133_RTL8372N_H
++#define _NET_DSA_ZX279133_RTL8372N_H
++
++#include <linux/bitops.h>
++#include <linux/errno.h>
++#include <linux/types.h>
++#include <net/dsa.h>
++
++#define ZX279133_RTL8372N_USER_PORT_MIN	4
++#define ZX279133_RTL8372N_USER_PORT_MAX	7
++#define ZX279133_RTL8372N_ACCESS_UNTAGGED	BIT(16)
++
++struct zx279133_rtl8372n_tagger_data {
++	u32 access_vlan[ZX279133_RTL8372N_USER_PORT_MAX + 1];
++};
++
++static inline int zx279133_tagger_set_access_vlan(struct dsa_switch *ds,
++						  int port, u16 pvid,
++						  bool untagged)
++{
++	struct zx279133_rtl8372n_tagger_data *data;
++
++	if (port < ZX279133_RTL8372N_USER_PORT_MIN ||
++	    port > ZX279133_RTL8372N_USER_PORT_MAX)
++		return -EINVAL;
++
++	data = READ_ONCE(ds->tagger_data);
++	if (!data)
++		return -ENODEV;
++
++	WRITE_ONCE(data->access_vlan[port],
++		   pvid | (untagged ? ZX279133_RTL8372N_ACCESS_UNTAGGED : 0));
++	return 0;
++}
++
++static inline u32
++zx279133_tagger_get_access_vlan(struct dsa_switch *ds, int port)
++{
++	struct zx279133_rtl8372n_tagger_data *data;
++
++	if (port < ZX279133_RTL8372N_USER_PORT_MIN ||
++	    port > ZX279133_RTL8372N_USER_PORT_MAX)
++		return 0;
++
++	data = READ_ONCE(ds->tagger_data);
++	if (!data)
++		return 0;
++
++	return READ_ONCE(data->access_vlan[port]);
++}
++
++#endif /* _NET_DSA_ZX279133_RTL8372N_H */
+diff --git a/net/dsa/Kconfig b/net/dsa/Kconfig
+index 869cbe57162f9d78569ff7f042df49cf27c5629b..ab6bea63cd00ca71dac47e11e3338d1af54b8c11 100644
+--- a/net/dsa/Kconfig
++++ b/net/dsa/Kconfig
+@@ -184,6 +184,14 @@ config NET_DSA_TAG_VSC73XX_8021Q
+ 	  Say Y or M if you want to enable support for tagging frames with a
+ 	  custom VLAN-based header.
+ 
++config NET_DSA_TAG_ZX279133_RTL8372N
++	tristate "Tag driver for ZX279133 connected RTL8372N switches"
++	help
++	  Say Y or M to use the private VLAN 59 through 62 CPU-port transport
++	  between the ZX279133 LAN conduit and an RTL8372N switch. This is
++	  specific to the SR1010 XMAC0/CPU-port-8 topology. The transport VLAN
++	  remains private to the conduit and DSA tagger.
++
+ config NET_DSA_TAG_XRS700X
+ 	tristate "Tag driver for XRS700x switches"
+ 	help
+diff --git a/net/dsa/Makefile b/net/dsa/Makefile
+index 555c07cfeb71285b1904bb5ffa0ec8702c1267f8..5c2cee928f4831de9fae8705d59e54d3bb8af870 100644
+--- a/net/dsa/Makefile
++++ b/net/dsa/Makefile
+@@ -38,6 +38,7 @@ obj-$(CONFIG_NET_DSA_TAG_RZN1_A5PSW) += tag_rzn1_a5psw.o
+ obj-$(CONFIG_NET_DSA_TAG_SJA1105) += tag_sja1105.o
+ obj-$(CONFIG_NET_DSA_TAG_TRAILER) += tag_trailer.o
+ obj-$(CONFIG_NET_DSA_TAG_VSC73XX_8021Q) += tag_vsc73xx_8021q.o
++obj-$(CONFIG_NET_DSA_TAG_ZX279133_RTL8372N) += tag_zx279133_rtl8372n.o
+ obj-$(CONFIG_NET_DSA_TAG_XRS700X) += tag_xrs700x.o
+ 
+ # for tracing framework to find trace.h
+diff --git a/net/dsa/tag_zx279133_rtl8372n.c b/net/dsa/tag_zx279133_rtl8372n.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ba521112b12dee537347083f5df7fda54fdf7df
+--- /dev/null
++++ b/net/dsa/tag_zx279133_rtl8372n.c
+@@ -0,0 +1,162 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Fixed CPU-link tag for the SR1010 ZX279133-to-RTL8372N connection.
++ *
++ * The SR1010 LAN mapping assigns private transport VLANs 59..62 to physical
++ * ports 4..7. Untagged access VLANs are carried as software metadata inside
++ * that private transport contract; the private VLAN IDs are never exposed as
++ * customer VLAN state.
++ */
++#include <linux/dsa/8021q.h>
++#include <linux/if_vlan.h>
++#include <linux/slab.h>
++#include <net/dsa_zx279133_rtl8372n.h>
++
++#include "tag.h"
++#include "tag_8021q.h"
++
++#define ZX279133_RTL8372N_TAG_NAME	"zx279133-rtl8372n"
++#define ZX279133_RTL8372N_VID_BASE	55
++
++static int zx279133_rtl8372n_connect(struct dsa_switch *ds)
++{
++	struct zx279133_rtl8372n_tagger_data *data;
++
++	if (ds->tagger_data)
++		return -EBUSY;
++
++	data = kzalloc(sizeof(*data), GFP_KERNEL);
++	if (!data)
++		return -ENOMEM;
++
++	ds->tagger_data = data;
++	return 0;
++}
++
++static void zx279133_rtl8372n_disconnect(struct dsa_switch *ds)
++{
++	kfree(ds->tagger_data);
++	ds->tagger_data = NULL;
++}
++
++static bool zx279133_rtl8372n_transport_vid(u16 vid)
++{
++	return vid >= ZX279133_RTL8372N_VID_BASE +
++		      ZX279133_RTL8372N_USER_PORT_MIN &&
++	       vid <= ZX279133_RTL8372N_VID_BASE +
++		      ZX279133_RTL8372N_USER_PORT_MAX;
++}
++
++static struct sk_buff *
++zx279133_rtl8372n_xmit(struct sk_buff *skb, struct net_device *netdev)
++{
++	struct dsa_port *dp = dsa_user_to_port(netdev);
++	u32 access;
++	u16 vid;
++
++	if (!dp || !dp->ds->tagger_data)
++		return NULL;
++	if (dp->index < ZX279133_RTL8372N_USER_PORT_MIN ||
++	    dp->index > ZX279133_RTL8372N_USER_PORT_MAX)
++		return NULL;
++
++	vid = ZX279133_RTL8372N_VID_BASE + dp->index;
++	access = zx279133_tagger_get_access_vlan(dp->ds, dp->index);
++	if (access & ZX279133_RTL8372N_ACCESS_UNTAGGED) {
++		u16 access_pvid = access & VLAN_VID_MASK;
++		u16 skb_vid = 0;
++		bool tagged = false;
++
++		if (skb_vlan_tag_present(skb)) {
++			tagged = true;
++			skb_vid = skb_vlan_tag_get_id(skb);
++		} else if (eth_type_vlan(skb->protocol) &&
++			   pskb_may_pull(skb, VLAN_ETH_HLEN)) {
++			tagged = true;
++			skb_vid = ntohs(vlan_eth_hdr(skb)->h_vlan_TCI) &
++				  VLAN_VID_MASK;
++		}
++		if (tagged && skb_vid != access_pvid)
++			return NULL;
++		if (tagged && skb_vlan_pop(skb))
++			return NULL;
++		if (skb_vlan_tag_present(skb) || eth_type_vlan(skb->protocol))
++			return NULL;
++	}
++
++	return dsa_8021q_xmit(skb, netdev, ETH_P_8021Q, vid);
++}
++
++static struct sk_buff *
++zx279133_rtl8372n_rcv(struct sk_buff *skb, struct net_device *netdev)
++{
++	struct dsa_port *user_dp;
++	struct net_device *user;
++	struct dsa_switch *ds;
++	u16 access_pvid;
++	u16 vid;
++	u16 port;
++
++	/* DSA classifies conduit traffic as ETH_P_XDSA before invoking the
++	 * tagger, so the private 802.1Q sideband must be recognized from the
++	 * first payload bytes rather than skb->protocol.
++	 */
++	if (!skb_vlan_tag_present(skb) && pskb_may_pull(skb, VLAN_HLEN)) {
++		struct vlan_hdr *vhdr = (struct vlan_hdr *)skb->data;
++
++		vid = ntohs(vhdr->h_vlan_TCI) & VLAN_VID_MASK;
++		if (zx279133_rtl8372n_transport_vid(vid)) {
++			/* LAN-first NPPT initialization preserves the switch's
++			 * transport VLAN header in-band. Move it to hwaccel form so
++			 * the generic VLAN helper repairs the Ethernet header, then
++			 * consume the private CPU-link transport tag below.
++			 */
++			skb->protocol = htons(ETH_P_8021Q);
++			skb = skb_vlan_untag(skb);
++			if (!skb)
++				return NULL;
++		}
++	}
++	if (!skb_vlan_tag_present(skb))
++		return NULL;
++
++	vid = skb_vlan_tag_get_id(skb);
++	if (!zx279133_rtl8372n_transport_vid(vid))
++		return NULL;
++	port = vid - ZX279133_RTL8372N_VID_BASE;
++	user = dsa_conduit_find_user(netdev, 0, port);
++	if (!user)
++		return NULL;
++	user_dp = dsa_user_to_port(user);
++	if (!user_dp || !user_dp->ds || !user_dp->ds->tagger_data)
++		return NULL;
++	ds = user_dp->ds;
++	access_pvid = zx279133_tagger_get_access_vlan(ds, port);
++	access_pvid &= VLAN_VID_MASK;
++
++	__vlan_hwaccel_clear_tag(skb);
++	if (access_pvid && !skb_vlan_tag_present(skb) &&
++	    !eth_type_vlan(skb->protocol))
++		__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), access_pvid);
++	skb->dev = user;
++
++	return skb;
++}
++
++static const struct dsa_device_ops zx279133_rtl8372n_netdev_ops = {
++	.name			= ZX279133_RTL8372N_TAG_NAME,
++	.proto			= DSA_TAG_PROTO_ZX279133_RTL8372N,
++	.xmit			= zx279133_rtl8372n_xmit,
++	.rcv			= zx279133_rtl8372n_rcv,
++	.connect		= zx279133_rtl8372n_connect,
++	.disconnect		= zx279133_rtl8372n_disconnect,
++	.needed_headroom	= VLAN_HLEN,
++	.promisc_on_conduit	= true,
++};
++
++MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_ZX279133_RTL8372N,
++			    ZX279133_RTL8372N_TAG_NAME);
++module_dsa_tag_driver(zx279133_rtl8372n_netdev_ops);
++
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("DSA tagger for ZX279133 connected RTL8372N");

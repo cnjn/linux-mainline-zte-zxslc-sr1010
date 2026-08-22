@@ -1,0 +1,52 @@
+Patch 0013: net: ethernet: zte: add ZX279133 LAN conduit
+
+Scope:
+- built-in zx279133-lan-conduit platform child
+- typed zx279133_lan_service boundary
+- shared WAN/LAN NPPT, IDM, RX/NAPI, TX-ring and runtime-PM ownership
+- LAN source-port 5/59..62 demultiplexing and private transport VLAN 59..62
+- no RTL8372N switch or DSA tagger implementation in this patch
+
+Changes:
+- add independently owned lan-cpu0 instead of allocating the conduit netdev in
+  the NPPT probe
+- populate LAN child devices only after eth0 and the typed parent service are
+  ready
+- add first-user/last-user shared hardware ownership and fail-closed TX quiesce
+- retain the physical eth0 queue as shared-ring BQL owner while preserving
+  per-origin packet, byte, drop and completion accounting
+- route LAN-originated TX to NP logical destination port 5
+- demultiplex descriptor source 5 for LAN-only startup and 59..62 for concurrent
+  WAN/LAN operation, preserving the corresponding private VLAN sideband for the
+  later DSA tagger
+
+Static/build validation:
+- patch applies after WAN-only patch 0012
+- applying 0012+0013 makes all NPPT/core/LAN source files byte-identical to the
+  board-tested current worktree; only the intentionally later RTL8372N Kconfig
+  and Makefile entries remain absent
+- strict whole-patch checkpatch reports 0 errors and 0 checks; its sole warning
+  is the generic new-file MAINTAINERS reminder
+- git diff --check passes
+- 0012+0013 configuration builds with CONFIG_ZTE_ZX279133_ETH=y and
+  CONFIG_ZTE_ZX279133_LAN_CONDUIT=y
+- independent review gave GO for the split and confirmed that patch 0013 does
+  not modify the frozen MAC, NP or TM register ordering
+
+Board validation with the existing later RTL8372N/tagger implementation:
+- full FIT SHA-256:
+  36bff11bc43df8e23b47c1131db76e2b7decd6cd708977acfe64e44b0df82668
+- cold boot WAN 2.5G and VLAN100 lan1 each passed interface-bound ping
+- LAN host-to-board reached 940 Mbit/s while WAN remained reachable
+- taking eth0 down preserved stable LAN ping 5/5
+- bringing WAN back restored WAN 5/5 and retained LAN connectivity
+- same-boot RTL8372N unload/reload restored LAN after normal bidirectional
+  neighbor priming; subsequent LAN and WAN ping passed 5/5
+- no Oops, panic, watchdog or shared-datapath timeout was observed
+
+Residual upstream architecture risks:
+- this patch intentionally carries the evidenced SR1010 private transport VLAN
+  and source-port contract required by the later switch/tagger patch
+- the typed service still exposes NPPT access and XMAC serialization operations
+  to the switch integration; subsystem ownership requires review with patch 0014
+- tagged/trunk customer VLAN support is outside the validated contract

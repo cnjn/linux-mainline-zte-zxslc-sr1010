@@ -1,0 +1,79 @@
+# original-seq	original-commit	compact-patch	subject
+0001	b858b3823df90a3eeafc8835c718c4dec231858c	0001	tty: serial: pl011: add ZTE ZX279133 support
+0002	e7963a8c91cab3c2c6ed92226ae99caaa3cccb5b	0001	clk: zte: add ZX279133 clock and UART reset support
+0003	25f2269816b5918686092a1667528aecea607ce9	0001	watchdog: add ZTE ZX279133 support
+0004	8d507d4850407f8974e8b320e5594b8fccbe3dae	0001	arm64: dts: zte: add ZX279133 SR1010 stage 1.5 support
+0005	33e356d78f5c014b54cb5474e965f1d743f204f5	0001	arm64: defconfig: enable ZTE ZX279133 stage 1.5 drivers
+0006	5333aee7d23aeb9c4e8a6bc6ddd8729a3509248f	0001	arm64: dts: zte: add ZX279133 SR1010 mainline support
+0007	6870b8bbfefb1b27c328b24301aa9e0ede219cdc	0002	arm64: dts: zte: enable SR1010 PVT sensor
+0008	4e7d3d63d3b7374e222299636858d772e3b72e33	0002	zte: zx279133: complete PVT clock and thermal model
+0009	addc6720a8a9be78f085e6075c3ece107beec86c	0002	arm64: dts: zte: add SR1010 status LEDs and reset key
+0010	1f7bb8e5de131eb0c8493928b05c2aff73741599	0002	clk: zte: zx279133: keep USB CCI clock enabled
+0011	270ccb7778f524819496a37662a64718d40e6ee9	0002	arm64: dts: zte: enable USB on SR1010
+0012	39dd2ed0d625a4a12cc14f2f9e5ad0f4290bf53d	0003	dt-bindings: mtd: spi-nand: add strict read-only mode
+0013	ded173c9aff31fb174d925b8d9c98219a868e56e	0003	mtd: add fail-closed partition registration helper
+0014	34fb7be4882c47b3a5ee97da919a1b5b391426a9	0003	mtd: spinand: enforce strict read-only operation
+0015	e7ef22679c67a54cba7165ae1eb019b260eb6f4c	0003	arm64: dts: zte: enable read-only SPI NAND on SR1010
+0016	6e88522fa1982973dbd04370ffa72f6e8eb01f62	0003	dt-bindings: mtd: spi-nand: add partitions-only mode
+0017	32d91a90be9aef609f348e306d18235a8930c098	0003	mtd: spinand: add explicit partitions-only mode
+0018	4d9ee671df7dad1796b1b34d5fb5a9b4217ca7b3	0004	dt-bindings: usb: add ZTE ZX279133 xHCI controller
+0019	6e71ff466ca476907efee1343a093fc5776f980f	0004	usb: host: xhci-plat: manage ZX279133 CCI clock
+0020	1f1689d447e0ecf16943874e3e78bfed9dc4ab3f	0004	arm64: dts: zte: give ZX279133 xHCI its CCI clock
+0021	04fcd8dc1fa7df5dace8666ace93800eb5080ed3	0004	clk: zte: zx279133: drop USB CCI clock workaround
+0022	71493366e0647b92e477874d061e00077538ee5e	0005	dt-bindings: clock: zte: correct ZX279133 LSP1 inputs
+0023	9b049d54f7bb1a97dfd36f1d82b57df0e6640730	0005	clk: zte: zx279133: correct LSP1 gates and add eFuse clocks
+0024	5320553fc6c48223392044c835684504fd7d4d84	0005	dt-bindings: nvmem: add ZTE ZX279133 eFuse
+0025	38314fed514d727a4e24f7cb37ad422e6e7d5a6e	0005	nvmem: add ZTE ZX279133 eFuse provider
+0026	d658f0aee4f24ced38148f0a2e205ab5d33575f6	0005	dt-bindings: hwmon: require ZX279133 PVT calibration
+0027	572f6a1be01af51e0283f13b5ab049997ff0f8ea	0005	hwmon: zx279133-pvt: require NVMEM ttrim calibration
+0028	6b986312d6ed116e850b0f08f1c3891e8c86f577	0005	arm64: dts: zte: add ZX279133 eFuse calibration
+0029	f7fd3f388f9bf5d5ff847e1bc87338e94c2db729	0005	arm64: dts: zte: enable second SR1010 watchdog
+0030	9993aa49f42e32582e2c5899cc8b99b02f22ba8c	0006	dt-bindings: clock: zte: add ZX279133 top clock outputs
+0031	ddc22c9f08048c43b36916562e13e562d6d535a0	0006	clk: zte: zx279133: model firmware-selected top clocks
+0032	d40d1efb732778c0e091472035bf1e52929988e4	0006	arm64: dts: zte: describe ZX279133 top clock tree
+0033	268c555dc1db3e2555edf4b0e8a59f335209a655	0007	dt-bindings: pinctrl: zte: add ZX279133 PWM pins
+0034	829e06c51f899edd6181f4b22cdeeedc3932bf6d	0007	pinctrl: zte: add ZX279133 PWM mux function
+0035	fe0962ca8d917aee69f44fcb1ed60a104e964f07	0007	dt-bindings: pinctrl: zte: add PWM example
+0036	07061d5dc9bc004644c6ea13f5cd9164dfa7aa75	0007	dt-bindings: clock: add ZX279133 PWM clocks
+0037	628b504fc54a7e55f757dc3ff7508c1c867a4b30	0007	clk: zte: add ZX279133 PWM clocks
+0038	10352b6e70657d8be8897157b6137b61e8b3632d	0007	dt-bindings: soc: add ZX279133 PWM audit node
+0039	633b4494c6153592b68e40639952342440d54365	0007	soc: zte: add ZX279133 PWM read-only audit driver
+0040	9f14cb08612254463f2f5d365283a642a87c17db	0007	hwmon: zx279133: expose PVT supply voltage
+0041	06a6842b89259d6c75ad6beacd3e61f06bfdc45f	0007	soc: zte: guard ZX279133 PWM audit clock access
+0042	aefa9aec2110b21c9ccb080e7024db6dcda1b45e	0007	clk: zte: add ZX279133 CPU frequency probe mode
+0043	d34fb5eb7a0a189e03eff233edebc39a7ee8ffa6	0007	dt-bindings: pwm: add ZTE ZX279133 controller
+0044	da6a1e7650065780258fb5f672216f37163962a1	0007	pwm: add ZTE ZX279133 controller support
+0045	5706eaa4a64a54897f2608d374ea3291d809040e	0007	arm64: dts: zte: add disabled ZX279133 PWM controller
+0046	a72dc7b657aeb646e27da440611603bc75cafe6f	0008	dt-bindings: clock: add ZX279133 MDIO clocks
+0047	335c330207582bc8613848d8170afe611f75c907	0008	clk: zte: add ZX279133 MDIO clocks and resets
+0048	79d1e6cb79cb4b5137ef9648330857c84adc6063	0008	arm64: dts: zte: add ZX279133 MDIO clock inputs
+0049	93587bac603ce28decd92181316180b883e8bf68	0008	dt-bindings: net: add ZTE ZX279133 MDIO
+0050	98e992705b2e426ee5d30a591363d6bc720fd569	0008	net: mdio: add ZTE ZX279133 controller
+0051	e10ab35b69a4a5e94bdac689e71dc984d5d7cbeb	0008	arm64: dts: zte: add ZX279133 MDIO controllers
+0052	6f4483291aa1260355e3c1f5c46b3403fe4a0619	0009	dt-bindings: net: add SR1010 ZX279051 audit
+0053	cf26a573afb92003cea5b010019f11b2adceb5bd	0009	net: mdio: add SR1010 ZX279051 audit
+0054	5e55835d31b008e3752e8921d2e0c4d8140322fb	0009	dt-bindings: net: add SR1010 RTL8372N ID audit
+0055	4230ba1b328255d3a5859d6b20bf91210f374696	0009	net: mdio: add SR1010 RTL8372N ID audit
+0056	c1321838c8aa03ad8aaefb3f26c58c3505c70eee	0010	dt-bindings: clock: add ZX279133 network clocks
+0057	c1764addd030fa405e2a6d51247830d031ba9fef	0010	clk: zte: add ZX279133 network clocks
+0058	ba4546eb268477830ba8dd1fbbe715df8385447a	0010	dt-bindings: net: add ZTE ZX279133 NPPT
+0059	6068f631082e77c1f9a8a1120842d894b4593037	0010	arm64: dts: zte: add disabled ZX279133 NPPT
+0060	4919400488998f1fb605e6a7c4f19dab99f71259	0010	dt-bindings: soc: add ZX279133 XPCS audit
+0061	330d9718c1c873441c6920b67b9906c01c13726f	0010	soc: zte: add ZX279133 XPCS read-only audit
+0062	28af088329b29ae2463cc62e12860de1f8c23122	0010	arm64: dts: zte: add disabled ZX279133 XPCS
+0063	bbf1ebbfc6c1f12cc9f70c0ffab4c76bbe0f7796	0010	dt-bindings: clock: extend ZX279133 TOPCRM network IDs
+0064	63f85244001c378acdb431149e5808b290e35922	0010	clk: zte: extend ZX279133 network clocks
+0065	d4b79b66047c4fbade81362881585cd5de2c197a	0011	dt-bindings: phy: add ZX279133 PON SerDes
+0066	bf0091ed8bed0c60f74808a5dc8f453419570698	0011	phy: zte: add ZX279133 PON SerDes
+0067	616b05437798e4fb491129ce86d5f67bac9b46a1	0011	dt-bindings: phy: add ZX279133 Uni SerDes
+0068	f449763649720f7042d919abbe1767f377e24521	0011	phy: zte: add ZX279133 Uni SerDes
+0069	8d2fd9df12114e6687604e09230858b5dfcf7128	0011	net: pcs: xpcs: fix platform runtime PM and write flush
+0070	08f4272e734c122d3373582d70d5e92eeef048bc	0011	net: phy: add ZTE ZX279051 support
+0071	dbbc1ee6b435d6fbfaadb48abb0794a7e42e7198	0012	dt-bindings: net: dsa: add ZX279133 RTL8372N
+0072	eb9bbba57100c117cdc8b1e40da76e8a8abf0821	0012	dt-bindings: net: extend ZX279133 NPPT
+0073	39d05903fecadc37ccbbf10ff207da91923eeaf8	0012	dt-bindings: soc: zte: add ZX279133 network syscons
+0074	4130b7a6611b690ebbd2aea5d62bce9260ef699d	0013	net: ethernet: zte: add ZX279133 NPPT
+0075	dede010cce022c1900e8904a299e65f78fffad4b	0014	net: ethernet: zte: add ZX279133 LAN conduit
+0076	3e4b012aee5673840c9e9525e753f6fb7bd812b2	0014	net: dsa: add ZX279133 RTL8372N support
+0077	635b92bfa1e92d2e1497c44ab3b5e21467caa6b6	0015	arm64: dts: zte: add SR1010 networking
+0078	88c15ca1f28369b54feb0987e36acb429d4b226a	0016	arm64: defconfig: enable ZX279133 networking

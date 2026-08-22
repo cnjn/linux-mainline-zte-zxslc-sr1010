@@ -1,0 +1,819 @@
+From 792fab2adad1f9b065a424b5928249fc0907cab3 Mon Sep 17 00:00:00 2001
+From: cnjn <1779895255@qq.com>
+Date: Sat, 22 Aug 2026 20:00:19 +0800
+Subject: [PATCH 10/16] clk: zte: add ZX279133 networking clocks and audit
+ nodes
+
+Consolidate 9 validated ZX279133 development commits into one functional stage.
+
+Original range: c1321838c8aa03ad8aaefb3f26c58c3505c70eee..63f85244001c378acdb431149e5808b290e35922
+
+Signed-off-by: cnjn <1779895255@qq.com>
+---
+ .../bindings/clock/zte,zx279133-topcrm.yaml   |  13 +-
+ .../bindings/net/zte,zx279133-nppt.yaml       |  58 ++++
+ .../soc/zte,zx279133-xpcs-nppt-audit.yaml     |  63 ++++
+ MAINTAINERS                                   |   4 +-
+ arch/arm64/boot/dts/zte/zx279133.dtsi         |  29 ++
+ drivers/clk/clk-zx279133.c                    | 108 +++++-
+ drivers/soc/zte/Kconfig                       |  11 +
+ drivers/soc/zte/Makefile                      |   1 +
+ drivers/soc/zte/zx279133-xpcs-nppt-audit.c    | 320 ++++++++++++++++++
+ .../dt-bindings/clock/zte,zx279133-topcrm.h   |  10 +
+ .../dt-bindings/reset/zte,zx279133-topcrm.h   |  10 +
+ 11 files changed, 619 insertions(+), 8 deletions(-)
+ create mode 100644 Documentation/devicetree/bindings/net/zte,zx279133-nppt.yaml
+ create mode 100644 Documentation/devicetree/bindings/soc/zte,zx279133-xpcs-nppt-audit.yaml
+ create mode 100644 drivers/soc/zte/zx279133-xpcs-nppt-audit.c
+ create mode 100644 include/dt-bindings/reset/zte,zx279133-topcrm.h
+
+diff --git a/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml b/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
+index eb10c071be319e2878b36cb30f64fe358cd286f0..41d30c43b684595c73ee1f375eeb308aa121c25c 100644
+--- a/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
++++ b/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
+@@ -13,12 +13,13 @@ description:
+   The top clock and reset manager (TOPCRM) supplies clocks to the ZX279133
+   low-speed peripheral controllers, SPI flash controller, PVT temperature
+   sensor, MDIO controllers, USB host controller, interconnect, and Cortex-A53
+-  CPUs. Fixed PLL
+-  roots feed fixed-factor branches followed by read-only system, CCI, and CPU
+-  muxes. The system HCLK and PCLK use read-only even dividers. This preserves
+-  the firmware-selected boot topology without allowing Linux to reprogram a
+-  PLL, mux, or system divider. The PVT working clock uses a separate read-only
+-  divider followed by a gate.
++  CPUs and shared network hardware. Fixed PLL roots feed fixed-factor branches
++  followed by read-only system, CCI, CPU, and network muxes. The system HCLK
++  and PCLK use read-only even dividers. This preserves the firmware-selected
++  boot topology without allowing Linux to reprogram a PLL, mux, or system
++  divider. The PVT working clock uses a separate read-only divider followed by
++  a gate. The provider also models the universal-SerDes and PON-SerDes PCLKs
++  and the firmware-selected PON/NPPT working-clock path with a read-only mux.
+ 
+ properties:
+   compatible:
+diff --git a/Documentation/devicetree/bindings/net/zte,zx279133-nppt.yaml b/Documentation/devicetree/bindings/net/zte,zx279133-nppt.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..ab2454ffcb551fca0f7660c5ad97ed09a013b87c
+--- /dev/null
++++ b/Documentation/devicetree/bindings/net/zte,zx279133-nppt.yaml
+@@ -0,0 +1,58 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/net/zte,zx279133-nppt.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 NPPT packet processor
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description:
++  The ZX279133 NPPT node describes the aggregate resources of the packet
++  processor block.
++
++properties:
++  $nodename:
++    pattern: "^packet-processor@[0-9a-f]+$"
++
++  compatible:
++    const: zte,zx279133-nppt
++
++  reg:
++    maxItems: 1
++
++  interrupts:
++    maxItems: 1
++
++  clocks:
++    maxItems: 1
++
++  clock-names:
++    const: wclk
++
++required:
++  - compatible
++  - reg
++  - interrupts
++  - clocks
++  - clock-names
++
++additionalProperties: false
++
++examples:
++  - |
++    #include <dt-bindings/clock/zte,zx279133-topcrm.h>
++    #include <dt-bindings/interrupt-controller/arm-gic.h>
++
++    packet-processor@19000000 {
++        compatible = "zte,zx279133-nppt";
++        reg = <0x19000000 0x1000000>;
++        interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
++        clocks = <&topcrm ZX279133_TOPCRM_CLK_PON_WOE1_WCLK>;
++        clock-names = "wclk";
++        status = "disabled";
++    };
++
++...
+diff --git a/Documentation/devicetree/bindings/soc/zte,zx279133-xpcs-nppt-audit.yaml b/Documentation/devicetree/bindings/soc/zte,zx279133-xpcs-nppt-audit.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..56a8b64f726ee7fca1817e5c37f2a3424d8faf2f
+--- /dev/null
++++ b/Documentation/devicetree/bindings/soc/zte,zx279133-xpcs-nppt-audit.yaml
+@@ -0,0 +1,63 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/soc/zte,zx279133-xpcs-nppt-audit.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 XPCS and NPPT read-only audit
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description: |
++  This diagnostic-only node is instantiated only by a dedicated diagnostic
++  overlay supplied by an external build, never by a normal system DTS. It
++  takes a single, read-only snapshot of firmware-configured XPCS identification
++  and state registers and NPPT shadow registers when userspace first reads its
++  snapshot attribute. It does not provide an XPCS, PCS, PHY, MAC, or packet
++  processor and must not be used as a functional hardware description.
++
++properties:
++  compatible:
++    const: zte,zx279133-xpcs-nppt-audit
++
++  reg:
++    minItems: 3
++    maxItems: 3
++
++  reg-names:
++    items:
++      - const: xpcs0
++      - const: xpcs1
++      - const: nppt
++
++  clocks:
++    minItems: 2
++    maxItems: 2
++
++  clock-names:
++    items:
++      - const: xpcs-pclk
++      - const: nppt-wclk
++
++required:
++  - compatible
++  - reg
++  - reg-names
++  - clocks
++  - clock-names
++
++additionalProperties: false
++
++examples:
++  - |
++    audit@1a000000 {
++        compatible = "zte,zx279133-xpcs-nppt-audit";
++        reg = <0x1a000000 0x00200000>,
++              <0x1b000000 0x00200000>,
++              <0x19000000 0x00001000>;
++        reg-names = "xpcs0", "xpcs1", "nppt";
++        clocks = <&topcrm 18>, <&topcrm 20>;
++        clock-names = "xpcs-pclk", "nppt-wclk";
++    };
++...
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 1710948e46a264cf2f45fb68256acc8c9b96ea73..da45c0159cd4748de5c85c2192e1c694419db8d8 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -28415,10 +28415,12 @@ F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
+ F:	Documentation/devicetree/bindings/net/zte,sr1010-rtl8372n-id-audit.yaml
+ F:	Documentation/devicetree/bindings/net/zte,sr1010-zx279051-audit.yaml
+ F:	Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
++F:	Documentation/devicetree/bindings/net/zte,zx279133-nppt.yaml
+ F:	Documentation/devicetree/bindings/nvmem/zte,zx279133-efuse.yaml
+ F:	Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
+ F:	Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
+ F:	Documentation/devicetree/bindings/soc/zte,zx279133-pwm-audit.yaml
++F:	Documentation/devicetree/bindings/soc/zte,zx279133-xpcs-nppt-audit.yaml
+ F:	drivers/soc/zte/
+ F:	Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
+ F:	Documentation/devicetree/bindings/usb/zte,zx279133-xhci.yaml
+@@ -28435,7 +28437,7 @@ F:	drivers/pinctrl/pinctrl-zx279133.c
+ F:	drivers/spi/spi-zx279133-sfc.c
+ F:	drivers/watchdog/zx279133_wdt.c
+ F:	include/dt-bindings/clock/zte,zx279133-*.h
+-F:	include/dt-bindings/reset/zte,zx279133-lsp.h
++F:	include/dt-bindings/reset/zte,zx279133-*.h
+ 
+ SENARYTECH AUDIO CODEC DRIVER
+ M:	bo liu <bo.liu@senarytech.com>
+diff --git a/arch/arm64/boot/dts/zte/zx279133.dtsi b/arch/arm64/boot/dts/zte/zx279133.dtsi
+index 9f26180a74828f9e1420f5a636d1bd212b1570d5..7d7c9cdbf43d0b790aafec66c751dcb466ef9540 100644
+--- a/arch/arm64/boot/dts/zte/zx279133.dtsi
++++ b/arch/arm64/boot/dts/zte/zx279133.dtsi
+@@ -417,5 +417,34 @@ watchdog1: watchdog@14f0a000 {
+ 			timeout-sec = <10>;
+ 			status = "disabled";
+ 		};
++
++		nppt: packet-processor@19000000 {
++			compatible = "zte,zx279133-nppt";
++			reg = <0x0 0x19000000 0x0 0x1000000>;
++			interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&topcrm ZX279133_TOPCRM_CLK_PON_WOE1_WCLK>;
++			clock-names = "wclk";
++			status = "disabled";
++		};
++
++		xpcs0: ethernet-pcs@1a000000 {
++			compatible = "snps,dw-xpcs";
++			reg = <0x0 0x1a000000 0x0 0x800000>;
++			reg-names = "direct";
++			reg-io-width = <4>;
++			clocks = <&topcrm ZX279133_TOPCRM_CLK_UNI_SERDES_PCLK>;
++			clock-names = "csr";
++			status = "disabled";
++		};
++
++		xpcs1: ethernet-pcs@1b000000 {
++			compatible = "snps,dw-xpcs";
++			reg = <0x0 0x1b000000 0x0 0x800000>;
++			reg-names = "direct";
++			reg-io-width = <4>;
++			clocks = <&topcrm ZX279133_TOPCRM_CLK_UNI_SERDES_PCLK>;
++			clock-names = "csr";
++			status = "disabled";
++		};
+ 	};
+ };
+diff --git a/drivers/clk/clk-zx279133.c b/drivers/clk/clk-zx279133.c
+index 40b706196a2575bd616eb304d392b1b2a0f8ca39..59aed53dd18960222523533bcb3b10a904e054ce 100644
+--- a/drivers/clk/clk-zx279133.c
++++ b/drivers/clk/clk-zx279133.c
+@@ -17,8 +17,11 @@
+ #define ZX279133_TOPCRM_GATE_FLAGS	CLK_IGNORE_UNUSED
+ #define ZX279133_TOPCRM_SYS_MUX_CTRL	0x00
+ #define ZX279133_TOPCRM_CPU_CCI_MUX_CTRL	0x04
++#define ZX279133_TOPCRM_PON_NPPT_WCLK_MUX_CTRL	0x0c
++#define ZX279133_TOPCRM_UNI_SERDES_GATE_CTRL	0x44
++#define ZX279133_TOPCRM_PON_GATE_CTRL	0x48
+ #define ZX279133_TOPCRM_BUS_DIV_CTRL	0x5c
+-#define ZX279133_TOPCRM_NUM_CLKS	(ZX279133_TOPCRM_CLK_LSP1_100M + 1)
++#define ZX279133_TOPCRM_NUM_CLKS	(ZX279133_TOPCRM_CLK_UNI_SERDES_50M + 1)
+ #define ZX279133_UART0_CLK_CTRL	0x24
+ #define ZX279133_UART_PCLK_GATE	0
+ #define ZX279133_UART_WCLK_GATE	1
+@@ -70,6 +73,7 @@ enum zx279133_topcrm_parent {
+ 	ZX279133_PARENT_CLK25M,
+ 	ZX279133_PARENT_CLK50M,
+ 	ZX279133_PARENT_CLK100M,
++	ZX279133_PARENT_CLK125M,
+ 	ZX279133_PARENT_CLK200M,
+ 	ZX279133_PARENT_CLK250M,
+ 	ZX279133_PARENT_CLK344M,
+@@ -80,11 +84,13 @@ enum zx279133_topcrm_parent {
+ 	ZX279133_PARENT_CLK1000M_CPU,
+ 	ZX279133_PARENT_CLK32K,
+ 	ZX279133_PARENT_CLK172M,
++	ZX279133_PARENT_CLK_PON_125M,
+ 	ZX279133_PARENT_SYS_ACLK,
+ 	ZX279133_PARENT_SYS_HCLK,
+ 	ZX279133_PARENT_SYS_PCLK,
+ 	ZX279133_PARENT_CCI_ACLK,
+ 	ZX279133_PARENT_A53_MCLK,
++	ZX279133_PARENT_PON_NPPT_WCLK_MUX,
+ 	ZX279133_PARENT_COUNT,
+ };
+ 
+@@ -142,6 +148,9 @@ static const struct zx279133_topcrm_factor_desc topcrm_factors[] = {
+ 	[ZX279133_PARENT_CLK100M] = {
+ 		.name = "clk100m", .fw_name = "pll-lsp", .mult = 1, .div = 20,
+ 	},
++	[ZX279133_PARENT_CLK125M] = {
++		.name = "clk125m", .fw_name = "pll-lsp", .mult = 1, .div = 16,
++	},
+ 	[ZX279133_PARENT_CLK200M] = {
+ 		.name = "clk200m", .fw_name = "pll-lsp", .mult = 1, .div = 10,
+ 	},
+@@ -173,6 +182,9 @@ static const struct zx279133_topcrm_factor_desc topcrm_factors[] = {
+ 	[ZX279133_PARENT_CLK172M] = {
+ 		.name = "clk172m", .fw_name = "pll-1376m", .mult = 1, .div = 8,
+ 	},
++	[ZX279133_PARENT_CLK_PON_125M] = {
++		.name = "clk_pon_125m", .fw_name = "pll-fpp", .mult = 1, .div = 20,
++	},
+ };
+ 
+ /* ZX279133 stores the even divisor minus one. */
+@@ -266,6 +278,36 @@ static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
+ 		.bit_idx = ZX279133_TOPCRM_PVT_PCLK_GATE,
+ 		.parent = ZX279133_PARENT_CLK172M,
+ 	},
++	[ZX279133_TOPCRM_CLK_PON_IDM_ACLK] = {
++		.name = "pon_idm_aclk",
++		.reg_offset = ZX279133_TOPCRM_PON_GATE_CTRL,
++		.bit_idx = 0,
++		.parent = ZX279133_PARENT_SYS_ACLK,
++	},
++	[ZX279133_TOPCRM_CLK_PON_TM_ACLK] = {
++		.name = "pon_tm_aclk",
++		.reg_offset = ZX279133_TOPCRM_PON_GATE_CTRL,
++		.bit_idx = 1,
++		.parent = ZX279133_PARENT_SYS_ACLK,
++	},
++	[ZX279133_TOPCRM_CLK_PON_PCLK] = {
++		.name = "pon_pclk",
++		.reg_offset = ZX279133_TOPCRM_PON_GATE_CTRL,
++		.bit_idx = 2,
++		.parent = ZX279133_PARENT_SYS_PCLK,
++	},
++	[ZX279133_TOPCRM_CLK_PON_SMAC_WCLK] = {
++		.name = "pon_smac_wclk",
++		.reg_offset = ZX279133_TOPCRM_PON_GATE_CTRL,
++		.bit_idx = 7,
++		.parent = ZX279133_PARENT_CLK125M,
++	},
++	[ZX279133_TOPCRM_CLK_PON_MAC_WCLK] = {
++		.name = "pon_mac_wclk",
++		.reg_offset = ZX279133_TOPCRM_PON_GATE_CTRL,
++		.bit_idx = 12,
++		.parent = ZX279133_PARENT_CLK250M,
++	},
+ };
+ 
+ static struct clk_hw *
+@@ -304,6 +346,7 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
+ 	struct clk_parent_data sys_aclk_parents[4] = {};
+ 	struct clk_parent_data a53_mclk_parents[8] = {};
+ 	struct clk_parent_data cci_aclk_parents[8] = {};
++	struct clk_parent_data pon_nppt_wclk_parents[8] = {};
+ 	struct clk_hw *pvt_div;
+ 	struct clk_hw *hw;
+ 	void __iomem *base;
+@@ -415,10 +458,73 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
+ 		return dev_err_probe(dev, PTR_ERR(pvt_div),
+ 				     "failed to register clk1m22 divider\n");
+ 
++	pon_nppt_wclk_parents[0].hw = priv->parents[ZX279133_PARENT_CLK25M];
++	pon_nppt_wclk_parents[1].hw = priv->parents[ZX279133_PARENT_CLK100M];
++	pon_nppt_wclk_parents[2].hw = priv->parents[ZX279133_PARENT_CLK200M];
++	pon_nppt_wclk_parents[3].hw = priv->parents[ZX279133_PARENT_CLK344M];
++	pon_nppt_wclk_parents[4].hw = priv->parents[ZX279133_PARENT_CLK400M];
++	pon_nppt_wclk_parents[5].hw = priv->parents[ZX279133_PARENT_CLK500M];
++	pon_nppt_wclk_parents[6].hw = priv->parents[ZX279133_PARENT_CLK416M];
++	pon_nppt_wclk_parents[7].hw = priv->parents[ZX279133_PARENT_CLK_PON_125M];
++	hw = zx279133_register_mux(dev, "pon_nppt_wclk_mux",
++				   pon_nppt_wclk_parents,
++				   ARRAY_SIZE(pon_nppt_wclk_parents),
++				   base + ZX279133_TOPCRM_PON_NPPT_WCLK_MUX_CTRL,
++				   24, 3, CLK_MUX_READ_ONLY, &priv->lock);
++	if (IS_ERR(hw))
++		return dev_err_probe(dev, PTR_ERR(hw),
++				     "failed to register pon_nppt_wclk mux\n");
++	priv->parents[ZX279133_PARENT_PON_NPPT_WCLK_MUX] = hw;
++	priv->data.hws[ZX279133_TOPCRM_CLK_PON_NPPT_WCLK_MUX] = hw;
++
++	hw = devm_clk_hw_register_gate_parent_hw(dev, "uni_serdes_pclk",
++						 priv->parents[ZX279133_PARENT_SYS_PCLK],
++						 0,
++						 base + ZX279133_TOPCRM_UNI_SERDES_GATE_CTRL,
++						 8, 0, &priv->lock);
++	if (IS_ERR(hw))
++		return dev_err_probe(dev, PTR_ERR(hw),
++				     "failed to register uni_serdes_pclk gate\n");
++	priv->data.hws[ZX279133_TOPCRM_CLK_UNI_SERDES_PCLK] = hw;
++
++	hw = devm_clk_hw_register_gate_parent_hw(dev, "uni_serdes_50m",
++						 priv->parents[ZX279133_PARENT_CLK50M],
++						 0,
++						 base + ZX279133_TOPCRM_UNI_SERDES_GATE_CTRL,
++						 9, 0, &priv->lock);
++	if (IS_ERR(hw))
++		return dev_err_probe(dev, PTR_ERR(hw),
++				     "failed to register uni_serdes_50m gate\n");
++	priv->data.hws[ZX279133_TOPCRM_CLK_UNI_SERDES_50M] = hw;
++
++	hw = devm_clk_hw_register_gate_parent_hw(dev, "pon_serdes_pclk",
++						 priv->parents[ZX279133_PARENT_SYS_PCLK],
++						 0,
++						 base + ZX279133_TOPCRM_UNI_SERDES_GATE_CTRL,
++						 0, 0, &priv->lock);
++	if (IS_ERR(hw))
++		return dev_err_probe(dev, PTR_ERR(hw),
++				     "failed to register pon_serdes_pclk gate\n");
++	priv->data.hws[ZX279133_TOPCRM_CLK_PON_SERDES_PCLK] = hw;
++
++	/* NPPT uses the vendor-named PON WOE1 working-clock path. */
++	hw = devm_clk_hw_register_gate_parent_hw(dev, "pon_woe1_wclk",
++						 priv->parents[ZX279133_PARENT_PON_NPPT_WCLK_MUX],
++						 0,
++						 base + ZX279133_TOPCRM_PON_GATE_CTRL,
++						 10, 0, &priv->lock);
++	if (IS_ERR(hw))
++		return dev_err_probe(dev, PTR_ERR(hw),
++				     "failed to register pon_woe1_wclk gate\n");
++	priv->data.hws[ZX279133_TOPCRM_CLK_PON_WOE1_WCLK] = hw;
++
+ 	for (index = 0; index < ARRAY_SIZE(topcrm_gates); index++) {
+ 		const struct zx279133_topcrm_gate_desc *desc =
+ 			&topcrm_gates[index];
+ 
++		if (!desc->name)
++			continue;
++
+ 		reg = base + desc->reg_offset;
+ 		if (index == ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK) {
+ 			hw = devm_clk_hw_register_gate_parent_hw(dev, desc->name,
+diff --git a/drivers/soc/zte/Kconfig b/drivers/soc/zte/Kconfig
+index 8a015a4c2bcdad83f5529960d6700cacebca33b3..787426796d023c536a0a2c93560f2b9d3dabadea 100644
+--- a/drivers/soc/zte/Kconfig
++++ b/drivers/soc/zte/Kconfig
+@@ -10,3 +10,14 @@ config ZTE_ZX279133_PWM_AUDIT
+ 	  It obtains clock handles only to verify the firmware-enabled gate state;
+ 	  it never prepares or enables them. The driver registers no PWM chip,
+ 	  requests no resets or pinctrl, and performs no hardware writes.
++
++config ZTE_ZX279133_XPCS_NPPT_AUDIT
++	bool "ZTE ZX279133 XPCS and NPPT read-only audit"
++	depends on COMMON_CLK_ZX279133
++	depends on (ARM64 || COMPILE_TEST) && HAS_IOMEM
++	help
++	  Build a diagnostic driver exposing a trigger-once sysfs snapshot of
++	  firmware-configured XPCS and NPPT registers. A dedicated external build
++	  overlay instantiates this driver; normal system device trees do not.
++	  Target data reads are trigger-once, and clock validation checks are not
++	  included in data_reads. The driver never changes clock or hardware state.
+diff --git a/drivers/soc/zte/Makefile b/drivers/soc/zte/Makefile
+index 373255cd4b98128c8a4b6687de63c5ac72583a84..c2f478c1517593bc5012cd716ee9d10c4d7cc202 100644
+--- a/drivers/soc/zte/Makefile
++++ b/drivers/soc/zte/Makefile
+@@ -1,3 +1,4 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ 
+ obj-$(CONFIG_ZTE_ZX279133_PWM_AUDIT) += zx279133-pwm-audit.o
++obj-$(CONFIG_ZTE_ZX279133_XPCS_NPPT_AUDIT) += zx279133-xpcs-nppt-audit.o
+diff --git a/drivers/soc/zte/zx279133-xpcs-nppt-audit.c b/drivers/soc/zte/zx279133-xpcs-nppt-audit.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..a621da6f1436adf354e72667fc437cf1cf570d61
+--- /dev/null
++++ b/drivers/soc/zte/zx279133-xpcs-nppt-audit.c
+@@ -0,0 +1,320 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Read-only, trigger-once audit of firmware-configured ZX279133 blocks. */
++
++#include <linux/atomic.h>
++#include <linux/bitfield.h>
++#include <linux/clk.h>
++#include <linux/clk-provider.h>
++#include <linux/device.h>
++#include <linux/io.h>
++#include <linux/mutex.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++
++#define ZX279133_XPCS0_BASE	0x1a000000
++#define ZX279133_XPCS1_BASE	0x1b000000
++#define ZX279133_XPCS_SIZE	0x00200000
++#define ZX279133_NPPT_BASE	0x19000000
++#define ZX279133_NPPT_SIZE	0x00001000
++
++#define ZX279133_XPCS_PCLK_RATE	125000000
++#define ZX279133_NPPT_WCLK_RATE	416666666
++
++#define ZX279133_NPPT_SHADOW84	0x84
++#define ZX279133_NPPT_SHADOW90	0x90
++#define ZX279133_NPPT_SHADOW94	0x94
++
++struct zx279133_xpcs_snapshot {
++	u16 pma_id[2];
++	u16 pcs_id[2];
++	u16 an_id[2];
++	u16 pma_devs[2];
++	u16 dig_sts;
++};
++
++struct zx279133_audit_snapshot {
++	struct zx279133_xpcs_snapshot xpcs[2];
++	u32 nppt[3];
++};
++
++enum zx279133_audit_state {
++	ZX279133_AUDIT_IDLE,
++	ZX279133_AUDIT_SUCCESS,
++	ZX279133_AUDIT_FAILURE,
++};
++
++struct zx279133_audit {
++	struct device *dev;
++	struct clk *xpcs_pclk;
++	struct clk *nppt_wclk;
++	void __iomem *xpcs[2];
++	void __iomem *nppt;
++	/* Serializes the trigger and cached result access. */
++	struct mutex lock;
++	enum zx279133_audit_state state;
++	int error;
++	struct zx279133_audit_snapshot snapshot;
++};
++
++/*
++ * A permanent claim prevents a second target read after removal and reprobe;
++ * the cached result is valid only while the original device exists.
++ */
++static atomic_t zx279133_audit_claimed = ATOMIC_INIT(0);
++
++static int zx279133_audit_clocks_valid(struct zx279133_audit *audit)
++{
++	if (clk_get_rate(audit->xpcs_pclk) != ZX279133_XPCS_PCLK_RATE ||
++	    clk_get_rate(audit->nppt_wclk) != ZX279133_NPPT_WCLK_RATE)
++		return -EINVAL;
++
++	/* No stable accessor exists for the framework prepare count. */
++	if (__clk_get_enable_count(audit->xpcs_pclk) ||
++	    __clk_get_enable_count(audit->nppt_wclk))
++		return -EBUSY;
++
++	if (!__clk_is_enabled(audit->xpcs_pclk) ||
++	    !__clk_is_enabled(audit->nppt_wclk))
++		return -EBUSY;
++
++	return 0;
++}
++
++static int zx279133_xpcs_read_stable(void __iomem *base, u16 devad, u16 reg,
++				     u16 *value)
++{
++	u32 offset = ((((u32)devad << 16) | reg) * 4);
++	u32 first, second;
++
++	first = readl(base + offset);
++	second = readl(base + offset);
++	if (first != second)
++		return -EIO;
++	if (first & GENMASK(31, 16))
++		return -ERANGE;
++
++	*value = first;
++	return 0;
++}
++
++static int zx279133_nppt_read_stable(void __iomem *base, u32 offset, u32 *value)
++{
++	u32 first, second;
++
++	first = readl(base + offset);
++	second = readl(base + offset);
++	if (first != second)
++		return -EIO;
++
++	*value = first;
++	return 0;
++}
++
++static int zx279133_read_xpcs(struct zx279133_audit *audit, unsigned int id)
++{
++	struct zx279133_xpcs_snapshot *snapshot = &audit->snapshot.xpcs[id];
++	void __iomem *base = audit->xpcs[id];
++	int ret;
++
++	ret = zx279133_xpcs_read_stable(base, 1, 2, &snapshot->pma_id[0]);
++	if (ret)
++		return ret;
++	ret = zx279133_xpcs_read_stable(base, 1, 3, &snapshot->pma_id[1]);
++	if (ret)
++		return ret;
++	ret = zx279133_xpcs_read_stable(base, 3, 2, &snapshot->pcs_id[0]);
++	if (ret)
++		return ret;
++	ret = zx279133_xpcs_read_stable(base, 3, 3, &snapshot->pcs_id[1]);
++	if (ret)
++		return ret;
++	ret = zx279133_xpcs_read_stable(base, 7, 2, &snapshot->an_id[0]);
++	if (ret)
++		return ret;
++	ret = zx279133_xpcs_read_stable(base, 7, 3, &snapshot->an_id[1]);
++	if (ret)
++		return ret;
++	ret = zx279133_xpcs_read_stable(base, 1, 5, &snapshot->pma_devs[0]);
++	if (ret)
++		return ret;
++	ret = zx279133_xpcs_read_stable(base, 1, 6, &snapshot->pma_devs[1]);
++	if (ret)
++		return ret;
++
++	return zx279133_xpcs_read_stable(base, 3, 0x8010,
++					   &snapshot->dig_sts);
++}
++
++static int zx279133_take_snapshot(struct zx279133_audit *audit)
++{
++	int ret;
++
++	if (atomic_cmpxchg(&zx279133_audit_claimed, 0, 1))
++		return -EBUSY;
++
++	ret = zx279133_audit_clocks_valid(audit);
++	if (ret)
++		return ret;
++
++	ret = zx279133_read_xpcs(audit, 0);
++	if (ret)
++		return ret;
++	ret = zx279133_read_xpcs(audit, 1);
++	if (ret)
++		return ret;
++	ret = zx279133_nppt_read_stable(audit->nppt, ZX279133_NPPT_SHADOW84,
++					&audit->snapshot.nppt[0]);
++	if (ret)
++		return ret;
++	ret = zx279133_nppt_read_stable(audit->nppt, ZX279133_NPPT_SHADOW90,
++					&audit->snapshot.nppt[1]);
++	if (ret)
++		return ret;
++	ret = zx279133_nppt_read_stable(audit->nppt, ZX279133_NPPT_SHADOW94,
++					&audit->snapshot.nppt[2]);
++	if (ret)
++		return ret;
++
++	return zx279133_audit_clocks_valid(audit);
++}
++
++static ssize_t snapshot_show(struct device *dev,
++			     struct device_attribute *attr, char *buf)
++{
++	struct zx279133_audit *audit = dev_get_drvdata(dev);
++	struct zx279133_xpcs_snapshot *xpcs0 = &audit->snapshot.xpcs[0];
++	struct zx279133_xpcs_snapshot *xpcs1 = &audit->snapshot.xpcs[1];
++	u32 pseq0, pseq1;
++	int ret;
++
++	mutex_lock(&audit->lock);
++	if (audit->state == ZX279133_AUDIT_IDLE) {
++		ret = zx279133_take_snapshot(audit);
++		if (ret) {
++			audit->error = ret;
++			audit->state = ZX279133_AUDIT_FAILURE;
++		} else {
++			audit->state = ZX279133_AUDIT_SUCCESS;
++			dev_info(audit->dev,
++				 "snapshot captured: data_reads=42 target_writes=0\n");
++		}
++	}
++
++	if (audit->state == ZX279133_AUDIT_FAILURE) {
++		ret = audit->error;
++		goto out_unlock;
++	}
++
++	pseq0 = FIELD_GET(GENMASK(4, 2), xpcs0->dig_sts);
++	pseq1 = FIELD_GET(GENMASK(4, 2), xpcs1->dig_sts);
++	ret = sysfs_emit(buf,
++			 "xpcs0 base=0x1a000000 pma_id=%04x:%04x pcs_id=%04x:%04x an_id=%04x:%04x pma_devs=%04x:%04x dig_sts=0x%04x pseq=%u power_good=%c samples=2\n"
++			 "xpcs1 base=0x1b000000 pma_id=%04x:%04x pcs_id=%04x:%04x an_id=%04x:%04x pma_devs=%04x:%04x dig_sts=0x%04x pseq=%u power_good=%c samples=2\n"
++			 "nppt base=0x19000000 shadow84=0x%08x shadow90=0x%08x shadow94=0x%08x samples=2\n"
++			 "summary data_reads=42 target_writes=0 xpcs_pclk=125000000:Y nppt_wclk=416666666:Y mode=read-only\n",
++			 xpcs0->pma_id[0], xpcs0->pma_id[1],
++			 xpcs0->pcs_id[0], xpcs0->pcs_id[1],
++			 xpcs0->an_id[0], xpcs0->an_id[1],
++			 xpcs0->pma_devs[0], xpcs0->pma_devs[1],
++			 xpcs0->dig_sts, pseq0, pseq0 == 4 ? 'Y' : 'N',
++			 xpcs1->pma_id[0], xpcs1->pma_id[1],
++			 xpcs1->pcs_id[0], xpcs1->pcs_id[1],
++			 xpcs1->an_id[0], xpcs1->an_id[1],
++			 xpcs1->pma_devs[0], xpcs1->pma_devs[1],
++			 xpcs1->dig_sts, pseq1, pseq1 == 4 ? 'Y' : 'N',
++			 audit->snapshot.nppt[0], audit->snapshot.nppt[1],
++			 audit->snapshot.nppt[2]);
++
++out_unlock:
++	mutex_unlock(&audit->lock);
++	return ret;
++}
++static DEVICE_ATTR_RO(snapshot);
++
++static struct attribute *zx279133_audit_attrs[] = {
++	&dev_attr_snapshot.attr,
++	NULL,
++};
++
++static const struct attribute_group zx279133_audit_group = {
++	.attrs = zx279133_audit_attrs,
++};
++
++static void __iomem *zx279133_map_resource(struct platform_device *pdev,
++					   const char *name,
++					   resource_size_t start,
++					   resource_size_t size)
++{
++	struct resource *resource;
++
++	resource = platform_get_resource_byname(pdev, IORESOURCE_MEM, name);
++	if (!resource)
++		return ERR_PTR(-EINVAL);
++	if (resource->start != start || resource_size(resource) != size) {
++		dev_err(&pdev->dev, "invalid %s resource\n", name);
++		return ERR_PTR(-EINVAL);
++	}
++
++	return devm_ioremap_resource(&pdev->dev, resource);
++}
++
++static int zx279133_audit_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct zx279133_audit *audit;
++	int ret;
++
++	audit = devm_kzalloc(dev, sizeof(*audit), GFP_KERNEL);
++	if (!audit)
++		return -ENOMEM;
++
++	audit->dev = dev;
++	audit->xpcs_pclk = devm_clk_get(dev, "xpcs-pclk");
++	if (IS_ERR(audit->xpcs_pclk))
++		return dev_err_probe(dev, PTR_ERR(audit->xpcs_pclk),
++				     "failed to get XPCS PCLK\n");
++	audit->nppt_wclk = devm_clk_get(dev, "nppt-wclk");
++	if (IS_ERR(audit->nppt_wclk))
++		return dev_err_probe(dev, PTR_ERR(audit->nppt_wclk),
++				     "failed to get NPPT WCLK\n");
++
++	audit->xpcs[0] = zx279133_map_resource(pdev, "xpcs0",
++					       ZX279133_XPCS0_BASE,
++					       ZX279133_XPCS_SIZE);
++	if (IS_ERR(audit->xpcs[0]))
++		return PTR_ERR(audit->xpcs[0]);
++	audit->xpcs[1] = zx279133_map_resource(pdev, "xpcs1",
++					       ZX279133_XPCS1_BASE,
++					       ZX279133_XPCS_SIZE);
++	if (IS_ERR(audit->xpcs[1]))
++		return PTR_ERR(audit->xpcs[1]);
++	audit->nppt = zx279133_map_resource(pdev, "nppt", ZX279133_NPPT_BASE,
++					    ZX279133_NPPT_SIZE);
++	if (IS_ERR(audit->nppt))
++		return PTR_ERR(audit->nppt);
++
++	mutex_init(&audit->lock);
++	platform_set_drvdata(pdev, audit);
++
++	ret = devm_device_add_group(dev, &zx279133_audit_group);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to add snapshot attribute\n");
++
++	return 0;
++}
++
++static const struct of_device_id zx279133_audit_of_match[] = {
++	{ .compatible = "zte,zx279133-xpcs-nppt-audit" },
++	{ }
++};
++
++static struct platform_driver zx279133_audit_driver = {
++	.probe = zx279133_audit_probe,
++	.driver = {
++		.name = "zx279133-xpcs-nppt-audit",
++		.of_match_table = zx279133_audit_of_match,
++		.suppress_bind_attrs = true,
++	},
++};
++builtin_platform_driver(zx279133_audit_driver);
+diff --git a/include/dt-bindings/clock/zte,zx279133-topcrm.h b/include/dt-bindings/clock/zte,zx279133-topcrm.h
+index 13e53a444f2cbf007afac267cb432b03e49a9d53..dd0729b2b4c64d1e78f5ec8d88821e6036e4175d 100644
+--- a/include/dt-bindings/clock/zte,zx279133-topcrm.h
++++ b/include/dt-bindings/clock/zte,zx279133-topcrm.h
+@@ -20,5 +20,15 @@
+ #define ZX279133_TOPCRM_CLK_CCI_ACLK	15
+ #define ZX279133_TOPCRM_CLK_A53_MCLK	16
+ #define ZX279133_TOPCRM_CLK_LSP1_100M	17
++#define ZX279133_TOPCRM_CLK_UNI_SERDES_PCLK	18
++#define ZX279133_TOPCRM_CLK_PON_NPPT_WCLK_MUX	19
++#define ZX279133_TOPCRM_CLK_PON_WOE1_WCLK	20
++#define ZX279133_TOPCRM_CLK_PON_SERDES_PCLK	21
++#define ZX279133_TOPCRM_CLK_PON_IDM_ACLK	22
++#define ZX279133_TOPCRM_CLK_PON_TM_ACLK	23
++#define ZX279133_TOPCRM_CLK_PON_PCLK	24
++#define ZX279133_TOPCRM_CLK_PON_SMAC_WCLK	25
++#define ZX279133_TOPCRM_CLK_PON_MAC_WCLK	26
++#define ZX279133_TOPCRM_CLK_UNI_SERDES_50M	27
+ 
+ #endif
+diff --git a/include/dt-bindings/reset/zte,zx279133-topcrm.h b/include/dt-bindings/reset/zte,zx279133-topcrm.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..42814ab221401a7743c2cd819563c038b4bf4959
+--- /dev/null
++++ b/include/dt-bindings/reset/zte,zx279133-topcrm.h
+@@ -0,0 +1,10 @@
++/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
++#ifndef _DT_BINDINGS_RESET_ZTE_ZX279133_TOPCRM_H
++#define _DT_BINDINGS_RESET_ZTE_ZX279133_TOPCRM_H
++
++#define ZX279133_LOCAL_RESET_PON_SERDES		0
++#define ZX279133_LOCAL_RESET_PON_SERDES_APB	1
++#define ZX279133_LOCAL_RESET_UNI_SERDES_RX	4
++#define ZX279133_LOCAL_RESET_UNI_SERDES_TX	5
++
++#endif

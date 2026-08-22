@@ -1,0 +1,38 @@
+Patch 0007: net: pcs: dw-xpcs-plat: fix runtime PM and write flushing
+
+Scope:
+- drivers/net/pcs/pcs-xpcs-plat.c only
+
+Changes:
+- accept non-negative pm_runtime_resume_and_get() returns in all four MMIO
+  accessors
+- establish active/suspended runtime-PM state while runtime PM is still
+  disabled, then enable runtime PM
+- force the optional CSR clock through the runtime resume callback once during
+  probe
+- make runtime suspend/resume callbacks safe when the optional clock is absent
+- complete posted CSR writes before pm_runtime_put() can gate the CSR clock
+- flush through fixed standard PCS MMD MDIO_CTRL1 rather than reading back the
+  arbitrary caller-selected CSR; this avoids read side effects on vendor/status
+  registers
+
+Validation:
+- strict source and patch checkpatch: 0 errors, 0 warnings, 0 checks
+- independent read-only review initially rejected arbitrary target-register
+  readback; after conversion to fixed PCS control-register flushing, re-review
+  returned GO with no blocker or high-severity finding
+- git diff --check passes
+- patches 0001 through 0007 apply sequentially to a HEAD-derived tree
+- the resulting source is byte-identical to the worktree
+- full ZXDBG build compiled drivers/net/pcs/pcs-xpcs-plat.o
+- built and cold-booted FIT SHA-256:
+  7d054e00d50b808e1daeada0c5e162f19cc81ad6f688c6ff2269497776a3fe1b
+- WAN linked at 2.5 Gbit/s and interface-bound ping passed 5/5
+- RTL8372N/Uni-SerDes/DSA initialization completed; VLAN100 LAN ping passed 5/5
+- NPPT XPCS0/XPCS1 status read 0x0000388b/0x0000280b
+- no Oops, BUG, panic, timeout, or runtime-PM failure was observed
+
+Residual generic risk:
+- each write performs one additional read of standard PCS control register 1;
+  indirect mode also changes the viewport page, which is safe because every
+  subsequent transaction reselects its page.

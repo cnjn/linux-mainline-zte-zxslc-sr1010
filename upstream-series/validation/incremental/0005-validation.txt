@@ -1,0 +1,28 @@
+Patch 0005: dt-bindings: phy: add ZTE ZX279133 Uni SerDes
+
+Scope:
+- Documentation/devicetree/bindings/phy/zte,zx279133-uni-serdes.yaml only
+- MAINTAINERS coverage was already added by patch 0003
+
+The binding documents:
+- one Uni SerDes MMIO resource
+- peripheral and 50 MHz reference clocks
+- separate active-low receive and transmit reset lines
+- a zero-cell Generic PHY provider
+- MAC and PCS configuration remaining with their respective consumers
+
+Validation:
+- dt-doc-validate passes
+- isolated gmake DT_SCHEMA_FILES=... dt_binding_check passes, including example build
+- strict file checkpatch: 0 errors, 0 warnings, 0 checks
+- patch checkpatch: 0 errors and 0 checks; the sole warning is the generic
+  new-file MAINTAINERS reminder, while patch 0003 already provides wildcard
+  coverage
+- git diff --check passes
+- patches 0001 through 0005 apply sequentially to a HEAD-derived tree
+- the resulting binding is byte-identical to the worktree
+- the binding clock/reset names and ordering match the existing ZX279133 DTS
+  consumer
+
+The provider implementation and Kconfig/Makefile entry are deliberately left
+for the following patch.

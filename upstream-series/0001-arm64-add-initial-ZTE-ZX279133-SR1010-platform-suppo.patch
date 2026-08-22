@@ -1,0 +1,4209 @@
+From 799d72d6c1c492f9571d342d4ad6484a9945024c Mon Sep 17 00:00:00 2001
+From: cnjn <1779895255@qq.com>
+Date: Sat, 22 Aug 2026 20:00:09 +0800
+Subject: [PATCH 01/16] arm64: add initial ZTE ZX279133 SR1010 platform support
+
+Consolidate 6 validated ZX279133 development commits into one functional stage.
+
+Original range: b858b3823df90a3eeafc8835c718c4dec231858c..5333aee7d23aeb9c4e8a6bc6ddd8729a3509248f
+
+Signed-off-by: cnjn <1779895255@qq.com>
+---
+ .../devicetree/bindings/arm/zte.yaml          |  25 +
+ .../bindings/clock/zte,zx279133-lsp-clk.yaml  |  74 +++
+ .../bindings/clock/zte,zx279133-lsp1-clk.yaml |  61 ++
+ .../bindings/clock/zte,zx279133-topcrm.yaml   |  76 +++
+ .../bindings/gpio/zte,zx279133-gpio.yaml      |  72 +++
+ .../bindings/hwmon/zte,zx279133-pvt.yaml      |  64 ++
+ .../bindings/mfd/zte,zx279133-wdt-reset.yaml  |  39 ++
+ .../pinctrl/zte,zx279133-pinctrl.yaml         | 144 +++++
+ .../bindings/reset/zte,zx296718-reset.yaml    |  43 ++
+ .../devicetree/bindings/serial/pl011.yaml     |  23 +-
+ .../bindings/spi/zte,zx279133-sfc.yaml        |  92 +++
+ .../watchdog/zte,zx279133-watchdog.yaml       |  76 +++
+ MAINTAINERS                                   |  22 +
+ arch/arm64/boot/dts/Makefile                  |   1 +
+ arch/arm64/boot/dts/zte/Makefile              |   2 +
+ arch/arm64/boot/dts/zte/zx279133-sr1010.dts   |  26 +
+ arch/arm64/boot/dts/zte/zx279133.dtsi         | 369 ++++++++++++
+ arch/arm64/configs/defconfig                  |   6 +
+ drivers/clk/Kconfig                           |   9 +
+ drivers/clk/Makefile                          |   1 +
+ drivers/clk/clk-zx279133.c                    | 566 ++++++++++++++++++
+ drivers/gpio/Kconfig                          |  11 +
+ drivers/gpio/Makefile                         |   1 +
+ drivers/gpio/gpio-zx279133.c                  | 330 ++++++++++
+ drivers/hwmon/Kconfig                         |  11 +
+ drivers/hwmon/Makefile                        |   1 +
+ drivers/hwmon/zx279133-pvt.c                  | 254 ++++++++
+ drivers/pinctrl/Kconfig                       |  11 +
+ drivers/pinctrl/Makefile                      |   1 +
+ drivers/pinctrl/pinctrl-zx279133.c            | 365 +++++++++++
+ drivers/spi/Kconfig                           |  11 +
+ drivers/spi/Makefile                          |   1 +
+ drivers/spi/spi-zx279133-sfc.c                | 490 +++++++++++++++
+ drivers/tty/serial/amba-pl011.c               |  84 +++
+ drivers/watchdog/Kconfig                      |   8 +
+ drivers/watchdog/Makefile                     |   1 +
+ drivers/watchdog/zx279133_wdt.c               | 313 ++++++++++
+ include/dt-bindings/clock/zte,zx279133-lsp.h  |  15 +
+ .../dt-bindings/clock/zte,zx279133-topcrm.h   |  16 +
+ include/dt-bindings/reset/zte,zx279133-lsp.h  |   8 +
+ 40 files changed, 3720 insertions(+), 3 deletions(-)
+ create mode 100644 Documentation/devicetree/bindings/arm/zte.yaml
+ create mode 100644 Documentation/devicetree/bindings/clock/zte,zx279133-lsp-clk.yaml
+ create mode 100644 Documentation/devicetree/bindings/clock/zte,zx279133-lsp1-clk.yaml
+ create mode 100644 Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
+ create mode 100644 Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml
+ create mode 100644 Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
+ create mode 100644 Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
+ create mode 100644 Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
+ create mode 100644 Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
+ create mode 100644 Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
+ create mode 100644 Documentation/devicetree/bindings/watchdog/zte,zx279133-watchdog.yaml
+ create mode 100644 arch/arm64/boot/dts/zte/Makefile
+ create mode 100644 arch/arm64/boot/dts/zte/zx279133-sr1010.dts
+ create mode 100644 arch/arm64/boot/dts/zte/zx279133.dtsi
+ create mode 100644 drivers/clk/clk-zx279133.c
+ create mode 100644 drivers/gpio/gpio-zx279133.c
+ create mode 100644 drivers/hwmon/zx279133-pvt.c
+ create mode 100644 drivers/pinctrl/pinctrl-zx279133.c
+ create mode 100644 drivers/spi/spi-zx279133-sfc.c
+ create mode 100644 drivers/watchdog/zx279133_wdt.c
+ create mode 100644 include/dt-bindings/clock/zte,zx279133-lsp.h
+ create mode 100644 include/dt-bindings/clock/zte,zx279133-topcrm.h
+ create mode 100644 include/dt-bindings/reset/zte,zx279133-lsp.h
+
+diff --git a/Documentation/devicetree/bindings/arm/zte.yaml b/Documentation/devicetree/bindings/arm/zte.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..f198f46972c174d9a1c7295b7803c4914f33dd28
+--- /dev/null
++++ b/Documentation/devicetree/bindings/arm/zte.yaml
+@@ -0,0 +1,25 @@
++# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/arm/zte.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE platforms
++
++maintainers:
++  - ZTE Linux Team <zte.linux@gmail.com>
++
++properties:
++  $nodename:
++    const: '/'
++
++  compatible:
++    oneOf:
++      - description: ZTE ZXSLC SR1010
++        items:
++          - const: zte,zx279133-sr1010
++          - const: zte,zx279133
++
++additionalProperties: true
++
++...
+diff --git a/Documentation/devicetree/bindings/clock/zte,zx279133-lsp-clk.yaml b/Documentation/devicetree/bindings/clock/zte,zx279133-lsp-clk.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..9493cefffd8ba5f27bf659b4749675a84f06ed69
+--- /dev/null
++++ b/Documentation/devicetree/bindings/clock/zte,zx279133-lsp-clk.yaml
+@@ -0,0 +1,74 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/clock/zte,zx279133-lsp-clk.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 low-speed peripheral clock controller
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description:
++  The low-speed peripheral (LSP) clock controller supplies bus and working
++  clocks to UART, timer, and flash controller peripherals. The UART working
++  clock has a mux selecting either the 25 MHz or 100 MHz LSP source. The
++  SPI flash controller working clock has a divider, and both peripherals have
++  separate working and bus clock gates.
++
++properties:
++  compatible:
++    items:
++      - const: zte,zx279133-lsp-clk
++      - const: syscon
++
++  reg:
++    maxItems: 1
++
++  clocks:
++    items:
++      - description: LSP peripheral bus clock
++      - description: 25 MHz LSP working clock
++      - description: 100 MHz LSP working clock
++      - description: SPI flash controller working clock
++
++  clock-names:
++    items:
++      - const: pclk
++      - const: wclk25
++      - const: wclk100
++      - const: spifc_wclk
++
++  '#clock-cells':
++    const: 1
++    description:
++      See include/dt-bindings/clock/zte,zx279133-lsp.h for valid indices.
++
++  '#reset-cells':
++    const: 1
++
++required:
++  - compatible
++  - reg
++  - clocks
++  - clock-names
++  - '#clock-cells'
++  - '#reset-cells'
++
++additionalProperties: false
++
++examples:
++  - |
++    #include <dt-bindings/clock/zte,zx279133-topcrm.h>
++
++    clock-controller@10d00000 {
++        compatible = "zte,zx279133-lsp-clk", "syscon";
++        reg = <0x10d00000 0x100>;
++        clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP0_PCLK>,
++                 <&topcrm ZX279133_TOPCRM_CLK_LSP0_25M>,
++                 <&topcrm ZX279133_TOPCRM_CLK_LSP0_100M>,
++                 <&topcrm ZX279133_TOPCRM_CLK_SPIFC_WCLK>;
++        clock-names = "pclk", "wclk25", "wclk100", "spifc_wclk";
++        #clock-cells = <1>;
++        #reset-cells = <1>;
++    };
+diff --git a/Documentation/devicetree/bindings/clock/zte,zx279133-lsp1-clk.yaml b/Documentation/devicetree/bindings/clock/zte,zx279133-lsp1-clk.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..1c565daa214fd443ef32bfde32aa787b567d6946
+--- /dev/null
++++ b/Documentation/devicetree/bindings/clock/zte,zx279133-lsp1-clk.yaml
+@@ -0,0 +1,61 @@
++# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/clock/zte,zx279133-lsp1-clk.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 LSP1 clock controller
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description:
++  The LSP1 clock controller supplies bus and working clocks to the ZX279133
++  watchdog timers. Each watchdog working clock has a 10-bit linear divider
++  followed by a gate.
++
++properties:
++  compatible:
++    const: zte,zx279133-lsp1-clk
++
++  reg:
++    maxItems: 1
++
++  clocks:
++    items:
++      - description: LSP1 peripheral bus clock
++      - description: 32.768 kHz watchdog working clock
++
++  clock-names:
++    items:
++      - const: pclk
++      - const: wclk32k
++
++  '#clock-cells':
++    const: 1
++    description:
++      See include/dt-bindings/clock/zte,zx279133-lsp.h for valid indices.
++
++required:
++  - compatible
++  - reg
++  - clocks
++  - clock-names
++  - '#clock-cells'
++
++additionalProperties: false
++
++examples:
++  - |
++    #include <dt-bindings/clock/zte,zx279133-topcrm.h>
++
++    clock-controller@14f00000 {
++        compatible = "zte,zx279133-lsp1-clk";
++        reg = <0x14f00000 0x100>;
++        clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP1_PCLK>,
++                 <&topcrm ZX279133_TOPCRM_CLK_LSP1_32K>;
++        clock-names = "pclk", "wclk32k";
++        #clock-cells = <1>;
++    };
++
++...
+diff --git a/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml b/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..f3d5528224cbda100968643ba350bd812bafb9ad
+--- /dev/null
++++ b/Documentation/devicetree/bindings/clock/zte,zx279133-topcrm.yaml
+@@ -0,0 +1,76 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/clock/zte,zx279133-topcrm.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 top clock and reset manager
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description:
++  The top clock and reset manager (TOPCRM) supplies clocks to the ZX279133
++  low-speed peripheral controllers, SPI flash controller, PVT temperature
++  sensor, and USB host controller. The PVT working clock uses a read-only
++  divider followed by a gate. The USB clocks are gate3 outputs with fixed-rate
++  system and CCI parent inputs until the full PLL/mux tree is modeled.
++
++properties:
++  compatible:
++    items:
++      - const: zte,zx279133-topcrm
++      - const: syscon
++
++  reg:
++    maxItems: 1
++
++  clocks:
++    items:
++      - description: 100 MHz LSP working clock source
++      - description: 25 MHz oscillator
++      - description: 125 MHz system peripheral bus clock
++      - description: 32.768 kHz LSP working clock source
++      - description: 50 MHz PVT divider source
++      - description: 125 MHz system peripheral clock parent for USB
++      - description: 500 MHz CCI clock parent for USB
++      - description: 250 MHz system AXI clock parent for USB
++
++  clock-names:
++    items:
++      - const: clk100m
++      - const: clk25m
++      - const: pclk
++      - const: clk32k
++      - const: clk50m
++      - const: sys_pclk
++      - const: cci_aclk
++      - const: sys_aclk
++
++  '#clock-cells':
++    const: 1
++    description:
++      See include/dt-bindings/clock/zte,zx279133-topcrm.h for valid indices.
++
++required:
++  - compatible
++  - reg
++  - clocks
++  - clock-names
++  - '#clock-cells'
++
++additionalProperties: false
++
++examples:
++  - |
++    clock-controller@10e10000 {
++        compatible = "zte,zx279133-topcrm", "syscon";
++        reg = <0x10e10000 0x60>;
++        clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>, <&clk50m>,
++                 <&clk125m>, <&cci_aclk>, <&sys_aclk>;
++        clock-names = "clk100m", "clk25m", "pclk", "clk32k", "clk50m",
++                      "sys_pclk", "cci_aclk", "sys_aclk";
++        #clock-cells = <1>;
++    };
++
++...
+diff --git a/Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml b/Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..2571aacebf33a551177bfe13c79fa99c085ec62e
+--- /dev/null
++++ b/Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml
+@@ -0,0 +1,72 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/gpio/zte,zx279133-gpio.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 GPIO controller
++
++maintainers:
++  - ZTE Linux Team <zte.linux@gmail.com>
++
++description: |
++  The ZX279133 has five GPIO banks with 16-bit registers and one cascaded
++  interrupt per bank. Four banks expose 16 lines and the final bank exposes
++  six lines, for 70 GPIOs in total.
++
++properties:
++  $nodename:
++    pattern: "^gpio@[0-9a-f]+$"
++
++  compatible:
++    const: zte,zx279133-gpio
++
++  reg:
++    maxItems: 1
++
++  interrupts:
++    maxItems: 1
++
++  gpio-controller: true
++
++  '#gpio-cells':
++    const: 2
++
++  gpio-ranges:
++    minItems: 1
++    maxItems: 3
++
++  ngpios:
++    enum: [6, 16]
++
++  interrupt-controller: true
++
++  '#interrupt-cells':
++    const: 2
++
++required:
++  - compatible
++  - reg
++  - interrupts
++  - gpio-controller
++  - '#gpio-cells'
++  - gpio-ranges
++  - ngpios
++  - interrupt-controller
++  - '#interrupt-cells'
++
++additionalProperties: false
++
++examples:
++  - |
++    gpio@10d10080 {
++        compatible = "zte,zx279133-gpio";
++        reg = <0x10d10080 0x40>;
++        interrupts = <0 36 4>;
++        gpio-controller;
++        #gpio-cells = <2>;
++        gpio-ranges = <&pinctrl 0 28 16>;
++        ngpios = <16>;
++        interrupt-controller;
++        #interrupt-cells = <2>;
++    };
+diff --git a/Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml b/Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..26d0d85f075d2a1a28abc41c420f305653f2801d
+--- /dev/null
++++ b/Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
+@@ -0,0 +1,64 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/hwmon/zte,zx279133-pvt.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 CLN22ULP PVT temperature sensor
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description: |
++  The ZX279133 CLN22ULP PVT block contains a one-shot die temperature
++  converter.  The driver starts a conversion for each read and exposes only
++  the standard read-only hwmon temperature input.  The optional ttrim NVMEM
++  cell is a five-bit calibration value from the ZX279133 efuse controller.
++  Thermal trips and cooling policy are described by separate thermal-zone
++  nodes and are intentionally not part of this binding.
++
++properties:
++  compatible:
++    const: zte,zx279133-pvt
++
++  reg:
++    maxItems: 1
++
++  clocks:
++    maxItems: 1
++
++  clock-names:
++    items:
++      - const: wclk
++
++  nvmem-cells:
++    maxItems: 1
++
++  nvmem-cell-names:
++    items:
++      - const: ttrim
++
++  '#thermal-sensor-cells':
++    const: 0
++
++required:
++  - compatible
++  - reg
++  - clocks
++  - clock-names
++  - '#thermal-sensor-cells'
++
++additionalProperties: false
++
++examples:
++  - |
++    pvt@10e70000 {
++        compatible = "zte,zx279133-pvt";
++        reg = <0x10e70000 0x10000>;
++        clocks = <&topcrm 5>;
++        clock-names = "wclk";
++        #thermal-sensor-cells = <0>;
++        status = "disabled";
++    };
++
++...
+diff --git a/Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml b/Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..b83e82ec6f20ec4139b33b559e0f40d7c46098bf
+--- /dev/null
++++ b/Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
+@@ -0,0 +1,39 @@
++# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/mfd/zte,zx279133-wdt-reset.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 watchdog reset routing register
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description:
++  The four-byte watchdog reset routing register enables each watchdog timer's
++  reset output. It is exposed as a syscon so the watchdog driver can configure
++  its corresponding route without mapping unrelated TOPCRM registers.
++
++properties:
++  compatible:
++    items:
++      - const: zte,zx279133-wdt-reset
++      - const: syscon
++
++  reg:
++    maxItems: 1
++
++required:
++  - compatible
++  - reg
++
++additionalProperties: false
++
++examples:
++  - |
++    syscon@10e10208 {
++        compatible = "zte,zx279133-wdt-reset", "syscon";
++        reg = <0x10e10208 0x4>;
++    };
++
++...
+diff --git a/Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..e9c0f0ec9c4a66ab614cdd0aca475e3288510fe9
+--- /dev/null
++++ b/Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
+@@ -0,0 +1,144 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/pinctrl/zte,zx279133-pinctrl.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 pin controller
++
++maintainers:
++  - ZTE Linux Team <zte.linux@gmail.com>
++
++description: |
++  The ZX279133 pin controller contains 70 pins in six physical pin banks.
++  This binding describes GPIO muxing and the SPI flash controller pins.
++  Other peripheral mux selections established by firmware remain unchanged.
++
++properties:
++  compatible:
++    const: zte,zx279133-pinctrl
++
++  reg:
++    maxItems: 1
++
++patternProperties:
++  '-pins$':
++    type: object
++    $ref: pinmux-node.yaml#
++    additionalProperties: false
++
++    properties:
++      function:
++        enum: [gpio, spifc]
++
++      pins:
++        minItems: 1
++        maxItems: 70
++        items:
++          enum:
++            - p0-0
++            - p0-1
++            - p0-2
++            - p0-3
++            - p0-4
++            - p0-5
++            - p0-6
++            - p0-7
++            - p0-8
++            - p0-9
++            - p0-10
++            - p0-11
++            - p0-12
++            - p0-13
++            - p0-14
++            - p1-0
++            - p1-1
++            - p1-2
++            - p1-3
++            - p1-4
++            - p1-5
++            - p1-6
++            - p1-7
++            - p1-8
++            - p1-9
++            - p2-0
++            - p2-1
++            - p2-2
++            - p2-3
++            - p2-4
++            - p2-5
++            - p2-6
++            - p2-7
++            - p2-8
++            - p2-9
++            - p2-10
++            - p2-11
++            - p2-12
++            - p2-13
++            - p2-14
++            - p2-15
++            - p2-16
++            - p2-17
++            - p3-0
++            - p3-1
++            - p3-2
++            - p3-3
++            - p3-4
++            - p3-5
++            - p3-6
++            - p3-7
++            - p3-8
++            - p3-9
++            - p3-10
++            - p3-11
++            - p3-12
++            - p4-0
++            - p4-1
++            - p4-2
++            - p4-3
++            - p4-4
++            - p4-5
++            - p4-6
++            - p4-7
++            - p4-8
++            - p4-9
++            - p5-0
++            - p5-1
++            - p5-2
++            - p5-3
++
++    allOf:
++      - if:
++          properties:
++            function:
++              const: spifc
++        then:
++          properties:
++            pins:
++              items:
++                enum: [p3-9, p3-10, p3-11, p3-12, p4-0, p4-1]
++
++    required:
++      - function
++      - pins
++
++required:
++  - compatible
++  - reg
++
++allOf:
++  - $ref: pinctrl.yaml#
++
++additionalProperties: false
++
++examples:
++  - |
++    pinctrl@10e20000 {
++        compatible = "zte,zx279133-pinctrl";
++        reg = <0x10e20000 0x1000>;
++
++        example-pins {
++            function = "spifc";
++            pins = "p3-9", "p3-10", "p3-11", "p3-12", "p4-0", "p4-1";
++        };
++    };
+diff --git a/Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml b/Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a3497ca445bef0bc01d8b50e0535319b4e007e7b
+--- /dev/null
++++ b/Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
+@@ -0,0 +1,43 @@
++# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/reset/zte,zx296718-reset.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX296718 reset controller
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description:
++  The ZTE ZX296718 reset controller provides active-low reset signals to SoC
++  peripherals. Each reset line is controlled by one bit in a bank of 32-bit
++  registers.
++
++properties:
++  compatible:
++    const: zte,zx296718-reset
++
++  reg:
++    maxItems: 1
++
++  '#reset-cells':
++    const: 1
++    description: Bit index of the reset signal within the register bank
++
++required:
++  - compatible
++  - reg
++  - '#reset-cells'
++
++additionalProperties: false
++
++examples:
++  - |
++    reset-controller@10e10060 {
++        compatible = "zte,zx296718-reset";
++        reg = <0x10e10060 0x4>;
++        #reset-cells = <1>;
++    };
++
++...
+diff --git a/Documentation/devicetree/bindings/serial/pl011.yaml b/Documentation/devicetree/bindings/serial/pl011.yaml
+index 3fcf2d04237273aacde39a6d91f391d01de7f1d1..e4e7bd1bbbbc4626ea066a8c0c06249cbdb2e3eb 100644
+--- a/Documentation/devicetree/bindings/serial/pl011.yaml
++++ b/Documentation/devicetree/bindings/serial/pl011.yaml
+@@ -12,6 +12,18 @@ maintainers:
+ allOf:
+   - $ref: /schemas/arm/primecell.yaml#
+   - $ref: serial.yaml#
++  - if:
++      properties:
++        compatible:
++          contains:
++            const: zte,zx279133-uart
++    then:
++      properties:
++        arm,primecell-periphid:
++          const: 0x001feffe
++      required:
++        - arm,primecell-periphid
++        - resets
+ 
+ # Need a custom select here or 'arm,primecell' will match on lots of nodes
+ select:
+@@ -25,9 +37,14 @@ select:
+ 
+ properties:
+   compatible:
+-    items:
+-      - const: arm,pl011
+-      - const: arm,primecell
++    oneOf:
++      - items:
++          - const: arm,pl011
++          - const: arm,primecell
++      - items:
++          - const: zte,zx279133-uart
++          - const: arm,pl011
++          - const: arm,primecell
+ 
+   reg:
+     maxItems: 1
+diff --git a/Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml b/Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..d02efaf3249a3e515c88f72c809def246222a6d9
+--- /dev/null
++++ b/Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
+@@ -0,0 +1,92 @@
++# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/spi/zte,zx279133-sfc.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 SPI flash controller
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++description: |
++  The ZX279133 serial flash controller is a single-chip-select SPI-MEM
++  controller used by the board's SPI-NAND. The controller has a 64-byte FIFO
++  and supports single-bit command phases with single, dual, or quad address
++  and data phases.
++
++allOf:
++  - $ref: spi-controller.yaml#
++
++properties:
++  compatible:
++    const: zte,zx279133-sfc
++
++  reg:
++    maxItems: 1
++
++  interrupts:
++    maxItems: 1
++
++  clocks:
++    minItems: 2
++    maxItems: 2
++
++  clock-names:
++    items:
++      - const: pclk
++      - const: wclk
++
++  resets:
++    maxItems: 1
++
++  zte,spi-chipselect:
++    description:
++      Phandle to the LSP syscon, register offset, and mask used to select the
++      controller chip-select. The single board device uses bit 29 of offset
++      0x2c and selects chip-select zero.
++    $ref: /schemas/types.yaml#/definitions/phandle-array
++    items:
++      - items:
++          - description: phandle to the LSP syscon
++          - description: chip-select register offset
++          - description: chip-select mask
++
++  spi-max-frequency:
++    description: Maximum SPI clocking speed of the controller in Hz.
++    $ref: /schemas/types.yaml#/definitions/uint32
++
++required:
++  - compatible
++  - reg
++  - interrupts
++  - clocks
++  - clock-names
++  - resets
++  - zte,spi-chipselect
++  - spi-max-frequency
++
++unevaluatedProperties: false
++
++examples:
++  - |
++    spi@10d0f000 {
++        compatible = "zte,zx279133-sfc";
++        reg = <0x10d0f000 0x1000>;
++        interrupts = <33>;
++        clocks = <&sfc_clk 0>, <&sfc_clk 1>;
++        clock-names = "pclk", "wclk";
++        resets = <&sfc_clk 0>;
++        zte,spi-chipselect = <&sfc_clk 0x2c 0x20000000>;
++        spi-max-frequency = <100000000>;
++        #address-cells = <1>;
++        #size-cells = <0>;
++
++        flash@0 {
++            compatible = "spi-nand";
++            reg = <0>;
++            spi-max-frequency = <100000000>;
++        };
++    };
++
++...
+diff --git a/Documentation/devicetree/bindings/watchdog/zte,zx279133-watchdog.yaml b/Documentation/devicetree/bindings/watchdog/zte,zx279133-watchdog.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..ea60c58be84a6a80a241550d06fbba1284afdd99
+--- /dev/null
++++ b/Documentation/devicetree/bindings/watchdog/zte,zx279133-watchdog.yaml
+@@ -0,0 +1,76 @@
++# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/watchdog/zte,zx279133-watchdog.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: ZTE ZX279133 watchdog
++
++maintainers:
++  - cnjn <1779895255@qq.com>
++
++allOf:
++  - $ref: watchdog.yaml#
++
++properties:
++  compatible:
++    const: zte,zx279133-watchdog
++
++  reg:
++    maxItems: 1
++
++  clocks:
++    items:
++      - description: Peripheral bus clock
++      - description: Watchdog counter clock
++
++  clock-names:
++    items:
++      - const: pclk
++      - const: wdtclk
++
++  zte,reset-controller:
++    $ref: /schemas/types.yaml#/definitions/phandle
++    description: System controller register block containing this watchdog's
++      reset route
++
++  zte,reset-offset:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description: Offset of the watchdog reset route register in the system
++      controller block
++
++  zte,reset-mask:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description: Bit enabling this watchdog's reset output
++    minimum: 1
++
++  zte,restart-watchdog:
++    type: boolean
++    description: Use this watchdog as the system restart handler
++
++required:
++  - compatible
++  - reg
++  - clocks
++  - clock-names
++  - zte,reset-controller
++  - zte,reset-offset
++  - zte,reset-mask
++
++unevaluatedProperties: false
++
++examples:
++  - |
++    watchdog@14f09000 {
++        compatible = "zte,zx279133-watchdog";
++        reg = <0x14f09000 0x1000>;
++        clocks = <&lsp1_clk 0>, <&lsp1_clk 1>;
++        clock-names = "pclk", "wdtclk";
++        zte,reset-controller = <&wdt_reset>;
++        zte,reset-offset = <0x0>;
++        zte,reset-mask = <0x10>;
++        zte,restart-watchdog;
++        timeout-sec = <10>;
++    };
++
++...
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 554e881b05bea8e507587a00ed2bc3ba3b66a2ff..5808a921d5fa4bc0bcd61c8ecd848881e7e5de88 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -28404,6 +28404,28 @@ F:	include/linux/zswap.h
+ F:	mm/zswap.c
+ F:	tools/testing/selftests/cgroup/test_zswap.c
+ 
++ZTE ZX279133 SOC SUPPORT
++M:	cnjn <1779895255@qq.com>
++L:	linux-arm-kernel@lists.infradead.org
++S:	Maintained
++F:	Documentation/devicetree/bindings/clock/zte,zx279133-*.yaml
++F:	Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml
++F:	Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
++F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
++F:	Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
++F:	Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
++F:	Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
++F:	Documentation/devicetree/bindings/watchdog/zte,zx279133-watchdog.yaml
++F:	arch/arm64/boot/dts/zte/zx279133*
++F:	drivers/clk/clk-zx279133.c
++F:	drivers/gpio/gpio-zx279133.c
++F:	drivers/hwmon/zx279133-pvt.c
++F:	drivers/pinctrl/pinctrl-zx279133.c
++F:	drivers/spi/spi-zx279133-sfc.c
++F:	drivers/watchdog/zx279133_wdt.c
++F:	include/dt-bindings/clock/zte,zx279133-*.h
++F:	include/dt-bindings/reset/zte,zx279133-lsp.h
++
+ SENARYTECH AUDIO CODEC DRIVER
+ M:	bo liu <bo.liu@senarytech.com>
+ S:	Maintained
+diff --git a/arch/arm64/boot/dts/Makefile b/arch/arm64/boot/dts/Makefile
+index b0844404eda1835d7f3112a1250dde74ac251c50..396e22ba99e274401da1b3fd6164a488cb211276 100644
+--- a/arch/arm64/boot/dts/Makefile
++++ b/arch/arm64/boot/dts/Makefile
+@@ -38,3 +38,4 @@ subdir-y += tesla
+ subdir-y += ti
+ subdir-y += toshiba
+ subdir-y += xilinx
++subdir-y += zte
+diff --git a/arch/arm64/boot/dts/zte/Makefile b/arch/arm64/boot/dts/zte/Makefile
+new file mode 100644
+index 0000000000000000000000000000000000000000..ecc56901d02a43cd961b1c1381a492b1b03d074a
+--- /dev/null
++++ b/arch/arm64/boot/dts/zte/Makefile
+@@ -0,0 +1,2 @@
++# SPDX-License-Identifier: GPL-2.0
++dtb-y += zx279133-sr1010.dtb
+diff --git a/arch/arm64/boot/dts/zte/zx279133-sr1010.dts b/arch/arm64/boot/dts/zte/zx279133-sr1010.dts
+new file mode 100644
+index 0000000000000000000000000000000000000000..b8e331412e5f0bb2c194caaa3c9fd54d9e407776
+--- /dev/null
++++ b/arch/arm64/boot/dts/zte/zx279133-sr1010.dts
+@@ -0,0 +1,26 @@
++// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
++/dts-v1/;
++
++#include "zx279133.dtsi"
++
++/ {
++	model = "ZTE ZXSLC SR1010";
++	compatible = "zte,zx279133-sr1010", "zte,zx279133";
++
++	aliases {
++		serial0 = &uart0;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	memory@80000000 {
++		device_type = "memory";
++		reg = <0x0 0x80000000 0x0 0x20000000>;
++	};
++};
++
++&uart0 {
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/zte/zx279133.dtsi b/arch/arm64/boot/dts/zte/zx279133.dtsi
+new file mode 100644
+index 0000000000000000000000000000000000000000..17a500cd59a3bca71a4abca3097a34200cf7f719
+--- /dev/null
++++ b/arch/arm64/boot/dts/zte/zx279133.dtsi
+@@ -0,0 +1,369 @@
++// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
++
++#include <dt-bindings/clock/zte,zx279133-lsp.h>
++#include <dt-bindings/clock/zte,zx279133-topcrm.h>
++#include <dt-bindings/interrupt-controller/arm-gic.h>
++#include <dt-bindings/reset/zte,zx279133-lsp.h>
++
++/ {
++	compatible = "zte,zx279133";
++	#address-cells = <2>;
++	#size-cells = <2>;
++	interrupt-parent = <&gic>;
++
++	osc25m: oscillator-25m {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <25000000>;
++	};
++
++	clk100m: clock-100m {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <100000000>;
++	};
++
++	clk50m: clock-50m {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <50000000>;
++		clock-output-names = "clk50m";
++	};
++
++	/* Temporary fixed-rate model until the TOPCRM divider tree is added. */
++	clk125m: clock-125m {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <125000000>;
++	};
++
++	/* Runtime-confirmed parent rates until the full PLL/mux tree is modeled. */
++	sys_aclk: clock-sys-aclk {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <250000000>;
++		clock-output-names = "sys_aclk";
++	};
++
++	cci_aclk: clock-cci-aclk {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <500000000>;
++		clock-output-names = "cci_aclk";
++	};
++
++	clk32k: clock-32k {
++		compatible = "fixed-clock";
++		#clock-cells = <0>;
++		clock-frequency = <32768>;
++	};
++
++	cpus {
++		#address-cells = <2>;
++		#size-cells = <0>;
++
++		cpu@0 {
++			compatible = "arm,cortex-a53";
++			device_type = "cpu";
++			reg = <0x0 0x0>;
++			enable-method = "psci";
++		};
++
++		cpu@1 {
++			compatible = "arm,cortex-a53";
++			device_type = "cpu";
++			reg = <0x0 0x1>;
++			enable-method = "psci";
++		};
++	};
++
++	psci {
++		compatible = "arm,psci-0.2";
++		method = "smc";
++	};
++
++	gic: interrupt-controller@500000 {
++		compatible = "arm,gic-v3";
++		#address-cells = <2>;
++		#size-cells = <2>;
++		#interrupt-cells = <3>;
++		interrupt-controller;
++		reg = <0x0 0x00500000 0x0 0x10000>,
++		      <0x0 0x00540000 0x0 0x80000>;
++		interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
++	};
++
++	timer {
++		compatible = "arm,armv8-timer";
++		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(2) |
++				 IRQ_TYPE_LEVEL_LOW)>,
++			     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(2) |
++				 IRQ_TYPE_LEVEL_LOW)>,
++			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(2) |
++				 IRQ_TYPE_LEVEL_LOW)>,
++			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(2) |
++				 IRQ_TYPE_LEVEL_LOW)>;
++	};
++
++	soc {
++		compatible = "simple-bus";
++		#address-cells = <2>;
++		#size-cells = <2>;
++		ranges;
++
++		topcrm: clock-controller@10e10000 {
++			compatible = "zte,zx279133-topcrm", "syscon";
++			reg = <0x0 0x10e10000 0x0 0x60>;
++			clocks = <&clk100m>, <&osc25m>, <&clk125m>, <&clk32k>,
++				 <&clk50m>, <&clk125m>, <&cci_aclk>, <&sys_aclk>;
++			clock-names = "clk100m", "clk25m", "pclk", "clk32k",
++				      "clk50m", "sys_pclk", "cci_aclk", "sys_aclk";
++			#clock-cells = <1>;
++		};
++
++		top_reset: reset-controller@10e10060 {
++			compatible = "zte,zx296718-reset";
++			reg = <0x0 0x10e10060 0x0 0x4>;
++			#reset-cells = <1>;
++		};
++
++		local_reset: reset-controller@10e10070 {
++			compatible = "zte,zx296718-reset";
++			reg = <0x0 0x10e10070 0x0 0x8>;
++			#reset-cells = <1>;
++		};
++
++		topcrm_wdt: syscon@10e10208 {
++			compatible = "zte,zx279133-wdt-reset", "syscon";
++			reg = <0x0 0x10e10208 0x0 0x4>;
++		};
++
++		lsp0_clk: clock-controller@10d00000 {
++			compatible = "zte,zx279133-lsp-clk", "syscon";
++			reg = <0x0 0x10d00000 0x0 0x100>;
++			clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP0_PCLK>,
++				 <&topcrm ZX279133_TOPCRM_CLK_LSP0_25M>,
++				 <&topcrm ZX279133_TOPCRM_CLK_LSP0_100M>,
++				 <&topcrm ZX279133_TOPCRM_CLK_SPIFC_WCLK>;
++			clock-names = "pclk", "wclk25", "wclk100", "spifc_wclk";
++			#clock-cells = <1>;
++			#reset-cells = <1>;
++		};
++
++		uart0: serial@10d0d000 {
++			compatible = "zte,zx279133-uart", "arm,pl011",
++				     "arm,primecell";
++			arm,primecell-periphid = <0x001feffe>;
++			reg = <0x0 0x10d0d000 0x0 0x1000>;
++			interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&lsp0_clk ZX279133_LSP_CLK_UART0_WCLK>,
++				 <&lsp0_clk ZX279133_LSP_CLK_UART0_PCLK>;
++			clock-names = "uartclk", "apb_pclk";
++			resets = <&lsp0_clk ZX279133_LSP_RESET_UART0>;
++			assigned-clocks = <&lsp0_clk ZX279133_LSP_CLK_UART0_WCLK>;
++			assigned-clock-parents =
++				<&topcrm ZX279133_TOPCRM_CLK_LSP0_25M>;
++			assigned-clock-rates = <25000000>;
++			status = "disabled";
++		};
++
++		pvt: temperature-sensor@10e70000 {
++			compatible = "zte,zx279133-pvt";
++			reg = <0x0 0x10e70000 0x0 0x10000>;
++			clocks = <&topcrm ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK>;
++			clock-names = "wclk";
++			#thermal-sensor-cells = <0>;
++			status = "disabled";
++		};
++
++		pinctrl: pinctrl@10e20000 {
++			compatible = "zte,zx279133-pinctrl";
++			reg = <0x0 0x10e20000 0x0 0x1000>;
++
++			spifc_pins: spifc-pins {
++				function = "spifc";
++				pins = "p3-9", "p3-10", "p3-11", "p3-12",
++				       "p4-0", "p4-1";
++			};
++		};
++
++		gpio0: gpio@10d10000 {
++			compatible = "zte,zx279133-gpio";
++			reg = <0x0 0x10d10000 0x0 0x40>;
++			interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
++			gpio-controller;
++			#gpio-cells = <2>;
++			gpio-ranges = <&pinctrl 0 14 1>, <&pinctrl 1 0 14>,
++				      <&pinctrl 15 15 1>;
++			ngpios = <16>;
++			interrupt-controller;
++			#interrupt-cells = <2>;
++		};
++
++		gpio1: gpio@10d10040 {
++			compatible = "zte,zx279133-gpio";
++			reg = <0x0 0x10d10040 0x0 0x40>;
++			interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
++			gpio-controller;
++			#gpio-cells = <2>;
++			gpio-ranges = <&pinctrl 0 16 9>, <&pinctrl 9 66 4>,
++				      <&pinctrl 13 25 3>;
++			ngpios = <16>;
++			interrupt-controller;
++			#interrupt-cells = <2>;
++		};
++
++		gpio2: gpio@10d10080 {
++			compatible = "zte,zx279133-gpio";
++			reg = <0x0 0x10d10080 0x0 0x40>;
++			interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>;
++			gpio-controller;
++			#gpio-cells = <2>;
++			gpio-ranges = <&pinctrl 0 28 16>;
++			ngpios = <16>;
++			interrupt-controller;
++			#interrupt-cells = <2>;
++		};
++
++		gpio3: gpio@10d100c0 {
++			compatible = "zte,zx279133-gpio";
++			reg = <0x0 0x10d100c0 0x0 0x40>;
++			interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
++			gpio-controller;
++			#gpio-cells = <2>;
++			gpio-ranges = <&pinctrl 0 44 16>;
++			ngpios = <16>;
++			interrupt-controller;
++			#interrupt-cells = <2>;
++		};
++
++		gpio4: gpio@10d10100 {
++			compatible = "zte,zx279133-gpio";
++			reg = <0x0 0x10d10100 0x0 0x40>;
++			interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
++			gpio-controller;
++			#gpio-cells = <2>;
++			gpio-ranges = <&pinctrl 0 60 6>;
++			ngpios = <6>;
++			interrupt-controller;
++			#interrupt-cells = <2>;
++		};
++
++		spifc: spi@10d0f000 {
++			compatible = "zte,zx279133-sfc";
++			reg = <0x0 0x10d0f000 0x0 0x1000>;
++			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&lsp0_clk ZX279133_LSP_CLK_SPIFC_PCLK>,
++				 <&lsp0_clk ZX279133_LSP_CLK_SPIFC_WCLK>;
++			clock-names = "pclk", "wclk";
++			resets = <&lsp0_clk ZX279133_LSP_RESET_SPIFC>;
++			zte,spi-chipselect = <&lsp0_clk 0x2c 0x20000000>;
++			spi-max-frequency = <100000000>;
++			pinctrl-names = "default";
++			pinctrl-0 = <&spifc_pins>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			status = "disabled";
++
++			flash@0 {
++				compatible = "spi-nand";
++				reg = <0>;
++				spi-max-frequency = <100000000>;
++
++				partitions {
++					compatible = "fixed-partitions";
++					#address-cells = <1>;
++					#size-cells = <1>;
++
++					partition@0 {
++						label = "bootloader";
++						reg = <0x000000 0x100000>;
++						read-only;
++					};
++
++					partition@100000 {
++						label = "tags";
++						reg = <0x100000 0x100000>;
++					};
++
++					partition@200000 {
++						label = "usercfg";
++						reg = <0x200000 0x200000>;
++						read-only;
++					};
++
++					partition@400000 {
++						label = "defcfg";
++						reg = <0x400000 0x200000>;
++						read-only;
++					};
++
++					partition@600000 {
++						label = "firmware-slot1";
++						reg = <0x600000 0x2900000>;
++						read-only;
++					};
++
++					partition@2f00000 {
++						label = "firmware-slot2";
++						reg = <0x2f00000 0x2900000>;
++						read-only;
++					};
++
++					partition@5800000 {
++						label = "Plugin";
++						reg = <0x5800000 0x2800000>;
++						read-only;
++					};
++				};
++			};
++		};
++
++		usb3: usb3@15010000 {
++			compatible = "generic-xhci";
++			reg = <0x0 0x15010000 0x0 0x4000>;
++			interrupts = <GIC_SPI 65 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&topcrm ZX279133_TOPCRM_CLK_USB_ACLK>,
++				 <&topcrm ZX279133_TOPCRM_CLK_USB_PCLK>;
++			clock-names = "core", "reg";
++			dma-coherent;
++			status = "disabled";
++		};
++
++		lsp1_clk: clock-controller@14f00000 {
++			compatible = "zte,zx279133-lsp1-clk";
++			reg = <0x0 0x14f00000 0x0 0x100>;
++			clocks = <&topcrm ZX279133_TOPCRM_CLK_LSP1_PCLK>,
++				 <&topcrm ZX279133_TOPCRM_CLK_LSP1_32K>;
++			clock-names = "pclk", "wclk32k";
++			#clock-cells = <1>;
++		};
++
++		watchdog0: watchdog@14f09000 {
++			compatible = "zte,zx279133-watchdog";
++			reg = <0x0 0x14f09000 0x0 0x1000>;
++			clocks = <&lsp1_clk ZX279133_LSP1_CLK_WDT0_PCLK>,
++				 <&lsp1_clk ZX279133_LSP1_CLK_WDT0_WCLK>;
++			clock-names = "pclk", "wdtclk";
++			zte,reset-controller = <&topcrm_wdt>;
++			zte,reset-offset = <0x0>;
++			zte,reset-mask = <0x10>;
++			zte,restart-watchdog;
++			timeout-sec = <10>;
++			status = "okay";
++		};
++
++		watchdog1: watchdog@14f0a000 {
++			compatible = "zte,zx279133-watchdog";
++			reg = <0x0 0x14f0a000 0x0 0x1000>;
++			clocks = <&lsp1_clk ZX279133_LSP1_CLK_WDT1_PCLK>,
++				 <&lsp1_clk ZX279133_LSP1_CLK_WDT1_WCLK>;
++			clock-names = "pclk", "wdtclk";
++			zte,reset-controller = <&topcrm_wdt>;
++			zte,reset-offset = <0x0>;
++			zte,reset-mask = <0x20>;
++			timeout-sec = <10>;
++			status = "disabled";
++		};
++	};
++};
+diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+index 32861d08a3b8274cb98e64cf1f6d4a611c8807e4..5e614b8b754677ef1b6203b09802d0f113f4456a 100644
+--- a/arch/arm64/configs/defconfig
++++ b/arch/arm64/configs/defconfig
+@@ -580,6 +580,7 @@ CONFIG_SPI_ORION=y
+ CONFIG_SPI_PL022=y
+ CONFIG_SPI_ROCKCHIP=y
+ CONFIG_SPI_ROCKCHIP_SFC=m
++CONFIG_SPI_ZX279133_SFC=m
+ CONFIG_SPI_RPCIF=m
+ CONFIG_SPI_RSPI=m
+ CONFIG_SPI_RZV2H_RSPI=m
+@@ -635,6 +636,7 @@ CONFIG_PINCTRL_QCS8300=y
+ CONFIG_PINCTRL_QDF2XXX=y
+ CONFIG_PINCTRL_QDU1000=y
+ CONFIG_PINCTRL_RP1=m
++CONFIG_PINCTRL_ZX279133=y
+ CONFIG_PINCTRL_SA8775P=y
+ CONFIG_PINCTRL_SC7180=y
+ CONFIG_PINCTRL_SC7280=y
+@@ -682,6 +684,7 @@ CONFIG_GPIO_WCD934X=m
+ CONFIG_GPIO_VF610=y
+ CONFIG_GPIO_XGENE=y
+ CONFIG_GPIO_XGENE_SB=y
++CONFIG_GPIO_ZX279133=y
+ CONFIG_GPIO_MAX732X=y
+ CONFIG_GPIO_PCA953X=y
+ CONFIG_GPIO_PCA953X_IRQ=y
+@@ -717,6 +720,7 @@ CONFIG_SENSORS_LM90=m
+ CONFIG_SENSORS_PWM_FAN=m
+ CONFIG_SENSORS_RASPBERRYPI_HWMON=m
+ CONFIG_SENSORS_SL28CPLD=m
++CONFIG_SENSORS_ZX279133_PVT=m
+ CONFIG_SENSORS_INA2XX=m
+ CONFIG_SENSORS_INA3221=m
+ CONFIG_SENSORS_TMP102=m
+@@ -751,6 +755,7 @@ CONFIG_QCOM_LMH=m
+ CONFIG_UNIPHIER_THERMAL=y
+ CONFIG_KHADAS_MCU_FAN_THERMAL=m
+ CONFIG_WATCHDOG=y
++CONFIG_ZX279133_WATCHDOG=y
+ CONFIG_SL28CPLD_WATCHDOG=m
+ CONFIG_ARM_SP805_WATCHDOG=y
+ CONFIG_ARM_SBSA_WATCHDOG=y
+@@ -1329,6 +1334,7 @@ CONFIG_CROS_EC_SPI=y
+ CONFIG_CROS_KBD_LED_BACKLIGHT=m
+ CONFIG_CROS_EC_CHARDEV=m
+ CONFIG_COMMON_CLK_RK808=y
++CONFIG_COMMON_CLK_ZX279133=y
+ CONFIG_COMMON_CLK_SCMI=y
+ CONFIG_COMMON_CLK_SCPI=y
+ CONFIG_COMMON_CLK_CS2000_CP=y
+diff --git a/drivers/clk/Kconfig b/drivers/clk/Kconfig
+index 3a1611008e48e9bc54f07e273db16e2e7cd1f130..98219139e2638eb1ea158d3966234716517a5ecd 100644
+--- a/drivers/clk/Kconfig
++++ b/drivers/clk/Kconfig
+@@ -354,6 +354,15 @@ config COMMON_CLK_XGENE
+ 	help
+ 	  Support for the APM X-Gene SoC reference, PLL, and device clocks.
+ 
++config COMMON_CLK_ZX279133
++	bool "Clock driver for the ZTE ZX279133 SoC"
++	depends on ARM64 || COMPILE_TEST
++	select RESET_CONTROLLER
++	select RESET_SIMPLE
++	help
++	  Support the top-level and low-speed peripheral clocks on the ZTE
++	  ZX279133 SoC.
++
+ config COMMON_CLK_LOCHNAGAR
+ 	tristate "Cirrus Logic Lochnagar clock driver"
+ 	depends on MFD_LOCHNAGAR
+diff --git a/drivers/clk/Makefile b/drivers/clk/Makefile
+index 61ec08404442b4715dc84a563b3330cb5169f8b2..d26eabe09c9f94f3e7071adfdda001d72c62e6ee 100644
+--- a/drivers/clk/Makefile
++++ b/drivers/clk/Makefile
+@@ -110,6 +110,7 @@ obj-$(CONFIG_COMMON_CLK_VC5)		+= clk-versaclock5.o
+ obj-$(CONFIG_COMMON_CLK_VC7)		+= clk-versaclock7.o
+ obj-$(CONFIG_COMMON_CLK_WM831X)		+= clk-wm831x.o
+ obj-$(CONFIG_COMMON_CLK_XGENE)		+= clk-xgene.o
++obj-$(CONFIG_COMMON_CLK_ZX279133)	+= clk-zx279133.o
+ 
+ # please keep this section sorted lexicographically by directory path name
+ obj-y					+= actions/
+diff --git a/drivers/clk/clk-zx279133.c b/drivers/clk/clk-zx279133.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..fbf111f25016938ed0a28168fdb0e364c6ef6893
+--- /dev/null
++++ b/drivers/clk/clk-zx279133.c
+@@ -0,0 +1,566 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++#include <linux/clk-provider.h>
++#include <linux/delay.h>
++#include <linux/io.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/reset-controller.h>
++#include <linux/slab.h>
++
++#include <dt-bindings/clock/zte,zx279133-lsp.h>
++#include <dt-bindings/clock/zte,zx279133-topcrm.h>
++#include <dt-bindings/reset/zte,zx279133-lsp.h>
++
++#define ZX279133_TOPCRM_GATE_CTRL	0x38
++#define ZX279133_TOPCRM_GATE_FLAGS	CLK_IGNORE_UNUSED
++#define ZX279133_UART0_CLK_CTRL	0x24
++#define ZX279133_UART_PCLK_GATE	0
++#define ZX279133_UART_WCLK_GATE	1
++#define ZX279133_UART_WCLK_MUX	9
++#define ZX279133_UART_RESET	4
++#define ZX279133_UART_CLK_FLAGS	(CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED)
++#define ZX279133_UART_WCLK_FLAGS	(ZX279133_UART_CLK_FLAGS | CLK_IS_CRITICAL)
++#define ZX279133_WDT0_CLK_CTRL	0x34
++#define ZX279133_WDT1_CLK_CTRL	0x38
++#define ZX279133_WDT_PCLK_GATE	0
++#define ZX279133_WDT_WCLK_GATE	1
++#define ZX279133_WDT_WCLK_DIV_SHIFT	11
++#define ZX279133_WDT_WCLK_DIV_WIDTH	10
++#define ZX279133_WDT_CLK_FLAGS	CLK_IGNORE_UNUSED
++#define ZX279133_TOPCRM_PVT_DIV_CTRL	0x58
++#define ZX279133_TOPCRM_PVT_GATE_CTRL	0x40
++#define ZX279133_TOPCRM_SPIFC_GATE_CTRL	0x38
++#define ZX279133_TOPCRM_SPIFC_GATE_BIT	16
++#define ZX279133_TOPCRM_USB_GATE_CTRL	0x3c
++#define ZX279133_TOPCRM_USB_GATE_FLAGS	0
++#define ZX279133_LSP_SPIFC_CLK_CTRL	0x2c
++#define ZX279133_LSP_SPIFC_PCLK_GATE	0
++#define ZX279133_LSP_SPIFC_WCLK_GATE	1
++#define ZX279133_LSP_SPIFC_WCLK_DIV_SHIFT	6
++#define ZX279133_LSP_SPIFC_WCLK_DIV_WIDTH	6
++#define ZX279133_LSP_SPIFC_RESET	4
++
++struct zx279133_topcrm_gate_desc {
++	const char *name;
++	const struct clk_parent_data *parent;
++	unsigned long flags;
++	u16 reg_offset;
++	u8 bit_idx;
++};
++
++struct zx279133_topcrm_clk {
++	spinlock_t lock; /* Protects the shared TOPCRM gate register. */
++	struct clk_hw_onecell_data data;
++};
++
++struct zx279133_lsp_clk {
++	spinlock_t lock; /* Protects the LSP clock control registers. */
++	struct clk_hw_onecell_data *data;
++	struct clk_mux uart0_wclk_mux;
++	struct clk_gate uart0_wclk_gate;
++	struct clk_divider spifc_wclk_divider;
++	struct clk_gate spifc_wclk_gate;
++	struct reset_controller_dev rcdev;
++	void __iomem *uart0_reg;
++	void __iomem *spifc_reg;
++};
++
++struct zx279133_lsp1_clk {
++	spinlock_t lock; /* Protects the shared watchdog clock registers. */
++	struct clk_divider wdt_dividers[2];
++	struct clk_gate wdt_gates[2];
++	struct clk_hw_onecell_data data;
++};
++
++static const struct clk_parent_data topcrm_clk100m_parent = {
++	.fw_name = "clk100m",
++};
++
++static const struct clk_parent_data topcrm_clk25m_parent = {
++	.fw_name = "clk25m",
++};
++
++static const struct clk_parent_data topcrm_pclk_parent = {
++	.fw_name = "pclk",
++};
++
++static const struct clk_parent_data topcrm_sys_pclk_parent = {
++	.fw_name = "sys_pclk",
++};
++
++static const struct clk_parent_data topcrm_cci_aclk_parent = {
++	.fw_name = "cci_aclk",
++};
++
++static const struct clk_parent_data topcrm_sys_aclk_parent = {
++	.fw_name = "sys_aclk",
++};
++
++static const struct clk_parent_data topcrm_clk32k_parent = {
++	.fw_name = "clk32k",
++};
++
++static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
++	[ZX279133_TOPCRM_CLK_LSP0_100M] = {
++		.name = "lsp0_100m",
++		.parent = &topcrm_clk100m_parent,
++		.flags = ZX279133_TOPCRM_GATE_FLAGS,
++		.reg_offset = ZX279133_TOPCRM_GATE_CTRL,
++		.bit_idx = 12,
++	},
++	[ZX279133_TOPCRM_CLK_LSP0_25M] = {
++		.name = "lsp0_25m",
++		.parent = &topcrm_clk25m_parent,
++		.flags = ZX279133_TOPCRM_GATE_FLAGS,
++		.reg_offset = ZX279133_TOPCRM_GATE_CTRL,
++		.bit_idx = 13,
++	},
++	[ZX279133_TOPCRM_CLK_LSP0_PCLK] = {
++		.name = "lsp0_pclk",
++		.parent = &topcrm_pclk_parent,
++		.flags = ZX279133_TOPCRM_GATE_FLAGS,
++		.reg_offset = ZX279133_TOPCRM_GATE_CTRL,
++		.bit_idx = 15,
++	},
++	[ZX279133_TOPCRM_CLK_LSP1_32K] = {
++		.name = "lsp1_32k",
++		.parent = &topcrm_clk32k_parent,
++		.flags = ZX279133_TOPCRM_GATE_FLAGS,
++		.reg_offset = ZX279133_TOPCRM_GATE_CTRL,
++		.bit_idx = 21,
++	},
++	[ZX279133_TOPCRM_CLK_LSP1_PCLK] = {
++		.name = "lsp1_pclk",
++		.parent = &topcrm_pclk_parent,
++		.flags = ZX279133_TOPCRM_GATE_FLAGS,
++		.reg_offset = ZX279133_TOPCRM_GATE_CTRL,
++		.bit_idx = 22,
++	},
++	[ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK] = {
++		.name = "tempsensor_wclk",
++		.flags = 0,
++		.reg_offset = ZX279133_TOPCRM_PVT_GATE_CTRL,
++		.bit_idx = 0,
++	},
++	[ZX279133_TOPCRM_CLK_SPIFC_WCLK] = {
++		.name = "spifc_wclk",
++		.parent = &topcrm_clk100m_parent,
++		.flags = 0,
++		.reg_offset = ZX279133_TOPCRM_SPIFC_GATE_CTRL,
++		.bit_idx = ZX279133_TOPCRM_SPIFC_GATE_BIT,
++	},
++	[ZX279133_TOPCRM_CLK_USB_PCLK] = {
++		.name = "usb_pclk",
++		.parent = &topcrm_sys_pclk_parent,
++		.flags = ZX279133_TOPCRM_USB_GATE_FLAGS,
++		.reg_offset = ZX279133_TOPCRM_USB_GATE_CTRL,
++		.bit_idx = 4,
++	},
++	[ZX279133_TOPCRM_CLK_USB_CCI_ACLK] = {
++		.name = "usb_cci_aclk",
++		.parent = &topcrm_cci_aclk_parent,
++		.flags = ZX279133_TOPCRM_USB_GATE_FLAGS,
++		.reg_offset = ZX279133_TOPCRM_USB_GATE_CTRL,
++		.bit_idx = 5,
++	},
++	[ZX279133_TOPCRM_CLK_USB_ACLK] = {
++		.name = "usb_aclk",
++		.parent = &topcrm_sys_aclk_parent,
++		.flags = ZX279133_TOPCRM_USB_GATE_FLAGS,
++		.reg_offset = ZX279133_TOPCRM_USB_GATE_CTRL,
++		.bit_idx = 6,
++	},
++};
++
++static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct zx279133_topcrm_clk *priv;
++	struct clk_hw *pvt_div;
++	void __iomem *base;
++	void __iomem *reg;
++	unsigned int index;
++	int ret;
++
++	priv = devm_kzalloc(dev, struct_size(priv, data.hws,
++					     ARRAY_SIZE(topcrm_gates)), GFP_KERNEL);
++	if (!priv)
++		return -ENOMEM;
++
++	base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(base))
++		return PTR_ERR(base);
++
++	spin_lock_init(&priv->lock);
++	pvt_div = devm_clk_hw_register_divider(dev, "clk1m22", "clk50m",
++					       0, base + ZX279133_TOPCRM_PVT_DIV_CTRL,
++					      0, 6, CLK_DIVIDER_READ_ONLY,
++					      &priv->lock);
++	if (IS_ERR(pvt_div))
++		return dev_err_probe(dev, PTR_ERR(pvt_div),
++				     "failed to register clk1m22 divider\n");
++
++	for (index = 0; index < ARRAY_SIZE(topcrm_gates); index++) {
++		const struct zx279133_topcrm_gate_desc *desc =
++			&topcrm_gates[index];
++		struct clk_hw *hw;
++
++		reg = base + desc->reg_offset;
++		if (index == ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK)
++			hw = devm_clk_hw_register_gate_parent_hw(dev, desc->name,
++								 pvt_div, desc->flags,
++								 reg, desc->bit_idx, 0,
++								 &priv->lock);
++		else
++			hw = devm_clk_hw_register_gate_parent_data(dev, desc->name,
++								   desc->parent,
++								   desc->flags, reg,
++								   desc->bit_idx, 0,
++								   &priv->lock);
++		if (IS_ERR(hw))
++			return dev_err_probe(dev, PTR_ERR(hw),
++					     "failed to register %s gate\n",
++					     desc->name);
++
++		priv->data.hws[index] = hw;
++	}
++
++	priv->data.num = ARRAY_SIZE(topcrm_gates);
++	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get,
++					  &priv->data);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to register clock provider\n");
++
++	return 0;
++}
++
++static int zx279133_lsp_reset_update(struct reset_controller_dev *rcdev,
++				     unsigned long id, bool deassert)
++{
++	struct zx279133_lsp_clk *priv =
++		container_of(rcdev, struct zx279133_lsp_clk, rcdev);
++	void __iomem *reg;
++	u8 bit;
++	unsigned long flags;
++	u32 value;
++
++	switch (id) {
++	case ZX279133_LSP_RESET_UART0:
++		reg = priv->uart0_reg;
++		bit = ZX279133_UART_RESET;
++		break;
++	case ZX279133_LSP_RESET_SPIFC:
++		reg = priv->spifc_reg;
++		bit = ZX279133_LSP_SPIFC_RESET;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	spin_lock_irqsave(&priv->lock, flags);
++	value = readl(reg);
++	if (deassert)
++		value |= BIT(bit);
++	else
++		value &= ~BIT(bit);
++	writel(value, reg);
++	spin_unlock_irqrestore(&priv->lock, flags);
++
++	return 0;
++}
++
++static int zx279133_lsp_reset_assert(struct reset_controller_dev *rcdev,
++				     unsigned long id)
++{
++	return zx279133_lsp_reset_update(rcdev, id, false);
++}
++
++static int zx279133_lsp_reset_deassert(struct reset_controller_dev *rcdev,
++				       unsigned long id)
++{
++	return zx279133_lsp_reset_update(rcdev, id, true);
++}
++
++static int zx279133_lsp_reset_reset(struct reset_controller_dev *rcdev,
++				    unsigned long id)
++{
++	int ret;
++
++	ret = zx279133_lsp_reset_assert(rcdev, id);
++	if (ret)
++		return ret;
++
++	/* Match the vendor controller's 10 ms reset hold time. */
++	usleep_range(10000, 11000);
++
++	return zx279133_lsp_reset_deassert(rcdev, id);
++}
++
++static int zx279133_lsp_reset_status(struct reset_controller_dev *rcdev,
++				     unsigned long id)
++{
++	struct zx279133_lsp_clk *priv =
++		container_of(rcdev, struct zx279133_lsp_clk, rcdev);
++	void __iomem *reg;
++	u8 bit;
++
++	switch (id) {
++	case ZX279133_LSP_RESET_UART0:
++		reg = priv->uart0_reg;
++		bit = ZX279133_UART_RESET;
++		break;
++	case ZX279133_LSP_RESET_SPIFC:
++		reg = priv->spifc_reg;
++		bit = ZX279133_LSP_SPIFC_RESET;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	return !(readl(reg) & BIT(bit));
++}
++
++static const struct reset_control_ops zx279133_lsp_reset_ops = {
++	.assert = zx279133_lsp_reset_assert,
++	.deassert = zx279133_lsp_reset_deassert,
++	.reset = zx279133_lsp_reset_reset,
++	.status = zx279133_lsp_reset_status,
++};
++
++static const struct clk_parent_data uart0_pclk_parent = {
++	.fw_name = "pclk",
++};
++
++static const struct clk_parent_data uart0_wclk_parents[] = {
++	{ .fw_name = "wclk25" },
++	{ .fw_name = "wclk100" },
++};
++
++static const struct clk_parent_data spifc_wclk_parent = {
++	.fw_name = "spifc_wclk",
++};
++
++static const struct clk_parent_data wdt_pclk_parent = {
++	.fw_name = "pclk",
++};
++
++static const struct clk_parent_data wdt_wclk_parent = {
++	.fw_name = "wclk32k",
++};
++
++static int zx279133_lsp1_clk_probe(struct platform_device *pdev)
++{
++	static const unsigned int offsets[] = {
++		ZX279133_WDT0_CLK_CTRL, ZX279133_WDT1_CLK_CTRL,
++	};
++	static const char * const names[][2] = {
++		{ "wdt0_pclk", "wdt0_wclk" },
++		{ "wdt1_pclk", "wdt1_wclk" },
++	};
++	struct device *dev = &pdev->dev;
++	struct zx279133_lsp1_clk *priv;
++	struct clk_hw_onecell_data *data;
++	void __iomem *base;
++	unsigned int index;
++	int ret;
++
++	priv = devm_kzalloc(dev, struct_size(priv, data.hws, 4), GFP_KERNEL);
++	if (!priv)
++		return -ENOMEM;
++
++	base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(base))
++		return PTR_ERR(base);
++
++	spin_lock_init(&priv->lock);
++	for (index = 0; index < ARRAY_SIZE(offsets); index++) {
++		struct clk_divider *divider = &priv->wdt_dividers[index];
++		struct clk_gate *gate = &priv->wdt_gates[index];
++		struct clk_hw *hw;
++		void __iomem *reg = base + offsets[index];
++
++		hw = devm_clk_hw_register_gate_parent_data(dev, names[index][0],
++							   &wdt_pclk_parent,
++							   ZX279133_WDT_CLK_FLAGS,
++							   reg, ZX279133_WDT_PCLK_GATE,
++							   0, &priv->lock);
++		if (IS_ERR(hw))
++			return dev_err_probe(dev, PTR_ERR(hw),
++					     "failed to register WDT%u PCLK\n", index);
++		priv->data.hws[index * 2] = hw;
++
++		divider->reg = reg;
++		divider->shift = ZX279133_WDT_WCLK_DIV_SHIFT;
++		divider->width = ZX279133_WDT_WCLK_DIV_WIDTH;
++		divider->lock = &priv->lock;
++
++		gate->reg = reg;
++		gate->bit_idx = ZX279133_WDT_WCLK_GATE;
++		gate->lock = &priv->lock;
++
++		hw = devm_clk_hw_register_composite_pdata(dev, names[index][1],
++							  &wdt_wclk_parent, 1,
++							  NULL, NULL,
++							  &divider->hw,
++							  &clk_divider_ops,
++							  &gate->hw,
++							  &clk_gate_ops,
++							  ZX279133_WDT_CLK_FLAGS);
++		if (IS_ERR(hw))
++			return dev_err_probe(dev, PTR_ERR(hw),
++					     "failed to register WDT%u WCLK\n", index);
++		priv->data.hws[index * 2 + 1] = hw;
++	}
++
++	priv->data.num = 4;
++	data = &priv->data;
++
++	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, data);
++	if (ret)
++		return ret;
++
++	dev_info(dev, "registered 4 watchdog clocks\n");
++
++	return 0;
++}
++
++static int zx279133_lsp0_clk_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct zx279133_lsp_clk *priv;
++	struct clk_hw *hw;
++	void __iomem *base;
++	void __iomem *reg;
++	int ret;
++
++	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
++	if (!priv)
++		return -ENOMEM;
++
++	priv->data = devm_kzalloc(dev, struct_size(priv->data, hws, 4), GFP_KERNEL);
++	if (!priv->data)
++		return -ENOMEM;
++
++	base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(base))
++		return PTR_ERR(base);
++
++	spin_lock_init(&priv->lock);
++	reg = base + ZX279133_UART0_CLK_CTRL;
++	priv->uart0_reg = reg;
++
++	hw = devm_clk_hw_register_gate_parent_data(dev, "uart0_pclk",
++						   &uart0_pclk_parent,
++						   ZX279133_UART_CLK_FLAGS, reg,
++						   ZX279133_UART_PCLK_GATE, 0,
++						   &priv->lock);
++	if (IS_ERR(hw))
++		return dev_err_probe(dev, PTR_ERR(hw),
++			"failed to register UART0 PCLK\n");
++	priv->data->hws[ZX279133_LSP_CLK_UART0_PCLK] = hw;
++
++	priv->uart0_wclk_mux.reg = reg;
++	priv->uart0_wclk_mux.shift = ZX279133_UART_WCLK_MUX;
++	priv->uart0_wclk_mux.mask = 1;
++	priv->uart0_wclk_mux.lock = &priv->lock;
++
++	priv->uart0_wclk_gate.reg = reg;
++	priv->uart0_wclk_gate.bit_idx = ZX279133_UART_WCLK_GATE;
++	priv->uart0_wclk_gate.lock = &priv->lock;
++
++	hw = devm_clk_hw_register_composite_pdata(dev, "uart0_wclk",
++						  uart0_wclk_parents,
++						  ARRAY_SIZE(uart0_wclk_parents),
++						  &priv->uart0_wclk_mux.hw,
++						  &clk_mux_ops, NULL, NULL,
++						  &priv->uart0_wclk_gate.hw,
++						  &clk_gate_ops,
++						  ZX279133_UART_WCLK_FLAGS);
++	if (IS_ERR(hw))
++		return dev_err_probe(dev, PTR_ERR(hw),
++				     "failed to register UART0 WCLK\n");
++	priv->data->hws[ZX279133_LSP_CLK_UART0_WCLK] = hw;
++
++	reg = base + ZX279133_LSP_SPIFC_CLK_CTRL;
++	priv->spifc_reg = reg;
++
++	hw = devm_clk_hw_register_gate_parent_data(dev, "sfc_pclk",
++						   &uart0_pclk_parent, 0, reg,
++						   ZX279133_LSP_SPIFC_PCLK_GATE,
++						   0, &priv->lock);
++	if (IS_ERR(hw))
++		return dev_err_probe(dev, PTR_ERR(hw),
++				     "failed to register SPI-FC PCLK\n");
++	priv->data->hws[ZX279133_LSP_CLK_SPIFC_PCLK] = hw;
++
++	priv->spifc_wclk_divider.reg = reg;
++	priv->spifc_wclk_divider.shift = ZX279133_LSP_SPIFC_WCLK_DIV_SHIFT;
++	priv->spifc_wclk_divider.width = ZX279133_LSP_SPIFC_WCLK_DIV_WIDTH;
++	priv->spifc_wclk_divider.lock = &priv->lock;
++
++	priv->spifc_wclk_gate.reg = reg;
++	priv->spifc_wclk_gate.bit_idx = ZX279133_LSP_SPIFC_WCLK_GATE;
++	priv->spifc_wclk_gate.lock = &priv->lock;
++
++	hw = devm_clk_hw_register_composite_pdata(dev, "sfc_wclk",
++						  &spifc_wclk_parent, 1,
++						  NULL, NULL,
++						  &priv->spifc_wclk_divider.hw,
++						  &clk_divider_ops,
++						  &priv->spifc_wclk_gate.hw,
++						  &clk_gate_ops, 0);
++	if (IS_ERR(hw))
++		return dev_err_probe(dev, PTR_ERR(hw),
++				     "failed to register SPI-FC WCLK\n");
++	priv->data->hws[ZX279133_LSP_CLK_SPIFC_WCLK] = hw;
++
++	priv->data->num = 4;
++	priv->rcdev.ops = &zx279133_lsp_reset_ops;
++	priv->rcdev.owner = THIS_MODULE;
++	priv->rcdev.of_node = dev->of_node;
++	priv->rcdev.nr_resets = 2;
++
++	ret = devm_reset_controller_register(dev, &priv->rcdev);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to register reset controller\n");
++
++	return devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get,
++					   priv->data);
++}
++
++static const struct of_device_id zx279133_lsp_clk_of_match[] = {
++	{ .compatible = "zte,zx279133-topcrm" },
++	{ .compatible = "zte,zx279133-lsp-clk" },
++	{ .compatible = "zte,zx279133-lsp1-clk" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, zx279133_lsp_clk_of_match);
++
++static int zx279133_clk_probe(struct platform_device *pdev);
++
++static struct platform_driver zx279133_lsp_clk_driver = {
++	.probe = zx279133_clk_probe,
++	.driver = {
++		.name = "zx279133-lsp-clk",
++		.of_match_table = zx279133_lsp_clk_of_match,
++	},
++};
++
++static int zx279133_clk_probe(struct platform_device *pdev)
++{
++	if (of_device_is_compatible(pdev->dev.of_node, "zte,zx279133-topcrm"))
++		return zx279133_topcrm_clk_probe(pdev);
++
++	if (of_device_is_compatible(pdev->dev.of_node, "zte,zx279133-lsp1-clk"))
++		return zx279133_lsp1_clk_probe(pdev);
++
++	return zx279133_lsp0_clk_probe(pdev);
++}
++module_platform_driver(zx279133_lsp_clk_driver);
++
++MODULE_DESCRIPTION("ZTE ZX279133 clock driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
+index 3b7284938babf71b1c6085e27c0a3485fbae1892..58589aca7cfe51e5ce59ed8cce84d9f978f88433 100644
+--- a/drivers/gpio/Kconfig
++++ b/drivers/gpio/Kconfig
+@@ -862,6 +862,17 @@ config GPIO_ZEVIO
+ 	help
+ 	  Say yes here to support the GPIO controller in LSI ZEVIO SoCs.
+ 
++config GPIO_ZX279133
++	bool "ZTE ZX279133 GPIO support"
++	depends on ARM64 || COMPILE_TEST
++	depends on OF_GPIO
++	select GPIOLIB_IRQCHIP
++	help
++	  Say yes here to support the five 16-bit GPIO controller banks in
++	  the ZTE ZX279133 SoC. Each bank has a cascaded interrupt controller
++	  and integrates with the SoC pin controller through GPIO ranges. The
++	  fifth bank exposes the six pins implemented by the hardware.
++
+ config GPIO_ZYNQ
+ 	tristate "Xilinx Zynq GPIO support"
+ 	depends on ARCH_ZYNQ || ARCH_ZYNQMP || COMPILE_TEST
+diff --git a/drivers/gpio/Makefile b/drivers/gpio/Makefile
+index ec296fa14bfdb360c27b4578826354762f01f074..ffa2eb491ecf9c58c8e186a8d1e78120bedac4b6 100644
+--- a/drivers/gpio/Makefile
++++ b/drivers/gpio/Makefile
+@@ -214,6 +214,7 @@ obj-$(CONFIG_GPIO_XILINX)		+= gpio-xilinx.o
+ obj-$(CONFIG_GPIO_XLP)			+= gpio-xlp.o
+ obj-$(CONFIG_GPIO_XRA1403)		+= gpio-xra1403.o
+ obj-$(CONFIG_GPIO_XTENSA)		+= gpio-xtensa.o
++obj-$(CONFIG_GPIO_ZX279133)		+= gpio-zx279133.o
+ obj-$(CONFIG_GPIO_ZEVIO)		+= gpio-zevio.o
+ obj-$(CONFIG_GPIO_ZYNQ)			+= gpio-zynq.o
+ obj-$(CONFIG_GPIO_ZYNQMP_MODEPIN)	+= gpio-zynqmp-modepin.o
+diff --git a/drivers/gpio/gpio-zx279133.c b/drivers/gpio/gpio-zx279133.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..885391b02004819410006134d00042b38f6a0f6c
+--- /dev/null
++++ b/drivers/gpio/gpio-zx279133.c
+@@ -0,0 +1,330 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++#include <linux/bitops.h>
++#include <linux/gpio/driver.h>
++#include <linux/interrupt.h>
++#include <linux/io.h>
++#include <linux/irq.h>
++#include <linux/irqchip/chained_irq.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/property.h>
++#include <linux/spinlock.h>
++
++#define ZX279133_GPIO_DIR		0x00
++#define ZX279133_GPIO_IRQ_MODE		0x04
++#define ZX279133_GPIO_IRQ_LEVEL		0x08
++#define ZX279133_GPIO_IRQ_RISING		0x0c
++#define ZX279133_GPIO_IRQ_FALLING	0x10
++#define ZX279133_GPIO_DATA		0x14
++#define ZX279133_GPIO_SET		0x18
++#define ZX279133_GPIO_CLEAR		0x1c
++#define ZX279133_GPIO_IRQ_MASK		0x28
++#define ZX279133_GPIO_IRQ_ENABLE	0x2c
++#define ZX279133_GPIO_IRQ_PENDING	0x30
++#define ZX279133_GPIO_IRQ_ACK		0x34
++
++#define ZX279133_GPIO_LINES		16
++
++struct zx279133_gpio {
++	struct gpio_chip chip;
++	void __iomem *base;
++	raw_spinlock_t lock;
++};
++
++static int zx279133_gpio_get_direction(struct gpio_chip *chip,
++				       unsigned int offset)
++{
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++
++	return readw(gpio->base + ZX279133_GPIO_DIR) & BIT(offset) ?
++		GPIO_LINE_DIRECTION_OUT : GPIO_LINE_DIRECTION_IN;
++}
++
++static int zx279133_gpio_direction_input(struct gpio_chip *chip,
++					 unsigned int offset)
++{
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++	unsigned long flags;
++	u16 direction;
++
++	raw_spin_lock_irqsave(&gpio->lock, flags);
++	direction = readw(gpio->base + ZX279133_GPIO_DIR);
++	writew(direction & ~BIT(offset), gpio->base + ZX279133_GPIO_DIR);
++	raw_spin_unlock_irqrestore(&gpio->lock, flags);
++
++	return 0;
++}
++
++static int zx279133_gpio_get(struct gpio_chip *chip, unsigned int offset)
++{
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++
++	return !!(readw(gpio->base + ZX279133_GPIO_DATA) & BIT(offset));
++}
++
++static int zx279133_gpio_set(struct gpio_chip *chip, unsigned int offset,
++			     int value)
++{
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++
++	writew(BIT(offset), gpio->base +
++	       (value ? ZX279133_GPIO_SET : ZX279133_GPIO_CLEAR));
++
++	return 0;
++}
++
++static int zx279133_gpio_direction_output(struct gpio_chip *chip,
++					  unsigned int offset, int value)
++{
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++	unsigned long flags;
++	u16 direction;
++
++	/* Latch the requested level before enabling the output driver. */
++	zx279133_gpio_set(chip, offset, value);
++
++	raw_spin_lock_irqsave(&gpio->lock, flags);
++	direction = readw(gpio->base + ZX279133_GPIO_DIR);
++	writew(direction | BIT(offset), gpio->base + ZX279133_GPIO_DIR);
++	raw_spin_unlock_irqrestore(&gpio->lock, flags);
++
++	return 0;
++}
++
++static void zx279133_gpio_irq_ack(struct irq_data *data)
++{
++	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++
++	writew(BIT(irqd_to_hwirq(data)), gpio->base + ZX279133_GPIO_IRQ_ACK);
++}
++
++static void zx279133_gpio_irq_mask(struct irq_data *data)
++{
++	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++	unsigned int offset = irqd_to_hwirq(data);
++	unsigned long flags;
++	u16 enable, mask;
++
++	raw_spin_lock_irqsave(&gpio->lock, flags);
++	mask = readw(gpio->base + ZX279133_GPIO_IRQ_MASK);
++	writew(mask | BIT(offset), gpio->base + ZX279133_GPIO_IRQ_MASK);
++	enable = readw(gpio->base + ZX279133_GPIO_IRQ_ENABLE);
++	writew(enable & ~BIT(offset), gpio->base + ZX279133_GPIO_IRQ_ENABLE);
++	raw_spin_unlock_irqrestore(&gpio->lock, flags);
++
++	gpiochip_disable_irq(chip, offset);
++}
++
++static void zx279133_gpio_irq_unmask(struct irq_data *data)
++{
++	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++	unsigned int offset = irqd_to_hwirq(data);
++	unsigned long flags;
++	u16 enable, mask;
++
++	gpiochip_enable_irq(chip, offset);
++
++	raw_spin_lock_irqsave(&gpio->lock, flags);
++	enable = readw(gpio->base + ZX279133_GPIO_IRQ_ENABLE);
++	writew(enable | BIT(offset), gpio->base + ZX279133_GPIO_IRQ_ENABLE);
++	mask = readw(gpio->base + ZX279133_GPIO_IRQ_MASK);
++	writew(mask & ~BIT(offset), gpio->base + ZX279133_GPIO_IRQ_MASK);
++	raw_spin_unlock_irqrestore(&gpio->lock, flags);
++}
++
++static int zx279133_gpio_irq_set_type(struct irq_data *data,
++				      unsigned int flow_type)
++{
++	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++	unsigned int offset = irqd_to_hwirq(data);
++	unsigned long flags;
++	u16 bit = BIT(offset);
++	u16 falling, level, mode, rising;
++
++	flow_type &= IRQ_TYPE_SENSE_MASK;
++
++	raw_spin_lock_irqsave(&gpio->lock, flags);
++	mode = readw(gpio->base + ZX279133_GPIO_IRQ_MODE);
++	level = readw(gpio->base + ZX279133_GPIO_IRQ_LEVEL);
++	rising = readw(gpio->base + ZX279133_GPIO_IRQ_RISING);
++	falling = readw(gpio->base + ZX279133_GPIO_IRQ_FALLING);
++
++	switch (flow_type) {
++	case IRQ_TYPE_EDGE_RISING:
++		mode &= ~bit;
++		rising |= bit;
++		falling &= ~bit;
++		irq_set_handler_locked(data, handle_edge_irq);
++		break;
++	case IRQ_TYPE_EDGE_FALLING:
++		mode &= ~bit;
++		rising &= ~bit;
++		falling |= bit;
++		irq_set_handler_locked(data, handle_edge_irq);
++		break;
++	case IRQ_TYPE_EDGE_BOTH:
++		mode &= ~bit;
++		rising |= bit;
++		falling |= bit;
++		irq_set_handler_locked(data, handle_edge_irq);
++		break;
++	case IRQ_TYPE_LEVEL_HIGH:
++		mode |= bit;
++		level |= bit;
++		rising &= ~bit;
++		falling &= ~bit;
++		irq_set_handler_locked(data, handle_level_irq);
++		break;
++	case IRQ_TYPE_LEVEL_LOW:
++		mode |= bit;
++		level &= ~bit;
++		rising &= ~bit;
++		falling &= ~bit;
++		irq_set_handler_locked(data, handle_level_irq);
++		break;
++	default:
++		raw_spin_unlock_irqrestore(&gpio->lock, flags);
++		return -EINVAL;
++	}
++
++	/* Program polarity and edge selection before changing edge/level mode. */
++	writew(rising, gpio->base + ZX279133_GPIO_IRQ_RISING);
++	writew(falling, gpio->base + ZX279133_GPIO_IRQ_FALLING);
++	writew(level, gpio->base + ZX279133_GPIO_IRQ_LEVEL);
++	writew(mode, gpio->base + ZX279133_GPIO_IRQ_MODE);
++	raw_spin_unlock_irqrestore(&gpio->lock, flags);
++
++	return 0;
++}
++
++static const struct irq_chip zx279133_gpio_irq_chip = {
++	.name = "zx279133-gpio",
++	.irq_ack = zx279133_gpio_irq_ack,
++	.irq_mask = zx279133_gpio_irq_mask,
++	.irq_unmask = zx279133_gpio_irq_unmask,
++	.irq_set_type = zx279133_gpio_irq_set_type,
++	.flags = IRQCHIP_IMMUTABLE,
++	GPIOCHIP_IRQ_RESOURCE_HELPERS,
++};
++
++static void zx279133_gpio_irq_handler(struct irq_desc *desc)
++{
++	struct gpio_chip *chip = irq_desc_get_handler_data(desc);
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++	struct irq_chip *parent_chip = irq_desc_get_chip(desc);
++	unsigned long pending;
++	u16 enabled, mask;
++	unsigned int offset;
++
++	chained_irq_enter(parent_chip, desc);
++
++	pending = readw(gpio->base + ZX279133_GPIO_IRQ_PENDING);
++	enabled = readw(gpio->base + ZX279133_GPIO_IRQ_ENABLE);
++	mask = readw(gpio->base + ZX279133_GPIO_IRQ_MASK);
++	pending &= enabled & ~mask & GENMASK(chip->ngpio - 1, 0);
++
++	for_each_set_bit(offset, &pending, chip->ngpio)
++		generic_handle_domain_irq(chip->irq.domain, offset);
++
++	chained_irq_exit(parent_chip, desc);
++}
++
++static int zx279133_gpio_irq_init_hw(struct gpio_chip *chip)
++{
++	struct zx279133_gpio *gpio = gpiochip_get_data(chip);
++	unsigned long flags;
++
++	raw_spin_lock_irqsave(&gpio->lock, flags);
++	writew(0xffff, gpio->base + ZX279133_GPIO_IRQ_MASK);
++	writew(0, gpio->base + ZX279133_GPIO_IRQ_ENABLE);
++	writew(0xffff, gpio->base + ZX279133_GPIO_IRQ_ACK);
++	raw_spin_unlock_irqrestore(&gpio->lock, flags);
++
++	return 0;
++}
++
++static int zx279133_gpio_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct gpio_irq_chip *irq_chip;
++	struct zx279133_gpio *gpio;
++	u32 ngpios;
++	int irq, ret;
++
++	gpio = devm_kzalloc(dev, sizeof(*gpio), GFP_KERNEL);
++	if (!gpio)
++		return -ENOMEM;
++
++	gpio->base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(gpio->base))
++		return PTR_ERR(gpio->base);
++
++	ret = device_property_read_u32(dev, "ngpios", &ngpios);
++	if (ret)
++		return dev_err_probe(dev, ret, "missing ngpios property\n");
++	if (!ngpios || ngpios > ZX279133_GPIO_LINES)
++		return dev_err_probe(dev, -EINVAL, "invalid ngpios value %u\n",
++				     ngpios);
++
++	irq = platform_get_irq(pdev, 0);
++	if (irq < 0)
++		return irq;
++
++	raw_spin_lock_init(&gpio->lock);
++	gpio->chip.label = dev_name(dev);
++	gpio->chip.parent = dev;
++	gpio->chip.owner = THIS_MODULE;
++	gpio->chip.base = -1;
++	gpio->chip.ngpio = ngpios;
++	gpio->chip.request = gpiochip_generic_request;
++	gpio->chip.free = gpiochip_generic_free;
++	gpio->chip.get_direction = zx279133_gpio_get_direction;
++	gpio->chip.direction_input = zx279133_gpio_direction_input;
++	gpio->chip.direction_output = zx279133_gpio_direction_output;
++	gpio->chip.get = zx279133_gpio_get;
++	gpio->chip.set = zx279133_gpio_set;
++
++	irq_chip = &gpio->chip.irq;
++	gpio_irq_chip_set_chip(irq_chip, &zx279133_gpio_irq_chip);
++	irq_chip->default_type = IRQ_TYPE_NONE;
++	irq_chip->handler = handle_bad_irq;
++	irq_chip->parent_handler = zx279133_gpio_irq_handler;
++	irq_chip->num_parents = 1;
++	irq_chip->parents = devm_kcalloc(dev, 1, sizeof(*irq_chip->parents), GFP_KERNEL);
++	if (!irq_chip->parents)
++		return -ENOMEM;
++	irq_chip->parents[0] = irq;
++	irq_chip->init_hw = zx279133_gpio_irq_init_hw;
++
++	ret = devm_gpiochip_add_data(dev, &gpio->chip, gpio);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to register gpiochip\n");
++
++	dev_info(dev, "registered %u GPIO lines\n", ngpios);
++
++	return 0;
++}
++
++static const struct of_device_id zx279133_gpio_of_match[] = {
++	{ .compatible = "zte,zx279133-gpio" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, zx279133_gpio_of_match);
++
++static struct platform_driver zx279133_gpio_driver = {
++	.probe = zx279133_gpio_probe,
++	.driver = {
++		.name = "zx279133-gpio",
++		.of_match_table = zx279133_gpio_of_match,
++	},
++};
++module_platform_driver(zx279133_gpio_driver);
++
++MODULE_DESCRIPTION("ZTE ZX279133 GPIO controller driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/hwmon/Kconfig b/drivers/hwmon/Kconfig
+index 2a71b6e834b087a7bacf4a1996e640192e985921..1fcdf2916780e22eceb600504f4b3654b8f100ff 100644
+--- a/drivers/hwmon/Kconfig
++++ b/drivers/hwmon/Kconfig
+@@ -2649,6 +2649,17 @@ config SENSORS_XGENE
+ 	  If you say yes here you get support for the temperature
+ 	  and power sensors for APM X-Gene SoC.
+ 
++config SENSORS_ZX279133_PVT
++	tristate "ZTE ZX279133 PVT temperature sensor"
++	depends on OF
++	depends on COMMON_CLK
++	depends on THERMAL_OF
++	help
++	  If you say yes here you get read-only hwmon support for the
++	  CLN22ULP temperature converter in the ZTE ZX279133 SoC. The sensor
++	  is sampled on demand and exports a single temperature input. It does
++	  not expose threshold, alarm, or other writable controls.
++
+ config SENSORS_INTEL_M10_BMC_HWMON
+ 	tristate "Intel MAX10 BMC Hardware Monitoring"
+ 	depends on MFD_INTEL_M10_BMC_CORE
+diff --git a/drivers/hwmon/Makefile b/drivers/hwmon/Makefile
+index 73b2abdcc6dd9cfae4c84b350febc5d8c191e385..e69d4f6b351086f6c8b86f709a18f375b1f828fe 100644
+--- a/drivers/hwmon/Makefile
++++ b/drivers/hwmon/Makefile
+@@ -244,6 +244,7 @@ obj-$(CONFIG_SENSORS_W83L786NG)	+= w83l786ng.o
+ obj-$(CONFIG_SENSORS_WM831X)	+= wm831x-hwmon.o
+ obj-$(CONFIG_SENSORS_WM8350)	+= wm8350-hwmon.o
+ obj-$(CONFIG_SENSORS_XGENE)	+= xgene-hwmon.o
++obj-$(CONFIG_SENSORS_ZX279133_PVT)	+= zx279133-pvt.o
+ 
+ obj-$(CONFIG_SENSORS_OCC)	+= occ/
+ obj-$(CONFIG_SENSORS_PECI)	+= peci/
+diff --git a/drivers/hwmon/zx279133-pvt.c b/drivers/hwmon/zx279133-pvt.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..2ef5c163c86ca1203b1052bba0810fec52782d8b
+--- /dev/null
++++ b/drivers/hwmon/zx279133-pvt.c
+@@ -0,0 +1,254 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * ZTE ZX279133 CLN22ULP process/voltage/temperature sensor.
++ *
++ * The hardware exposes one temperature conversion channel.  The vendor
++ * implementation starts a conversion for each read. This driver keeps the
++ * same one-shot behavior and exposes no writable hwmon files.
++ */
++
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/hwmon.h>
++#include <linux/io.h>
++#include <linux/iopoll.h>
++#include <linux/math64.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/nvmem-consumer.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++
++#define ZX279133_PVT_CTRL		0x00
++#define ZX279133_PVT_TRIM		0x04
++#define ZX279133_PVT_STATUS		0x08
++#define ZX279133_PVT_DATA		0x10
++#define ZX279133_PVT_CONFIG		0x20
++
++#define ZX279133_PVT_READY		BIT(10)
++#define ZX279133_PVT_DATA_MASK		GENMASK(9, 0)
++#define ZX279133_PVT_CONFIG_MASK		GENMASK(7, 4)
++#define ZX279133_PVT_TRIM_MASK		GENMASK(4, 0)
++#define ZX279133_PVT_TEMP_CTRL		0x13
++
++#define ZX279133_PVT_POLL_US		5
++#define ZX279133_PVT_TIMEOUT_US		500000
++#define ZX279133_PVT_DEFAULT_TRIM	15
++
++/* The vendor DTS coefficients, with the vendor's 1e6 coefficient multiple. */
++#define ZX279133_PVT_MC_DIV		1000000000000LL
++
++struct zx279133_pvt_coeff {
++	s64 a4;
++	s64 a3;
++	s64 a2;
++	s64 a1;
++	s64 a0;
++};
++
++struct zx279133_pvt {
++	void __iomem *base;
++	struct clk *wclk;
++	struct zx279133_pvt_coeff coeff;
++	struct mutex lock; /* Serializes one-shot conversions. */
++	u8 trim;
++	bool trim_from_nvmem;
++};
++
++static const struct zx279133_pvt_coeff zx279133_pvt_cln22ulp_coeff = {
++	.a4 = -25761LL,
++	.a3 = 97332000LL,
++	.a2 = -191650000000LL,
++	.a1 = 307620000000000LL,
++	.a0 = -52156000000000000LL,
++};
++
++static long zx279133_pvt_calc_temp(const struct zx279133_pvt *pvt, u32 raw)
++{
++	s64 value;
++
++	/* Horner form matches the vendor a4..a0 polynomial and avoids overflow. */
++	value = pvt->coeff.a4;
++	value = value * raw + pvt->coeff.a3;
++	value = value * raw + pvt->coeff.a2;
++	value = value * raw + pvt->coeff.a1;
++	value = value * raw + pvt->coeff.a0;
++
++	/* hwmon reports milli-Celsius; the polynomial is in degrees Celsius. */
++	return div64_s64(value, ZX279133_PVT_MC_DIV);
++}
++
++static int zx279133_pvt_sample(struct zx279133_pvt *pvt, u32 *raw)
++{
++	u32 status;
++	int ret;
++
++	mutex_lock(&pvt->lock);
++
++	/* This is the one-shot sequence used by the vendor driver. */
++	writel(0, pvt->base + ZX279133_PVT_CTRL);
++	fsleep(10);
++	writel(pvt->trim & ZX279133_PVT_TRIM_MASK,
++	       pvt->base + ZX279133_PVT_TRIM);
++	writel(ZX279133_PVT_TEMP_CTRL, pvt->base + ZX279133_PVT_CTRL);
++	fsleep(10);
++
++	ret = readl_poll_timeout(pvt->base + ZX279133_PVT_STATUS, status,
++				 status & ZX279133_PVT_READY,
++				 ZX279133_PVT_POLL_US, ZX279133_PVT_TIMEOUT_US);
++	if (ret)
++		goto out_unlock;
++
++	*raw = readl(pvt->base + ZX279133_PVT_DATA) & ZX279133_PVT_DATA_MASK;
++
++out_unlock:
++	mutex_unlock(&pvt->lock);
++	return ret;
++}
++
++static int zx279133_pvt_read(struct device *dev,
++			     enum hwmon_sensor_types type, u32 attr,
++			     int channel, long *val)
++{
++	struct zx279133_pvt *pvt = dev_get_drvdata(dev);
++	u32 raw;
++	int ret;
++
++	if (type != hwmon_temp || attr != hwmon_temp_input || channel != 0)
++		return -EOPNOTSUPP;
++
++	ret = zx279133_pvt_sample(pvt, &raw);
++	if (ret)
++		return ret;
++
++	*val = zx279133_pvt_calc_temp(pvt, raw);
++	return 0;
++}
++
++static umode_t zx279133_pvt_is_visible(const void *data,
++				       enum hwmon_sensor_types type,
++				       u32 attr, int channel)
++{
++	if (type == hwmon_temp && attr == hwmon_temp_input && channel == 0)
++		return 0444;
++
++	return 0;
++}
++
++static const struct hwmon_channel_info * const zx279133_pvt_info[] = {
++	HWMON_CHANNEL_INFO(chip, HWMON_C_REGISTER_TZ),
++	HWMON_CHANNEL_INFO(temp, HWMON_T_INPUT),
++	NULL,
++};
++
++static const struct hwmon_ops zx279133_pvt_hwmon_ops = {
++	.is_visible = zx279133_pvt_is_visible,
++	.read = zx279133_pvt_read,
++};
++
++static const struct hwmon_chip_info zx279133_pvt_chip_info = {
++	.ops = &zx279133_pvt_hwmon_ops,
++	.info = zx279133_pvt_info,
++};
++
++static int zx279133_pvt_get_trim(struct device *dev,
++				 struct zx279133_pvt *pvt)
++{
++	u8 trim;
++	int ret;
++
++	ret = nvmem_cell_read_u8(dev, "ttrim", &trim);
++	if (!ret) {
++		if (trim > 0x1f)
++			return dev_err_probe(dev, -ERANGE,
++					    "ttrim value %u exceeds 5-bit field\n",
++					    trim);
++		pvt->trim = trim;
++		pvt->trim_from_nvmem = true;
++		return 0;
++	}
++
++	/* The vendor driver falls back to 15 when no efuse value is available. */
++	if (ret != -ENOENT && ret != -EOPNOTSUPP)
++		return dev_err_probe(dev, ret, "failed to read ttrim NVMEM cell\n");
++
++	pvt->trim = ZX279133_PVT_DEFAULT_TRIM;
++	dev_warn(dev,
++		 "ttrim NVMEM cell unavailable; using vendor fallback %u (uncalibrated)\n",
++		 pvt->trim);
++	return 0;
++}
++
++static int zx279133_pvt_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct zx279133_pvt *pvt;
++	struct device *hwmon;
++	u32 config, raw;
++	unsigned long rate;
++	int ret;
++
++	pvt = devm_kzalloc(dev, sizeof(*pvt), GFP_KERNEL);
++	if (!pvt)
++		return -ENOMEM;
++
++	pvt->base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(pvt->base))
++		return PTR_ERR(pvt->base);
++	mutex_init(&pvt->lock);
++
++	pvt->wclk = devm_clk_get_enabled(dev, "wclk");
++	if (IS_ERR(pvt->wclk))
++		return dev_err_probe(dev, PTR_ERR(pvt->wclk),
++				    "failed to enable working clock\n");
++
++	rate = clk_get_rate(pvt->wclk);
++	if (!rate)
++		return dev_err_probe(dev, -EINVAL, "working clock has zero rate\n");
++
++	pvt->coeff = zx279133_pvt_cln22ulp_coeff;
++	ret = zx279133_pvt_get_trim(dev, pvt);
++	if (ret)
++		return ret;
++
++	config = readl(pvt->base + ZX279133_PVT_CONFIG);
++	writel(config | ZX279133_PVT_CONFIG_MASK,
++	       pvt->base + ZX279133_PVT_CONFIG);
++
++	/* Fail probe if the sensor cannot complete a first conversion. */
++	ret = zx279133_pvt_sample(pvt, &raw);
++	if (ret)
++		return dev_err_probe(dev, ret, "initial conversion timed out\n");
++
++	platform_set_drvdata(pdev, pvt);
++	hwmon = devm_hwmon_device_register_with_info(dev, "zx279133_pvt",
++						     pvt,
++						     &zx279133_pvt_chip_info,
++						     NULL);
++	if (IS_ERR(hwmon))
++		return dev_err_probe(dev, PTR_ERR(hwmon),
++				    "failed to register hwmon device\n");
++
++	dev_info(dev, "ready: raw=%u temp=%ld mC clock=%lu Hz%s\n", raw,
++		 zx279133_pvt_calc_temp(pvt, raw), rate,
++		 pvt->trim_from_nvmem ? "" : " (fallback trim)");
++	return 0;
++}
++
++static const struct of_device_id zx279133_pvt_of_match[] = {
++	{ .compatible = "zte,zx279133-pvt" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, zx279133_pvt_of_match);
++
++static struct platform_driver zx279133_pvt_driver = {
++	.probe = zx279133_pvt_probe,
++	.driver = {
++		.name = "zx279133-pvt",
++		.of_match_table = zx279133_pvt_of_match,
++	},
++};
++module_platform_driver(zx279133_pvt_driver);
++
++MODULE_DESCRIPTION("ZTE ZX279133 CLN22ULP PVT temperature sensor");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/pinctrl/Kconfig b/drivers/pinctrl/Kconfig
+index 4f8507ebbdacdd2da28e4a1127123951138f6680..94cec8e3ea8665070b6963a68ed84b9802102917 100644
+--- a/drivers/pinctrl/Kconfig
++++ b/drivers/pinctrl/Kconfig
+@@ -642,6 +642,17 @@ config PINCTRL_ZYNQ
+ 	help
+ 	  This selects the pinctrl driver for Xilinx Zynq.
+ 
++config PINCTRL_ZX279133
++	bool "ZTE ZX279133 pin controller support"
++	depends on ARM64 || COMPILE_TEST
++	select GENERIC_PINCONF
++	select PINMUX
++	help
++	  Say yes here to support GPIO muxing for the 70 pins in the ZTE
++	  ZX279133 SoC. Existing firmware-selected peripheral muxes are left
++	  unchanged until a pin is requested for GPIO use. The driver also
++	  provides the pin group used by the SPI flash controller.
++
+ config PINCTRL_ZYNQMP
+ 	tristate "Pinctrl driver for Xilinx ZynqMP"
+ 	depends on ZYNQMP_FIRMWARE
+diff --git a/drivers/pinctrl/Makefile b/drivers/pinctrl/Makefile
+index e0cfb9b7c99bae9c0b4173164a928ceb4b680325..df2a78e81b3251a2168076d12e1dd01e350c10f4 100644
+--- a/drivers/pinctrl/Makefile
++++ b/drivers/pinctrl/Makefile
+@@ -61,6 +61,7 @@ obj-$(CONFIG_PINCTRL_TB10X)	+= pinctrl-tb10x.o
+ obj-$(CONFIG_PINCTRL_TPS6594)	+= pinctrl-tps6594.o
+ obj-$(CONFIG_PINCTRL_TH1520)	+= pinctrl-th1520.o
+ obj-$(CONFIG_PINCTRL_UPBOARD)	+= pinctrl-upboard.o
++obj-$(CONFIG_PINCTRL_ZX279133)	+= pinctrl-zx279133.o
+ obj-$(CONFIG_PINCTRL_ZYNQMP)	+= pinctrl-zynqmp.o
+ obj-$(CONFIG_PINCTRL_ZYNQ)	+= pinctrl-zynq.o
+ 
+diff --git a/drivers/pinctrl/pinctrl-zx279133.c b/drivers/pinctrl/pinctrl-zx279133.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..ae39fa3e7248cc0b91d9ee78e00e197e0c23cb65
+--- /dev/null
++++ b/drivers/pinctrl/pinctrl-zx279133.c
+@@ -0,0 +1,365 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++#include <linux/bitops.h>
++#include <linux/io.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/pinctrl/pinconf-generic.h>
++#include <linux/pinctrl/pinctrl.h>
++#include <linux/pinctrl/pinmux.h>
++#include <linux/platform_device.h>
++#include <linux/spinlock.h>
++
++#include "pinctrl-utils.h"
++
++#define ZX279133_NUM_PINS	70
++
++struct zx279133_pin_data {
++	u8 offset;
++	u8 shift;
++	u8 width;
++};
++
++struct zx279133_mux_range {
++	u8 count;
++	u8 width;
++};
++
++struct zx279133_gpio_mux_range {
++	u8 start;
++	u8 count;
++	u8 value;
++};
++
++struct zx279133_pinctrl {
++	struct pinctrl_dev *pctldev;
++	struct pinctrl_desc desc;
++	struct pinctrl_pin_desc pins[ZX279133_NUM_PINS];
++	struct zx279133_pin_data pin_data[ZX279133_NUM_PINS];
++	u8 gpio_mux[ZX279133_NUM_PINS];
++	void __iomem *base;
++	spinlock_t lock; /* Protects mux register updates. */
++};
++
++static const char * const zx279133_group_names[] = {
++	"p0-0", "p0-1", "p0-2", "p0-3", "p0-4",
++	"p0-5", "p0-6", "p0-7", "p0-8", "p0-9",
++	"p0-10", "p0-11", "p0-12", "p0-13", "p0-14",
++	"p1-0", "p1-1", "p1-2", "p1-3", "p1-4",
++	"p1-5", "p1-6", "p1-7", "p1-8", "p1-9",
++	"p2-0", "p2-1", "p2-2", "p2-3", "p2-4", "p2-5",
++	"p2-6", "p2-7", "p2-8", "p2-9", "p2-10", "p2-11",
++	"p2-12", "p2-13", "p2-14", "p2-15", "p2-16", "p2-17",
++	"p3-0", "p3-1", "p3-2", "p3-3", "p3-4", "p3-5",
++	"p3-6", "p3-7", "p3-8", "p3-9", "p3-10", "p3-11",
++	"p3-12",
++	"p4-0", "p4-1", "p4-2", "p4-3", "p4-4",
++	"p4-5", "p4-6", "p4-7", "p4-8", "p4-9",
++	"p5-0", "p5-1", "p5-2", "p5-3",
++};
++
++static const char * const zx279133_spifc_groups[] = {
++	"p3-9", "p3-10", "p3-11", "p3-12", "p4-0", "p4-1",
++};
++
++enum zx279133_mux_function {
++	ZX279133_MUX_GPIO,
++	ZX279133_MUX_SPIFC,
++};
++
++static const struct pinfunction zx279133_functions[] = {
++	PINCTRL_GPIO_PINFUNCTION("gpio", zx279133_group_names,
++				 ARRAY_SIZE(zx279133_group_names)),
++	PINCTRL_PINFUNCTION("spifc", zx279133_spifc_groups,
++			    ARRAY_SIZE(zx279133_spifc_groups)),
++};
++
++static const struct zx279133_mux_range zx279133_mux_ranges[][6] = {
++	{ { 5, 3 }, { 1, 2 }, { 2, 1 }, { 2, 2 }, { 2, 1 }, { 3, 2 } },
++	{ { 2, 3 }, { 3, 2 }, { 3, 3 }, { 2, 2 } },
++	{ { 2, 2 }, { 7, 1 }, { 2, 2 }, { 1, 3 }, { 6, 1 } },
++	{ { 6, 3 }, { 7, 2 } },
++	{ { 2, 2 }, { 8, 1 } },
++	{ { 4, 2 } },
++};
++
++static const u8 zx279133_mux_range_counts[] = { 6, 4, 5, 2, 2, 1 };
++static const u8 zx279133_bank_pins[] = { 15, 10, 18, 13, 10, 4 };
++
++static const struct zx279133_gpio_mux_range zx279133_gpio_mux_ranges[] = {
++	{ 0, 5, 3 }, { 5, 3, 1 }, { 8, 2, 3 }, { 10, 2, 1 },
++	{ 12, 2, 3 }, { 14, 1, 1 }, { 15, 2, 3 }, { 17, 2, 1 },
++	{ 19, 4, 3 }, { 23, 1, 1 }, { 24, 1, 2 }, { 25, 2, 3 },
++	{ 27, 7, 1 }, { 34, 2, 2 }, { 36, 1, 3 }, { 37, 6, 1 },
++	{ 43, 6, 3 }, { 49, 2, 2 }, { 51, 1, 1 }, { 52, 4, 2 },
++	{ 56, 2, 2 }, { 58, 8, 1 }, { 66, 1, 3 }, { 67, 1, 2 },
++	{ 68, 2, 3 },
++};
++
++static int zx279133_get_groups_count(struct pinctrl_dev *pctldev)
++{
++	return ARRAY_SIZE(zx279133_group_names);
++}
++
++static const char *zx279133_get_group_name(struct pinctrl_dev *pctldev,
++					   unsigned int selector)
++{
++	if (selector >= ARRAY_SIZE(zx279133_group_names))
++		return NULL;
++
++	return zx279133_group_names[selector];
++}
++
++static int zx279133_get_group_pins(struct pinctrl_dev *pctldev,
++				   unsigned int selector,
++				   const unsigned int **pins,
++				   unsigned int *num_pins)
++{
++	struct zx279133_pinctrl *pinctrl = pinctrl_dev_get_drvdata(pctldev);
++
++	if (selector >= ARRAY_SIZE(zx279133_group_names))
++		return -EINVAL;
++
++	*pins = &pinctrl->pins[selector].number;
++	*num_pins = 1;
++
++	return 0;
++}
++
++static const struct pinctrl_ops zx279133_pinctrl_ops = {
++	.get_groups_count = zx279133_get_groups_count,
++	.get_group_name = zx279133_get_group_name,
++	.get_group_pins = zx279133_get_group_pins,
++	.dt_node_to_map = pinconf_generic_dt_node_to_map_pin,
++	.dt_free_map = pinctrl_utils_free_map,
++};
++
++static int zx279133_get_functions_count(struct pinctrl_dev *pctldev)
++{
++	return ARRAY_SIZE(zx279133_functions);
++}
++
++static const char *zx279133_get_function_name(struct pinctrl_dev *pctldev,
++					      unsigned int selector)
++{
++	if (selector >= ARRAY_SIZE(zx279133_functions))
++		return NULL;
++
++	return zx279133_functions[selector].name;
++}
++
++static bool zx279133_function_is_gpio(struct pinctrl_dev *pctldev,
++				      unsigned int selector)
++{
++	if (selector >= ARRAY_SIZE(zx279133_functions))
++		return false;
++
++	return zx279133_functions[selector].flags & PINFUNCTION_FLAG_GPIO;
++}
++
++static int zx279133_get_function_groups(struct pinctrl_dev *pctldev,
++					unsigned int selector,
++					const char * const **groups,
++					unsigned int *num_groups)
++{
++	if (selector >= ARRAY_SIZE(zx279133_functions))
++		return -EINVAL;
++
++	*groups = zx279133_functions[selector].groups;
++	*num_groups = zx279133_functions[selector].ngroups;
++
++	return 0;
++}
++
++static int zx279133_set_pin_mux(struct pinctrl_dev *pctldev,
++				unsigned int pin, u8 mux)
++{
++	struct zx279133_pinctrl *pinctrl = pinctrl_dev_get_drvdata(pctldev);
++	const struct zx279133_pin_data *data;
++	unsigned long flags;
++	u32 mask, value;
++
++	if (pin >= ZX279133_NUM_PINS)
++		return -EINVAL;
++
++	data = &pinctrl->pin_data[pin];
++	if (mux >= BIT(data->width))
++		return -EINVAL;
++	mask = GENMASK(data->shift + data->width - 1, data->shift);
++
++	spin_lock_irqsave(&pinctrl->lock, flags);
++	value = readl(pinctrl->base + data->offset);
++	value &= ~mask;
++	value |= (u32)mux << data->shift;
++	writel(value, pinctrl->base + data->offset);
++	spin_unlock_irqrestore(&pinctrl->lock, flags);
++
++	return 0;
++}
++
++static int zx279133_set_mux(struct pinctrl_dev *pctldev,
++			    unsigned int function, unsigned int group)
++{
++	struct zx279133_pinctrl *pinctrl = pinctrl_dev_get_drvdata(pctldev);
++
++	if (function >= ARRAY_SIZE(zx279133_functions) ||
++	    group >= ZX279133_NUM_PINS)
++		return -EINVAL;
++
++	switch (function) {
++	case ZX279133_MUX_GPIO:
++		return zx279133_set_pin_mux(pctldev, group,
++					     pinctrl->gpio_mux[group]);
++	case ZX279133_MUX_SPIFC:
++		if (group < 52 || group > 57)
++			return -EINVAL;
++		return zx279133_set_pin_mux(pctldev, group, 1);
++	default:
++		return -EINVAL;
++	}
++}
++
++static int zx279133_gpio_request_enable(struct pinctrl_dev *pctldev,
++					struct pinctrl_gpio_range *range,
++					unsigned int pin)
++{
++	struct zx279133_pinctrl *pinctrl = pinctrl_dev_get_drvdata(pctldev);
++
++	if (pin >= ZX279133_NUM_PINS)
++		return -EINVAL;
++
++	return zx279133_set_pin_mux(pctldev, pin, pinctrl->gpio_mux[pin]);
++}
++
++static const struct pinmux_ops zx279133_pinmux_ops = {
++	.get_functions_count = zx279133_get_functions_count,
++	.get_function_name = zx279133_get_function_name,
++	.get_function_groups = zx279133_get_function_groups,
++	.function_is_gpio = zx279133_function_is_gpio,
++	.set_mux = zx279133_set_mux,
++	.gpio_request_enable = zx279133_gpio_request_enable,
++	.strict = true,
++};
++
++static const struct pinctrl_desc zx279133_pinctrl_desc = {
++	.name = "zx279133-pinctrl",
++	.owner = THIS_MODULE,
++	.pctlops = &zx279133_pinctrl_ops,
++	.pmxops = &zx279133_pinmux_ops,
++};
++
++static int zx279133_build_pin_data(struct zx279133_pinctrl *pinctrl)
++{
++	unsigned int bank, index = 0, range_index;
++
++	for (range_index = 0;
++	     range_index < ARRAY_SIZE(zx279133_gpio_mux_ranges);
++	     range_index++) {
++		const struct zx279133_gpio_mux_range *range;
++		unsigned int pin;
++
++		range = &zx279133_gpio_mux_ranges[range_index];
++		if (range->start + range->count > ZX279133_NUM_PINS)
++			return -EINVAL;
++		for (pin = range->start; pin < range->start + range->count; pin++) {
++			if (pinctrl->gpio_mux[pin])
++				return -EINVAL;
++			pinctrl->gpio_mux[pin] = range->value;
++		}
++	}
++
++	for (bank = 0; bank < ARRAY_SIZE(zx279133_bank_pins); bank++) {
++		unsigned int pin = 0, shift = 0;
++
++		for (range_index = 0;
++		     range_index < zx279133_mux_range_counts[bank];
++		     range_index++) {
++			const struct zx279133_mux_range *range;
++			unsigned int entry;
++
++			range = &zx279133_mux_ranges[bank][range_index];
++			for (entry = 0; entry < range->count; entry++, pin++, index++) {
++				if (index >= ZX279133_NUM_PINS)
++					return -EINVAL;
++				pinctrl->pin_data[index].offset = bank * sizeof(u32);
++				pinctrl->pin_data[index].shift = shift + entry * range->width;
++				pinctrl->pin_data[index].width = range->width;
++			}
++			shift += range->count * range->width;
++		}
++		if (pin != zx279133_bank_pins[bank] || shift > 32)
++			return -EINVAL;
++	}
++
++	if (index != ZX279133_NUM_PINS)
++		return -EINVAL;
++
++	for (index = 0; index < ZX279133_NUM_PINS; index++) {
++		if (!pinctrl->gpio_mux[index] ||
++		    pinctrl->gpio_mux[index] >= BIT(pinctrl->pin_data[index].width))
++			return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int zx279133_pinctrl_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct zx279133_pinctrl *pinctrl;
++	unsigned int pin;
++	int ret;
++
++	pinctrl = devm_kzalloc(dev, sizeof(*pinctrl), GFP_KERNEL);
++	if (!pinctrl)
++		return -ENOMEM;
++
++	pinctrl->base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(pinctrl->base))
++		return PTR_ERR(pinctrl->base);
++
++	spin_lock_init(&pinctrl->lock);
++	ret = zx279133_build_pin_data(pinctrl);
++	if (ret)
++		return dev_err_probe(dev, ret, "invalid pin mux description\n");
++	for (pin = 0; pin < ZX279133_NUM_PINS; pin++) {
++		pinctrl->pins[pin].number = pin;
++		pinctrl->pins[pin].name = zx279133_group_names[pin];
++	}
++	pinctrl->desc = zx279133_pinctrl_desc;
++	pinctrl->desc.pins = pinctrl->pins;
++	pinctrl->desc.npins = ARRAY_SIZE(pinctrl->pins);
++
++	ret = devm_pinctrl_register_and_init(dev, &pinctrl->desc,
++					     pinctrl, &pinctrl->pctldev);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to register pin controller\n");
++
++	ret = pinctrl_enable(pinctrl->pctldev);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to enable pin controller\n");
++
++	dev_info(dev, "registered %u pins\n", ZX279133_NUM_PINS);
++
++	return 0;
++}
++
++static const struct of_device_id zx279133_pinctrl_of_match[] = {
++	{ .compatible = "zte,zx279133-pinctrl" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, zx279133_pinctrl_of_match);
++
++static struct platform_driver zx279133_pinctrl_driver = {
++	.probe = zx279133_pinctrl_probe,
++	.driver = {
++		.name = "zx279133-pinctrl",
++		.of_match_table = zx279133_pinctrl_of_match,
++	},
++};
++module_platform_driver(zx279133_pinctrl_driver);
++
++MODULE_DESCRIPTION("ZTE ZX279133 pin controller driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+index 1872f9d54a5cc98c9f76bf0070ea8a3569f4ddf3..874907134a332aa73e64d145ec26d2db50d5a7a5 100644
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -1288,6 +1288,17 @@ config SPI_XTENSA_XTFPGA
+ 	  16 bit words in SPI mode 0, automatically asserting CS on transfer
+ 	  start and deasserting on end.
+ 
++config SPI_ZX279133_SFC
++	tristate "ZTE ZX279133 SPI flash controller"
++	depends on (ARM64 && OF) || COMPILE_TEST
++	depends on SPI_MEM
++	select MFD_SYSCON
++	help
++	  Enable the SPI-MEM controller used by the ZTE ZX279133 SR1010
++	  SPI-NAND. The controller is driven through its 64-byte FIFO in PIO
++	  mode and supports single-, dual-, and quad-lane address and data
++	  phases. The external chip-select route is configured through syscon.
++
+ config SPI_ZYNQ_QSPI
+ 	tristate "Xilinx Zynq QSPI controller"
+ 	depends on ARCH_ZYNQ || COMPILE_TEST
+diff --git a/drivers/spi/Makefile b/drivers/spi/Makefile
+index 1f7c06a3091d92f801c9c9a4cd0c553378c1d792..a6210ccb2dae2e98846c24ea81e13473c931e2c5 100644
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -164,6 +164,7 @@ obj-$(CONFIG_SPI_XCOMM)		+= spi-xcomm.o
+ obj-$(CONFIG_SPI_XILINX)		+= spi-xilinx.o
+ obj-$(CONFIG_SPI_XLP)			+= spi-xlp.o
+ obj-$(CONFIG_SPI_XTENSA_XTFPGA)		+= spi-xtensa-xtfpga.o
++obj-$(CONFIG_SPI_ZX279133_SFC)		+= spi-zx279133-sfc.o
+ obj-$(CONFIG_SPI_ZYNQ_QSPI)		+= spi-zynq-qspi.o
+ obj-$(CONFIG_SPI_ZYNQMP_GQSPI)		+= spi-zynqmp-gqspi.o
+ obj-$(CONFIG_SPI_AMD)			+= spi-amd.o spi-amd-pci.o
+diff --git a/drivers/spi/spi-zx279133-sfc.c b/drivers/spi/spi-zx279133-sfc.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..1217e5626e7d345cde25ab99b26c3a330e040af5
+--- /dev/null
++++ b/drivers/spi/spi-zx279133-sfc.c
+@@ -0,0 +1,490 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++#include <linux/bitfield.h>
++#include <linux/bitops.h>
++#include <linux/clk.h>
++#include <linux/completion.h>
++#include <linux/io.h>
++#include <linux/interrupt.h>
++#include <linux/iopoll.h>
++#include <linux/jiffies.h>
++#include <linux/kernel.h>
++#include <linux/mfd/syscon.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/reset.h>
++#include <linux/spi/spi.h>
++#include <linux/spi/spi-mem.h>
++#include <linux/string.h>
++
++/* The controller exposes a 64-byte FIFO as sixteen 32-bit words. */
++#define ZX_SFC_CTRL			0x04
++#define ZX_SFC_TRIGGER			0x08
++#define ZX_SFC_CFG			0x0c
++#define ZX_SFC_MODE			0x10
++#define ZX_SFC_FORMAT			0x14
++#define ZX_SFC_LENGTH			0x18
++#define ZX_SFC_ADDRESS			0x1c
++#define ZX_SFC_COMMAND			0x20
++#define ZX_SFC_IRQ_ENABLE		0x28
++#define ZX_SFC_STATUS			0x2c
++#define ZX_SFC_IRQ_STATUS		0x30
++#define ZX_SFC_FIFO_STATUS		0x34
++#define ZX_SFC_FIFO			0x38
++
++#define ZX_SFC_CTRL_START		BIT(0)
++#define ZX_SFC_MODE_DATA_OUT		BIT(0)
++#define ZX_SFC_MODE_DATA_IN		BIT(1)
++#define ZX_SFC_MODE_DUMMY		BIT(2)
++#define ZX_SFC_MODE_ADDRESS		BIT(4)
++#define ZX_SFC_STATUS_ERROR		0x36
++#define ZX_SFC_FIFO_RX_COUNT		GENMASK(12, 8)
++#define ZX_SFC_FIFO_TX_SPACE		GENMASK(20, 16)
++#define ZX_SFC_IRQ_ALL			0x37
++
++#define ZX_SFC_CFG_DEFAULT		0x0001c440
++#define ZX_SFC_TIMEOUT_US		100000
++#define ZX_SFC_DONE_TIMEOUT_MS		1000
++
++struct zx279133_sfc {
++	struct device *dev;
++	void __iomem *base;
++	struct clk *pclk;
++	struct clk *clk;
++	struct reset_control *reset;
++	struct regmap *chipselect_map;
++	u32 chipselect_offset;
++	u32 chipselect_mask;
++	int irq;
++	struct completion done;
++	struct mutex lock; /* Serialize commands and the shared FIFO. */
++	u32 irq_status;
++};
++
++static inline u32 zx_sfc_read(struct zx279133_sfc *sfc, unsigned int reg)
++{
++	return readl(sfc->base + reg);
++}
++
++static inline void zx_sfc_write(struct zx279133_sfc *sfc, unsigned int reg,
++				u32 value)
++{
++	writel(value, sfc->base + reg);
++}
++
++static int zx_sfc_wait_idle(struct zx279133_sfc *sfc)
++{
++	u32 value;
++
++	return readl_poll_timeout(sfc->base + ZX_SFC_CTRL, value,
++				  !(value & ZX_SFC_CTRL_START), 1,
++				  ZX_SFC_TIMEOUT_US);
++}
++
++static void zx_sfc_collect_irq_status(struct zx279133_sfc *sfc)
++{
++	u32 status = zx_sfc_read(sfc, ZX_SFC_IRQ_STATUS);
++
++	if (!status)
++		return;
++
++	sfc->irq_status |= status;
++	zx_sfc_write(sfc, ZX_SFC_IRQ_STATUS, status);
++}
++
++static int zx_sfc_stop(struct zx279133_sfc *sfc)
++{
++	int ret;
++
++	/* Quiesce the handler before touching the shared IRQ cause accumulator. */
++	zx_sfc_write(sfc, ZX_SFC_IRQ_ENABLE, 0);
++	synchronize_irq(sfc->irq);
++	zx_sfc_collect_irq_status(sfc);
++	zx_sfc_write(sfc, ZX_SFC_TRIGGER, 0);
++	zx_sfc_collect_irq_status(sfc);
++
++	ret = zx_sfc_wait_idle(sfc);
++	zx_sfc_collect_irq_status(sfc);
++	if (ret && sfc->reset) {
++		int reset_ret;
++
++		reset_ret = reset_control_reset(sfc->reset);
++		if (reset_ret) {
++			dev_err_ratelimited(sfc->dev,
++					    "failed to recover controller: %d\n",
++					    reset_ret);
++		} else {
++			/* Verify reset recovery, but preserve the abort timeout. */
++			zx_sfc_write(sfc, ZX_SFC_IRQ_ENABLE, 0);
++			zx_sfc_write(sfc, ZX_SFC_TRIGGER, 0);
++			zx_sfc_collect_irq_status(sfc);
++			if (zx_sfc_wait_idle(sfc))
++				dev_err_ratelimited(sfc->dev,
++						    "controller remains busy after reset\n");
++		}
++	}
++
++	return ret;
++}
++
++static int zx_sfc_select_chip(struct zx279133_sfc *sfc,
++			      unsigned int chip_select)
++{
++	u32 max_select;
++
++	max_select = sfc->chipselect_mask >> __ffs(sfc->chipselect_mask);
++	if (chip_select > max_select || chip_select)
++		return -EINVAL;
++
++	return regmap_update_bits(sfc->chipselect_map, sfc->chipselect_offset,
++				  sfc->chipselect_mask,
++				  chip_select << __ffs(sfc->chipselect_mask));
++}
++
++static int zx_sfc_status_error(struct zx279133_sfc *sfc)
++{
++	if (zx_sfc_read(sfc, ZX_SFC_STATUS) & ZX_SFC_STATUS_ERROR)
++		return -EIO;
++
++	return 0;
++}
++
++static int zx_sfc_wait_fifo(struct zx279133_sfc *sfc, u32 mask)
++{
++	u32 value;
++	int ret;
++
++	ret = readl_poll_timeout(sfc->base + ZX_SFC_FIFO_STATUS, value,
++				 (value & mask) ||
++				 (zx_sfc_read(sfc, ZX_SFC_STATUS) &
++				  ZX_SFC_STATUS_ERROR), 1, ZX_SFC_TIMEOUT_US);
++	if (ret)
++		return ret;
++
++	return zx_sfc_status_error(sfc);
++}
++
++static int zx_sfc_tx_pio(struct zx279133_sfc *sfc,
++			 const u8 *buf, unsigned int len)
++{
++	while (len) {
++		u32 words;
++		int ret;
++
++		ret = zx_sfc_wait_fifo(sfc, ZX_SFC_FIFO_TX_SPACE);
++		if (ret)
++			return ret;
++
++		words = FIELD_GET(ZX_SFC_FIFO_TX_SPACE,
++				  zx_sfc_read(sfc, ZX_SFC_FIFO_STATUS));
++		while (words-- && len) {
++			u32 value = 0;
++			unsigned int count = min_t(unsigned int, len,
++						   sizeof(value));
++
++			memcpy(&value, buf, count);
++			zx_sfc_write(sfc, ZX_SFC_FIFO, value);
++			buf += count;
++			len -= count;
++		}
++	}
++
++	return 0;
++}
++
++static int zx_sfc_rx_pio(struct zx279133_sfc *sfc,
++			 u8 *buf, unsigned int len)
++{
++	while (len) {
++		u32 words;
++		int ret;
++
++		ret = zx_sfc_wait_fifo(sfc, ZX_SFC_FIFO_RX_COUNT);
++		if (ret)
++			return ret;
++
++		words = FIELD_GET(ZX_SFC_FIFO_RX_COUNT,
++				  zx_sfc_read(sfc, ZX_SFC_FIFO_STATUS));
++		while (words-- && len) {
++			u32 value = zx_sfc_read(sfc, ZX_SFC_FIFO);
++			unsigned int count = min_t(unsigned int, len,
++						   sizeof(value));
++
++			memcpy(buf, &value, count);
++			buf += count;
++			len -= count;
++		}
++	}
++
++	return 0;
++}
++
++static bool zx_sfc_supports_op(struct spi_mem *mem,
++			       const struct spi_mem_op *op)
++{
++	if (!spi_mem_default_supports_op(mem, op))
++		return false;
++
++	/* The command phase is always one-bit on this controller. */
++	if (op->cmd.nbytes != 1 || op->cmd.buswidth != 1 || op->cmd.dtr)
++		return false;
++	if (op->addr.nbytes > 4 || op->addr.dtr || op->dummy.dtr || op->data.dtr)
++		return false;
++	if (op->addr.buswidth != 0 && op->addr.buswidth != 1 &&
++	    op->addr.buswidth != 2 && op->addr.buswidth != 4)
++		return false;
++	if (op->dummy.buswidth != 0 && op->dummy.buswidth != 1 &&
++	    op->dummy.buswidth != 2 && op->dummy.buswidth != 4)
++		return false;
++	if (op->data.buswidth != 0 && op->data.buswidth != 1 &&
++	    op->data.buswidth != 2 && op->data.buswidth != 4)
++		return false;
++	if (op->dummy.nbytes && op->dummy.buswidth > 1 &&
++	    op->dummy.nbytes >= op->dummy.buswidth)
++		return false;
++
++	return true;
++}
++
++static int zx_sfc_adjust_op_size(struct spi_mem *mem,
++				 struct spi_mem_op *op)
++{
++	/* PIO streams the FIFO while the command is active, so no size cap. */
++	return 0;
++}
++
++static int zx_sfc_exec_op(struct spi_mem *mem, const struct spi_mem_op *op)
++{
++	struct zx279133_sfc *sfc = spi_controller_get_devdata(mem->spi->controller);
++	u32 format = 0;
++	u32 mode = 0;
++	unsigned int data_len = op->data.nbytes;
++	int stop_ret;
++	int ret;
++
++	if (!zx_sfc_supports_op(mem, op))
++		return -EOPNOTSUPP;
++
++	mutex_lock(&sfc->lock);
++	ret = zx_sfc_wait_idle(sfc);
++	if (ret) {
++		int stop_ret = zx_sfc_stop(sfc);
++
++		if (stop_ret)
++			ret = stop_ret;
++		goto out_unlock;
++	}
++	ret = zx_sfc_select_chip(sfc, spi_get_chipselect(mem->spi, 0));
++	if (ret)
++		goto out_unlock;
++
++	if (op->addr.nbytes) {
++		format |= (op->addr.nbytes - 1) << 5;
++		mode |= ZX_SFC_MODE_ADDRESS;
++		if (op->addr.buswidth >= 2)
++			format |= BIT(4);
++	}
++
++	if (op->dummy.nbytes) {
++		unsigned int width = op->dummy.buswidth ?: 1;
++		unsigned int whole = op->dummy.nbytes / width;
++		unsigned int remainder = op->dummy.nbytes - whole;
++
++		/* Split-byte dummy encoding reconstructed from the vendor ELF. */
++		mode |= ZX_SFC_MODE_DUMMY;
++		format |= (whole << 12) |
++			  (((remainder << 3) / width) << 8);
++	}
++
++	if (op->data.buswidth == 2)
++		format |= 4;
++	else if (op->data.buswidth == 4)
++		format |= 5;
++
++	if (op->data.dir == SPI_MEM_DATA_IN)
++		mode |= ZX_SFC_MODE_DATA_IN;
++	else if (op->data.dir == SPI_MEM_DATA_OUT)
++		mode |= ZX_SFC_MODE_DATA_OUT;
++
++	reinit_completion(&sfc->done);
++	sfc->irq_status = 0;
++	zx_sfc_write(sfc, ZX_SFC_TRIGGER, 1);
++	zx_sfc_write(sfc, ZX_SFC_COMMAND, op->cmd.opcode);
++	zx_sfc_write(sfc, ZX_SFC_CFG, ZX_SFC_CFG_DEFAULT);
++	zx_sfc_write(sfc, ZX_SFC_MODE, mode);
++	zx_sfc_write(sfc, ZX_SFC_FORMAT, format);
++	zx_sfc_write(sfc, ZX_SFC_ADDRESS, op->addr.val);
++	zx_sfc_write(sfc, ZX_SFC_LENGTH, data_len ? data_len - 1 : 0);
++	zx_sfc_write(sfc, ZX_SFC_IRQ_STATUS, 0xff);
++	zx_sfc_write(sfc, ZX_SFC_IRQ_ENABLE, ZX_SFC_IRQ_ALL);
++	zx_sfc_write(sfc, ZX_SFC_CTRL, ZX_SFC_CTRL_START);
++
++	if (op->data.dir == SPI_MEM_DATA_OUT && data_len)
++		ret = zx_sfc_tx_pio(sfc, op->data.buf.out, data_len);
++	else if (op->data.dir == SPI_MEM_DATA_IN && data_len)
++		ret = zx_sfc_rx_pio(sfc, op->data.buf.in, data_len);
++	if (ret)
++		goto stop;
++
++	if (!wait_for_completion_timeout(&sfc->done,
++					 msecs_to_jiffies(ZX_SFC_DONE_TIMEOUT_MS))) {
++		ret = -ETIMEDOUT;
++		goto stop;
++	}
++
++stop:
++	stop_ret = zx_sfc_stop(sfc);
++	if (stop_ret)
++		ret = stop_ret;
++	else if (!ret && (sfc->irq_status & ZX_SFC_STATUS_ERROR))
++		ret = -EIO;
++	else if (!ret)
++		ret = zx_sfc_status_error(sfc);
++
++out_unlock:
++	mutex_unlock(&sfc->lock);
++	return ret;
++}
++
++static const struct spi_controller_mem_ops zx_sfc_mem_ops = {
++	.adjust_op_size = zx_sfc_adjust_op_size,
++	.supports_op = zx_sfc_supports_op,
++	.exec_op = zx_sfc_exec_op,
++};
++
++static irqreturn_t zx_sfc_irq(int irq, void *data)
++{
++	struct zx279133_sfc *sfc = data;
++	u32 status = zx_sfc_read(sfc, ZX_SFC_IRQ_STATUS);
++
++	if (!status)
++		return IRQ_NONE;
++
++	sfc->irq_status |= status;
++	zx_sfc_write(sfc, ZX_SFC_IRQ_STATUS, status);
++	complete(&sfc->done);
++	return IRQ_HANDLED;
++}
++
++static int zx_sfc_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct spi_controller *ctlr;
++	struct zx279133_sfc *sfc;
++	unsigned int chipselect_args[2];
++	unsigned long actual_rate;
++	u32 max_freq;
++	int irq;
++	int ret;
++
++	ctlr = devm_spi_alloc_host(dev, sizeof(*sfc));
++	if (!ctlr)
++		return -ENOMEM;
++
++	sfc = spi_controller_get_devdata(ctlr);
++	sfc->dev = dev;
++	mutex_init(&sfc->lock);
++	init_completion(&sfc->done);
++
++	sfc->base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(sfc->base))
++		return PTR_ERR(sfc->base);
++
++	sfc->chipselect_map =
++		syscon_regmap_lookup_by_phandle_args(dev->of_node,
++						     "zte,spi-chipselect",
++						     ARRAY_SIZE(chipselect_args),
++						     chipselect_args);
++	if (IS_ERR(sfc->chipselect_map))
++		return dev_err_probe(dev, PTR_ERR(sfc->chipselect_map),
++				     "failed to get chip-select syscon\n");
++	sfc->chipselect_offset = chipselect_args[0];
++	sfc->chipselect_mask = chipselect_args[1];
++	if (!sfc->chipselect_mask ||
++	    hweight32(sfc->chipselect_mask) != 1 ||
++	    sfc->chipselect_offset & 3)
++		return dev_err_probe(dev, -EINVAL,
++				     "invalid chip-select register tuple\n");
++
++	sfc->pclk = devm_clk_get_enabled(dev, "pclk");
++	if (IS_ERR(sfc->pclk))
++		return dev_err_probe(dev, PTR_ERR(sfc->pclk),
++				     "failed to enable bus clock\n");
++
++	sfc->clk = devm_clk_get_enabled(dev, "wclk");
++	if (IS_ERR(sfc->clk))
++		return dev_err_probe(dev, PTR_ERR(sfc->clk),
++				     "failed to enable clock\n");
++
++	sfc->reset = devm_reset_control_get_exclusive(dev, NULL);
++	if (IS_ERR(sfc->reset))
++		return dev_err_probe(dev, PTR_ERR(sfc->reset),
++				     "failed to get reset\n");
++	ret = reset_control_reset(sfc->reset);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to reset controller\n");
++
++	ret = device_property_read_u32(dev, "spi-max-frequency", &max_freq);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "missing spi-max-frequency\n");
++	if (!max_freq)
++		return dev_err_probe(dev, -EINVAL,
++				     "invalid spi-max-frequency\n");
++	ret = clk_set_rate(sfc->clk, max_freq);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to set clock to %u Hz\n", max_freq);
++	actual_rate = clk_get_rate(sfc->clk);
++	if (!actual_rate || actual_rate > max_freq)
++		return dev_err_probe(dev, actual_rate ? -ERANGE : -EINVAL,
++				     "clock rate %lu exceeds requested %u Hz\n",
++				     actual_rate, max_freq);
++
++	irq = platform_get_irq(pdev, 0);
++	if (irq < 0)
++		return irq;
++	sfc->irq = irq;
++	ret = devm_request_irq(dev, irq, zx_sfc_irq, 0, dev_name(dev), sfc);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to request IRQ\n");
++
++	ctlr->mem_ops = &zx_sfc_mem_ops;
++	ctlr->num_chipselect = 1;
++	ctlr->max_speed_hz = actual_rate;
++	ctlr->mode_bits = SPI_RX_DUAL | SPI_TX_DUAL |
++			  SPI_RX_QUAD | SPI_TX_QUAD;
++	ctlr->bits_per_word_mask = SPI_BPW_MASK(8);
++	ctlr->dev.of_node = dev->of_node;
++
++	platform_set_drvdata(pdev, ctlr);
++	ret = devm_spi_register_controller(dev, ctlr);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to register controller\n");
++
++	dev_info(dev, "SPI flash controller at %lu Hz (PIO)\n",
++		 clk_get_rate(sfc->clk));
++	return 0;
++}
++
++static const struct of_device_id zx_sfc_of_match[] = {
++	{ .compatible = "zte,zx279133-sfc" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, zx_sfc_of_match);
++
++static struct platform_driver zx_sfc_driver = {
++	.probe = zx_sfc_probe,
++	.driver = {
++		.name = "zx279133-sfc",
++		.of_match_table = zx_sfc_of_match,
++	},
++};
++module_platform_driver(zx_sfc_driver);
++
++MODULE_DESCRIPTION("ZTE ZX279133 SPI flash controller");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/tty/serial/amba-pl011.c b/drivers/tty/serial/amba-pl011.c
+index 7f17d288c807661ae3475dc2ae5f55041f24d86e..f88c0ebfef7f73fffa36571e15f5a239ef178870 100644
+--- a/drivers/tty/serial/amba-pl011.c
++++ b/drivers/tty/serial/amba-pl011.c
+@@ -38,6 +38,7 @@
+ #include <linux/types.h>
+ #include <linux/of.h>
+ #include <linux/pinctrl/consumer.h>
++#include <linux/reset.h>
+ #include <linux/sizes.h>
+ #include <linux/io.h>
+ #include <linux/acpi.h>
+@@ -216,6 +217,38 @@ static struct vendor_data vendor_st = {
+ 	.get_fifosize		= get_fifosize_st,
+ };
+ 
++static const u16 pl011_zte_offsets[REG_ARRAY_SIZE] = {
++	[REG_DR] = ZX_UART011_DR,
++	[REG_FR] = ZX_UART011_FR,
++	[REG_LCRH_RX] = ZX_UART011_LCRH,
++	[REG_LCRH_TX] = ZX_UART011_LCRH,
++	[REG_IBRD] = ZX_UART011_IBRD,
++	[REG_FBRD] = ZX_UART011_FBRD,
++	[REG_CR] = ZX_UART011_CR,
++	[REG_IFLS] = ZX_UART011_IFLS,
++	[REG_IMSC] = ZX_UART011_IMSC,
++	[REG_RIS] = ZX_UART011_RIS,
++	[REG_MIS] = ZX_UART011_MIS,
++	[REG_ICR] = ZX_UART011_ICR,
++	[REG_DMACR] = ZX_UART011_DMACR,
++};
++
++static unsigned int get_fifosize_zte(struct amba_device *dev)
++{
++	return 16;
++}
++
++static struct vendor_data vendor_zte = {
++	.reg_offset		= pl011_zte_offsets,
++	.ifls			= UART011_IFLS_RX4_8 | UART011_IFLS_TX4_8,
++	.fr_busy		= ZX_UART01x_FR_BUSY,
++	.fr_dsr			= ZX_UART01x_FR_DSR,
++	.fr_cts			= ZX_UART01x_FR_CTS,
++	.fr_ri			= ZX_UART011_FR_RI,
++	.access_32b		= true,
++	.get_fifosize		= get_fifosize_zte,
++};
++
+ /* Deals with DMA transactions */
+ 
+ struct pl011_dmabuf {
+@@ -2655,6 +2688,21 @@ static void pl011_early_write(struct console *con, const char *s, unsigned int n
+ 	uart_console_write(&dev->port, s, n, pl011_putc);
+ }
+ 
++static void zte_pl011_early_putc(struct uart_port *port, unsigned char c)
++{
++	/* The vendor early output path only waits for transmit FIFO space. */
++	while (readl(port->membase + ZX_UART011_FR) & UART01x_FR_TXFF)
++		cpu_relax();
++	writel(c, port->membase + ZX_UART011_DR);
++}
++
++static void zte_pl011_early_write(struct console *con, const char *s, unsigned int n)
++{
++	struct earlycon_device *dev = con->data;
++
++	uart_console_write(&dev->port, s, n, zte_pl011_early_putc);
++}
++
+ #ifdef CONFIG_CONSOLE_POLL
+ static int pl011_getc(struct uart_port *port)
+ {
+@@ -2710,10 +2758,29 @@ static int __init pl011_early_console_setup(struct earlycon_device *device,
+ 	return 0;
+ }
+ 
++static int __init zte_pl011_early_console_setup(struct earlycon_device *device,
++						const char *opt)
++{
++	if (!device->port.membase)
++		return -ENODEV;
++
++	device->con->write = zte_pl011_early_write;
++	return 0;
++}
++
+ OF_EARLYCON_DECLARE(pl011, "arm,pl011", pl011_early_console_setup);
+ 
+ OF_EARLYCON_DECLARE(pl011, "arm,sbsa-uart", pl011_early_console_setup);
+ 
++/* Keep this after the fallbacks: this object emits the table in reverse order. */
++OF_EARLYCON_DECLARE(zteuart, "zte,zx279133-uart", zte_pl011_early_console_setup);
++
++/*
++ * Name without a trailing digit: earlycon derives the console index from
++ * trailing numerals, so "ztepl011" would print as "ztepl11" (index 11).
++ */
++EARLYCON_DECLARE(zteuart, zte_pl011_early_console_setup);
++
+ /*
+  * On Qualcomm Datacenter Technologies QDF2400 SOCs affected by
+  * Erratum 44, traditional earlycon can be enabled by specifying
+@@ -2878,6 +2945,7 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
+ {
+ 	struct uart_amba_port *uap;
+ 	struct vendor_data *vendor = id->data;
++	struct reset_control *rst;
+ 	int portnr, ret;
+ 	u32 val;
+ 
+@@ -2890,6 +2958,17 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
+ 	if (!uap)
+ 		return -ENOMEM;
+ 
++	/*
++	 * ZX279133 supplies arm,primecell-periphid, bypassing
++	 * amba_read_periphid() and its shared-reset deassertion.
++	 */
++	if (vendor == &vendor_zte) {
++		rst = devm_reset_control_get_shared_deasserted(&dev->dev, NULL);
++		if (IS_ERR(rst))
++			return dev_err_probe(&dev->dev, PTR_ERR(rst),
++					     "failed to deassert reset\n");
++	}
++
+ 	uap->clk = devm_clk_get(&dev->dev, NULL);
+ 	if (IS_ERR(uap->clk))
+ 		return PTR_ERR(uap->clk);
+@@ -3081,6 +3160,11 @@ static const struct amba_id pl011_ids[] = {
+ 		.mask	= 0x00ffffff,
+ 		.data	= &vendor_st,
+ 	},
++	{
++		.id	= 0x001feffe,
++		.mask	= 0x00ffffff,
++		.data	= &vendor_zte,
++	},
+ 	{ 0, 0 },
+ };
+ 
+diff --git a/drivers/watchdog/Kconfig b/drivers/watchdog/Kconfig
+index 05008d937e405b8a505f563778189a63f1f48108..d1b79c68ecb9c982751c888c9fa079b341f33119 100644
+--- a/drivers/watchdog/Kconfig
++++ b/drivers/watchdog/Kconfig
+@@ -510,6 +510,14 @@ config CADENCE_WATCHDOG
+ 	  Say Y here if you want to include support for the watchdog
+ 	  timer in the Xilinx Zynq.
+ 
++config ZX279133_WATCHDOG
++	tristate "ZTE ZX279133 watchdog"
++	depends on ARM64 || COMPILE_TEST
++	select MFD_SYSCON
++	select WATCHDOG_CORE
++	help
++	  Support for the watchdog timers in the ZTE ZX279133 SoC.
++
+ config 21285_WATCHDOG
+ 	tristate "DC21285 watchdog"
+ 	depends on FOOTBRIDGE
+diff --git a/drivers/watchdog/Makefile b/drivers/watchdog/Makefile
+index b680e4d3c1bc20b4202e1b9ba8de39ddc012f30c..81ae049bcc892834c55d73c1394ca5c8a9a5485e 100644
+--- a/drivers/watchdog/Makefile
++++ b/drivers/watchdog/Makefile
+@@ -45,6 +45,7 @@ obj-$(CONFIG_ASM9260_WATCHDOG) += asm9260_wdt.o
+ obj-$(CONFIG_AT91RM9200_WATCHDOG) += at91rm9200_wdt.o
+ obj-$(CONFIG_AT91SAM9X_WATCHDOG) += at91sam9_wdt.o
+ obj-$(CONFIG_CADENCE_WATCHDOG) += cadence_wdt.o
++obj-$(CONFIG_ZX279133_WATCHDOG) += zx279133_wdt.o
+ obj-$(CONFIG_OMAP_WATCHDOG) += omap_wdt.o
+ obj-$(CONFIG_TWL4030_WATCHDOG) += twl4030_wdt.o
+ obj-$(CONFIG_21285_WATCHDOG) += wdt285.o
+diff --git a/drivers/watchdog/zx279133_wdt.c b/drivers/watchdog/zx279133_wdt.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..a7bf2a8f0c33d572b4f40e2b5f8dab029b5c0782
+--- /dev/null
++++ b/drivers/watchdog/zx279133_wdt.c
+@@ -0,0 +1,313 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/iopoll.h>
++#include <linux/io.h>
++#include <linux/mfd/syscon.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/watchdog.h>
++
++#define ZX279133_WDT_CONFIG		0x04
++#define ZX279133_WDT_LOAD		0x08
++#define ZX279133_WDT_STATUS		0x10
++#define ZX279133_WDT_FEED		0x18
++#define ZX279133_WDT_LOCK		0x1c
++
++#define ZX279133_WDT_KEY			0x12340000
++#define ZX279133_WDT_CONFIG_VALUE	(ZX279133_WDT_KEY | 0x1f00)
++#define ZX279133_WDT_FEED_MASK		0x3c
++#define ZX279133_WDT_LOCKED		BIT(0)
++#define ZX279133_WDT_READY		BIT(1)
++#define ZX279133_WDT_DIVIDER		32
++#define ZX279133_WDT_INPUT_RATE		32768
++#define ZX279133_WDT_MAX_COUNT		0xffff
++#define ZX279133_WDT_DEFAULT_TIMEOUT	30
++#define ZX279133_WDT_RESTART_TIMEOUT	1
++#define ZX279133_WDT_RESTART_WAIT_MS	1500
++
++static unsigned int timeout;
++module_param(timeout, uint, 0444);
++MODULE_PARM_DESC(timeout, "Watchdog timeout in seconds (default=30)");
++
++static bool nowayout = WATCHDOG_NOWAYOUT;
++module_param(nowayout, bool, 0444);
++MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started");
++
++struct zx279133_wdt {
++	struct watchdog_device wdd;
++	struct clk_bulk_data clocks[2];
++	void __iomem *base;
++	unsigned long count_rate;
++};
++
++static void zx279133_wdt_disable_clocks(void *data)
++{
++	struct zx279133_wdt *wdt = data;
++
++	clk_bulk_disable_unprepare(ARRAY_SIZE(wdt->clocks), wdt->clocks);
++}
++
++static void zx279133_wdt_feed(struct zx279133_wdt *wdt)
++{
++	u32 value = readl(wdt->base + ZX279133_WDT_FEED);
++
++	writel(ZX279133_WDT_KEY | (value ^ ZX279133_WDT_FEED_MASK),
++	       wdt->base + ZX279133_WDT_FEED);
++}
++
++static int zx279133_wdt_stop(struct watchdog_device *wdd)
++{
++	struct zx279133_wdt *wdt = watchdog_get_drvdata(wdd);
++
++	writel(ZX279133_WDT_KEY, wdt->base + ZX279133_WDT_LOCK);
++	readl(wdt->base + ZX279133_WDT_LOCK);
++
++	return 0;
++}
++
++static int zx279133_wdt_start(struct watchdog_device *wdd)
++{
++	struct zx279133_wdt *wdt = watchdog_get_drvdata(wdd);
++	u64 count = (u64)wdt->count_rate * wdd->timeout - 1;
++	u32 status;
++	int ret;
++
++	if (count > ZX279133_WDT_MAX_COUNT)
++		return -EINVAL;
++
++	writel(ZX279133_WDT_KEY, wdt->base + ZX279133_WDT_LOCK);
++	writel(ZX279133_WDT_CONFIG_VALUE, wdt->base + ZX279133_WDT_CONFIG);
++	writel(ZX279133_WDT_KEY | (u32)count,
++	       wdt->base + ZX279133_WDT_LOAD);
++	zx279133_wdt_feed(wdt);
++
++	ret = readl_poll_timeout_atomic(wdt->base + ZX279133_WDT_STATUS,
++					status, status & ZX279133_WDT_READY,
++					1, 10000);
++	if (ret) {
++		zx279133_wdt_stop(wdd);
++		return ret;
++	}
++
++	writel(ZX279133_WDT_KEY | ZX279133_WDT_LOCKED,
++	       wdt->base + ZX279133_WDT_LOCK);
++
++	return 0;
++}
++
++static int zx279133_wdt_ping(struct watchdog_device *wdd)
++{
++	struct zx279133_wdt *wdt = watchdog_get_drvdata(wdd);
++
++	zx279133_wdt_feed(wdt);
++
++	return 0;
++}
++
++static int zx279133_wdt_set_timeout(struct watchdog_device *wdd,
++				    unsigned int timeout)
++{
++	unsigned int old_timeout = wdd->timeout;
++	int ret;
++
++	wdd->timeout = timeout;
++	ret = zx279133_wdt_start(wdd);
++	if (!ret) {
++		/* The first core ping must not race the hardware reload sequence. */
++		usleep_range(1000, 2000);
++		return 0;
++	}
++
++	wdd->timeout = old_timeout;
++	if (zx279133_wdt_start(wdd)) {
++		clear_bit(WDOG_HW_RUNNING, &wdd->status);
++		dev_crit(wdd->parent,
++			 "failed to restore watchdog after timeout update\n");
++	}
++
++	return ret;
++}
++
++static int zx279133_wdt_restart(struct watchdog_device *wdd,
++				unsigned long action, void *data)
++{
++	int ret;
++
++	wdd->timeout = ZX279133_WDT_RESTART_TIMEOUT;
++	zx279133_wdt_stop(wdd);
++
++	ret = zx279133_wdt_start(wdd);
++	if (ret)
++		return ret;
++
++	mdelay(ZX279133_WDT_RESTART_WAIT_MS);
++
++	return 0;
++}
++
++static const struct watchdog_info zx279133_wdt_info = {
++	.identity = "ZX279133 Watchdog",
++	.options = WDIOF_KEEPALIVEPING | WDIOF_MAGICCLOSE | WDIOF_SETTIMEOUT,
++};
++
++static const struct watchdog_ops zx279133_wdt_ops = {
++	.owner = THIS_MODULE,
++	.start = zx279133_wdt_start,
++	.stop = zx279133_wdt_stop,
++	.ping = zx279133_wdt_ping,
++	.set_timeout = zx279133_wdt_set_timeout,
++};
++
++static const struct watchdog_ops zx279133_wdt_restart_ops = {
++	.owner = THIS_MODULE,
++	.start = zx279133_wdt_start,
++	.stop = zx279133_wdt_stop,
++	.ping = zx279133_wdt_ping,
++	.set_timeout = zx279133_wdt_set_timeout,
++	.restart = zx279133_wdt_restart,
++};
++
++static void zx279133_wdt_stop_action(void *data)
++{
++	struct zx279133_wdt *wdt = data;
++
++	zx279133_wdt_stop(&wdt->wdd);
++	clear_bit(WDOG_HW_RUNNING, &wdt->wdd.status);
++}
++
++static int zx279133_wdt_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct zx279133_wdt *wdt;
++	struct regmap *reset;
++	unsigned long rate;
++	u32 reset_offset;
++	u32 reset_mask;
++	u32 reset_value;
++	int ret;
++
++	wdt = devm_kzalloc(dev, sizeof(*wdt), GFP_KERNEL);
++	if (!wdt)
++		return -ENOMEM;
++
++	wdt->base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(wdt->base))
++		return PTR_ERR(wdt->base);
++
++	wdt->clocks[0].id = "pclk";
++	wdt->clocks[1].id = "wdtclk";
++	ret = devm_clk_bulk_get(dev, ARRAY_SIZE(wdt->clocks), wdt->clocks);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to get clocks\n");
++
++	ret = clk_bulk_prepare_enable(ARRAY_SIZE(wdt->clocks), wdt->clocks);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to enable clocks\n");
++
++	ret = devm_add_action_or_reset(dev, zx279133_wdt_disable_clocks, wdt);
++	if (ret)
++		return ret;
++
++	ret = clk_set_rate(wdt->clocks[1].clk, ZX279133_WDT_INPUT_RATE);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to set watchdog clock rate\n");
++
++	rate = clk_get_rate(wdt->clocks[1].clk);
++	if (rate != ZX279133_WDT_INPUT_RATE)
++		return dev_err_probe(dev, -EINVAL,
++				     "watchdog clock rate is %lu, expected %u\n",
++				     rate, ZX279133_WDT_INPUT_RATE);
++
++	wdt->count_rate = rate / ZX279133_WDT_DIVIDER;
++	if (!wdt->count_rate || rate % ZX279133_WDT_DIVIDER)
++		return dev_err_probe(dev, -EINVAL,
++				     "invalid watchdog clock rate %lu\n", rate);
++
++	reset = syscon_regmap_lookup_by_phandle(dev->of_node,
++						"zte,reset-controller");
++	if (IS_ERR(reset))
++		return dev_err_probe(dev, PTR_ERR(reset),
++				     "failed to get reset controller\n");
++
++	ret = of_property_read_u32(dev->of_node, "zte,reset-offset",
++				   &reset_offset);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to get reset offset\n");
++
++	ret = of_property_read_u32(dev->of_node, "zte,reset-mask", &reset_mask);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to get reset mask\n");
++	if (!reset_mask)
++		return dev_err_probe(dev, -EINVAL, "reset mask must not be zero\n");
++
++	ret = regmap_update_bits(reset, reset_offset, reset_mask, reset_mask);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to enable reset output\n");
++
++	ret = regmap_read(reset, reset_offset, &reset_value);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to read reset mask\n");
++	if ((reset_value & reset_mask) != reset_mask)
++		return dev_err_probe(dev, -EIO, "reset mask did not latch\n");
++
++	wdt->wdd.info = &zx279133_wdt_info;
++	if (of_property_read_bool(dev->of_node, "zte,restart-watchdog")) {
++		wdt->wdd.ops = &zx279133_wdt_restart_ops;
++		watchdog_set_restart_priority(&wdt->wdd, 192);
++	} else {
++		wdt->wdd.ops = &zx279133_wdt_ops;
++	}
++	wdt->wdd.parent = dev;
++	wdt->wdd.min_timeout = 1;
++	wdt->wdd.max_timeout = ZX279133_WDT_MAX_COUNT / wdt->count_rate;
++	wdt->wdd.timeout = min_t(unsigned int, ZX279133_WDT_DEFAULT_TIMEOUT,
++				 wdt->wdd.max_timeout);
++	watchdog_set_drvdata(&wdt->wdd, wdt);
++	watchdog_set_nowayout(&wdt->wdd, nowayout);
++	watchdog_init_timeout(&wdt->wdd, timeout, dev);
++	watchdog_stop_on_reboot(&wdt->wdd);
++
++	ret = zx279133_wdt_start(&wdt->wdd);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to start watchdog\n");
++
++	set_bit(WDOG_HW_RUNNING, &wdt->wdd.status);
++	ret = devm_watchdog_register_device(dev, &wdt->wdd);
++	if (ret) {
++		zx279133_wdt_stop_action(wdt);
++		return dev_err_probe(dev, ret, "failed to register watchdog\n");
++	}
++
++	ret = devm_add_action_or_reset(dev, zx279133_wdt_stop_action, wdt);
++	if (ret)
++		return ret;
++
++	dev_info(dev,
++		 "running watchdog at %lu Hz, timeout %u s, reset %#x:%#x\n",
++		 wdt->count_rate, wdt->wdd.timeout, reset_offset, reset_mask);
++
++	return 0;
++}
++
++static const struct of_device_id zx279133_wdt_of_match[] = {
++	{ .compatible = "zte,zx279133-watchdog" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, zx279133_wdt_of_match);
++
++static struct platform_driver zx279133_wdt_driver = {
++	.probe = zx279133_wdt_probe,
++	.driver = {
++		.name = "zx279133-watchdog",
++		.of_match_table = zx279133_wdt_of_match,
++	},
++};
++module_platform_driver(zx279133_wdt_driver);
++
++MODULE_DESCRIPTION("ZTE ZX279133 watchdog driver");
++MODULE_LICENSE("GPL");
+diff --git a/include/dt-bindings/clock/zte,zx279133-lsp.h b/include/dt-bindings/clock/zte,zx279133-lsp.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..e2d5440342c839ffe3f9e10542e22577096768c6
+--- /dev/null
++++ b/include/dt-bindings/clock/zte,zx279133-lsp.h
+@@ -0,0 +1,15 @@
++/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
++#ifndef _DT_BINDINGS_CLOCK_ZTE_ZX279133_LSP_H
++#define _DT_BINDINGS_CLOCK_ZTE_ZX279133_LSP_H
++
++#define ZX279133_LSP_CLK_UART0_PCLK	0
++#define ZX279133_LSP_CLK_UART0_WCLK	1
++#define ZX279133_LSP_CLK_SPIFC_PCLK	2
++#define ZX279133_LSP_CLK_SPIFC_WCLK	3
++
++#define ZX279133_LSP1_CLK_WDT0_PCLK	0
++#define ZX279133_LSP1_CLK_WDT0_WCLK	1
++#define ZX279133_LSP1_CLK_WDT1_PCLK	2
++#define ZX279133_LSP1_CLK_WDT1_WCLK	3
++
++#endif
+diff --git a/include/dt-bindings/clock/zte,zx279133-topcrm.h b/include/dt-bindings/clock/zte,zx279133-topcrm.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..a37f7a910f6d566d682099072481d967c8a5e5fb
+--- /dev/null
++++ b/include/dt-bindings/clock/zte,zx279133-topcrm.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
++#ifndef _DT_BINDINGS_CLOCK_ZTE_ZX279133_TOPCRM_H
++#define _DT_BINDINGS_CLOCK_ZTE_ZX279133_TOPCRM_H
++
++#define ZX279133_TOPCRM_CLK_LSP0_100M	0
++#define ZX279133_TOPCRM_CLK_LSP0_25M	1
++#define ZX279133_TOPCRM_CLK_LSP0_PCLK	2
++#define ZX279133_TOPCRM_CLK_LSP1_32K	3
++#define ZX279133_TOPCRM_CLK_LSP1_PCLK	4
++#define ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK	5
++#define ZX279133_TOPCRM_CLK_SPIFC_WCLK	6
++#define ZX279133_TOPCRM_CLK_USB_PCLK	7
++#define ZX279133_TOPCRM_CLK_USB_CCI_ACLK	8
++#define ZX279133_TOPCRM_CLK_USB_ACLK	9
++
++#endif
+diff --git a/include/dt-bindings/reset/zte,zx279133-lsp.h b/include/dt-bindings/reset/zte,zx279133-lsp.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..3d911175a15e541d51b86304c9f6b4f85ee57f25
+--- /dev/null
++++ b/include/dt-bindings/reset/zte,zx279133-lsp.h
+@@ -0,0 +1,8 @@
++/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
++#ifndef _DT_BINDINGS_RESET_ZTE_ZX279133_LSP_H
++#define _DT_BINDINGS_RESET_ZTE_ZX279133_LSP_H
++
++#define ZX279133_LSP_RESET_UART0	0
++#define ZX279133_LSP_RESET_SPIFC	1
++
++#endif

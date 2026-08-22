@@ -1,0 +1,33 @@
+Patch 0009: dt-bindings: net: dsa: add ZX279133 RTL8372N switch
+
+Scope:
+- Documentation/devicetree/bindings/net/dsa/zte,zx279133-rtl8372n.yaml
+- MAINTAINERS
+
+Changes:
+- describe the RTL8372N switch attached to ZX279133 XMAC0
+- require the integration-specific indirect-SMI MDIO phandle and active-low
+  hardware reset GPIO
+- use the standard DSA Ethernet-port schema for user and CPU ports
+- document the dedicated NPPT-owned CPU conduit used by the switch CPU port
+- add ZTE maintainer coverage for the DSA binding
+
+Validation:
+- strict source and patch checkpatch: source has 0 errors, 0 warnings, 0 checks;
+  patch reports only the generic new-file MAINTAINERS reminder while adding an
+  explicit matching MAINTAINERS entry
+- isolated dt_binding_check passes, including the example with no DTC warnings
+- independent read-only review found the schema content correct and GO
+- git diff --check passes
+- patch 0009 applies after patches 0001 through 0008
+- full build after the behavior-neutral property rename produced FIT SHA-256:
+  cbdd0b15b3ec085e4cb4d6ece5e7f3b38db84a2bae5dbe1e0ae4ba430c8fcce3
+- the FIT cold-booted, WAN linked at 2.5 Gbit/s, and the RTL8372N module resolved
+  zte,mdio-handle, reset the switch, initialized DSA, and registered successfully
+- interface-bound WAN ping passed 3/3 and VLAN100 lan1 ping passed 5/5
+- no Oops, panic, probe failure, or DSA setup error was observed
+
+Residual architectural risk:
+- the indirect-SMI management phandle and parent-owned LAN PCS/SerDes resources
+  describe a ZX279133-specific integration and may receive upstream architecture
+  review even though the schema is valid and the implementation is tested.

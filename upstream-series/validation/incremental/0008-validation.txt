@@ -1,0 +1,66 @@
+Patch 0008: net: phy: add ZTE ZX279051 support
+
+Scope:
+- MAINTAINERS
+- drivers/net/phy/Kconfig
+- drivers/net/phy/Makefile
+- drivers/net/phy/zx279051.c
+- drivers/net/phy/zx279051-fullmask.h
+
+Changes:
+- add a PHYLIB driver for the C22-enumerated ZX279051 using direct Clause 45
+  transactions for its IEEE MMD and vendor register spaces
+- replay the ordered post-external-reset initialization image and explicitly
+  wake the PHY after the vendor sequence ends in BMCR power-down
+- advertise 10/100/1000 half/full, 2500 full, pause and asymmetric pause from
+  phydev->advertising; explicit autonegotiation disable is rejected with
+  -EOPNOTSUPP because no evidence-backed forced-line-mode contract is known
+- report link-partner 10/100, 1000 and 2500 advertisements and resolve pause only
+  after the hardware duplex state is decoded
+- configure the internal Uni-side SerDes for SGMII or 2500BASE-X from the live
+  GE speed code, with checked APB transactions, bounded lock polling and cached
+  successful host-mode state
+- declare SGMII and 2500BASE-X as possible PHY interfaces and expose generic
+  suspend/resume hooks
+
+Validation:
+- drivers/net/phy/zx279051.c strict checkpatch: 0 errors, 0 warnings, 0 checks
+- drivers/net/phy/zx279051-fullmask.h strict checkpatch: 0 errors, 0 warnings,
+  0 checks
+- the isolated ZX279051 Kconfig block passes strict checkpatch
+- patch checkpatch reports only the generic new-file MAINTAINERS reminder; the
+  patch adds drivers/net/phy/zx279051* to the existing ZTE maintainer entry
+- independent read-only review returned technical GO with no blocker or
+  high-severity correctness finding
+- git diff --check passes for all patch files
+- patches 0001 through 0008 apply sequentially to a HEAD-derived tree
+- MAINTAINERS, Kconfig, Makefile and both ZX279051 source files are byte-identical
+  to the worktree after sequential application
+- full ZXDBG build compiled drivers/net/phy/zx279051.o and produced FIT SHA-256:
+  586de657d56496db3f83630ac8fc01054590892ae8c3e255b52a25b9811b7819
+- the FIT cold-booted after U-Boot GPIO1 external-PHY reset; ZX279051 fullmask
+  initialization completed and WAN linked at 2.5 Gbit/s/full with negotiated
+  RX/TX pause
+- interface-bound WAN ping passed 5/5
+- five-second WAN host-to-board iperf measured 2.35 Gbit/s
+- five-second WAN board-to-host iperf measured 1.95/1.94 Gbit/s with zero TCP
+  retransmissions
+- RTL8372N/Uni-SerDes/DSA initialization completed; VLAN100 lan1 and concurrent
+  WAN pings passed 5/5 and 3/3
+- five-second VLAN100 LAN host-to-board iperf measured 938/936 Mbit/s
+- XPCS0/XPCS1 status read 0x0000388b/0x0000280b
+- no Oops, BUG, panic, NETDEV watchdog, timeout or post-reset initialization
+  failure was observed
+
+Residual test coverage:
+- the initramfs does not contain the standard ethtool utility, so the new
+  -EOPNOTSUPP result for an explicit autoneg-off request was code-reviewed and
+  build-validated but not exercised on the board
+- full system-sleep retention of the cached Uni-side SerDes state remains
+  unvalidated because the production configuration does not enable suspend
+
+Submission prerequisite (not satisfied by technical validation):
+- zx279051-fullmask.h records that the fixed register image was recovered
+  instruction-by-instruction from the board vendor's zx279051.ko. Acceptable
+  provenance, redistribution authority and GPL licensing documentation must be
+  established before this patch is submitted upstream.

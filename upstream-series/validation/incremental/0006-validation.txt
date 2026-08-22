@@ -1,0 +1,32 @@
+Patch 0006: phy: zte: add ZX279133 Uni SerDes provider
+
+Scope:
+- adds CONFIG_PHY_ZX279133_UNI_SERDES before the existing PON symbol
+- adds the Uni SerDes Makefile entry
+- adds phy-zx279133-uni-serdes.c
+
+Provider contract:
+- Generic PHY set_mode accepts USXGMII and 10GBASE-R consumers
+- programs the evidence-backed 49-word Uni mode-1 serial profile
+- owns the peripheral and 50 MHz reference clocks
+- owns separate active-low receive and transmit resets
+- serializes the power/clock/reset lifecycle
+- polls PLL and CDR state with bounded timeouts
+
+Validation:
+- provider, Kconfig, and Makefile strict checkpatch: 0 errors, 0 warnings,
+  0 checks
+- patch checkpatch: 0 errors and 0 checks; the sole warning is the generic
+  new-file MAINTAINERS reminder, while patch 0003 already adds coverage
+- git diff --check passes
+- patches 0001 through 0006 apply sequentially to a HEAD-derived tree
+- the resulting Kconfig, Makefile, and provider are byte-identical to the
+  worktree
+- production configuration has CONFIG_PHY_ZX279133_UNI_SERDES=y
+- full ZXDBG build compiled drivers/phy/zte/phy-zx279133-uni-serdes.o
+- built FIT SHA-256: 0cb7c0bff11c6677397ce5bcddf472e715b35c4d67554e38ffcef90d8d40def0
+
+Extraction cleanup was limited to comments, continuation alignment, accurate
+Kconfig help text, and removal of an unused MFD_SYSCON Kconfig dependency. No
+register value, profile word, reset timing, polling timeout, or lifecycle order
+was changed.

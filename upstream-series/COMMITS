@@ -1,0 +1,16 @@
+0001	799d72d6c1c492f9571d342d4ad6484a9945024c	0001-arm64-add-initial-ZTE-ZX279133-SR1010-platform-suppo.patch	arm64: add initial ZTE ZX279133 SR1010 platform support
+0002	fc5c586566fe8bd484f8baa36bdd3a7121797de9	0002-arm64-enable-ZX279133-thermal-GPIO-and-USB-support.patch	arm64: enable ZX279133 thermal, GPIO and USB support
+0003	b3318777b36bd3938a69728fe154cf3342d40419	0003-mtd-add-fail-closed-SR1010-SPI-NAND-support.patch	mtd: add fail-closed SR1010 SPI NAND support
+0004	760d3eab49a300ff17673d7f1a73187683821839	0004-usb-host-add-ZX279133-xHCI-CCI-clock-support.patch	usb: host: add ZX279133 xHCI CCI clock support
+0005	daefcd6ef23b8075c016943ee0caf5673c557133	0005-nvmem-add-ZX279133-eFuse-and-calibrated-PVT-support.patch	nvmem: add ZX279133 eFuse and calibrated PVT support
+0006	87b6bc40aee1e9148f6b25dc13e23d1086c07a0c	0006-clk-zte-model-ZX279133-firmware-selected-top-clocks.patch	clk: zte: model ZX279133 firmware-selected top clocks
+0007	8bc62364fb1032b5282e73739a23f0fe2d73c915	0007-pwm-add-ZX279133-PWM-and-audit-support.patch	pwm: add ZX279133 PWM and audit support
+0008	0c765789682131802f84094f62d112dff67af1d3	0008-net-mdio-add-ZX279133-controller-support.patch	net: mdio: add ZX279133 controller support
+0009	f1856657cc21fd16c669037625ff4ab4ceca3834	0009-net-mdio-add-SR1010-PHY-and-switch-audit-support.patch	net: mdio: add SR1010 PHY and switch audit support
+0010	792fab2adad1f9b065a424b5928249fc0907cab3	0010-clk-zte-add-ZX279133-networking-clocks-and-audit-nod.patch	clk: zte: add ZX279133 networking clocks and audit nodes
+0011	420cbe1cb4f09abeb9ba56bb46bb59505fa262cd	0011-net-phy-add-ZX279133-SerDes-XPCS-and-ZX279051-suppor.patch	net: phy: add ZX279133 SerDes, XPCS and ZX279051 support
+0012	55a4fd744886baaa39f73d8e08b96a5d8fe818d0	0012-dt-bindings-net-add-ZX279133-NPPT-and-RTL8372N-integ.patch	dt-bindings: net: add ZX279133 NPPT and RTL8372N integration
+0013	13daf33a45c2f42cbed65be7af1e63b85522f0a6	0013-net-ethernet-zte-add-ZX279133-NPPT.patch	net: ethernet: zte: add ZX279133 NPPT
+0014	7d0ed1294c18a31b9d348a966ded9e49f5f73a42	0014-net-dsa-add-ZX279133-LAN-conduit-and-RTL8372N-suppor.patch	net: dsa: add ZX279133 LAN conduit and RTL8372N support
+0015	bbd0e91f6f08fea7a0bf1711a96140a8ef0be51a	0015-arm64-dts-zte-enable-SR1010-networking.patch	arm64: dts: zte: enable SR1010 networking
+0016	17a8f594fa5b76035b0a5ba797b1a9d5751fce11	0016-arm64-defconfig-enable-ZX279133-networking.patch	arm64: defconfig: enable ZX279133 networking

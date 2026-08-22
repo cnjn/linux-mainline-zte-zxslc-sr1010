@@ -1,0 +1,16 @@
+0001-arm64-add-initial-ZTE-ZX279133-SR1010-platform-suppo.patch
+0002-arm64-enable-ZX279133-thermal-GPIO-and-USB-support.patch
+0003-mtd-add-fail-closed-SR1010-SPI-NAND-support.patch
+0004-usb-host-add-ZX279133-xHCI-CCI-clock-support.patch
+0005-nvmem-add-ZX279133-eFuse-and-calibrated-PVT-support.patch
+0006-clk-zte-model-ZX279133-firmware-selected-top-clocks.patch
+0007-pwm-add-ZX279133-PWM-and-audit-support.patch
+0008-net-mdio-add-ZX279133-controller-support.patch
+0009-net-mdio-add-SR1010-PHY-and-switch-audit-support.patch
+0010-clk-zte-add-ZX279133-networking-clocks-and-audit-nod.patch
+0011-net-phy-add-ZX279133-SerDes-XPCS-and-ZX279051-suppor.patch
+0012-dt-bindings-net-add-ZX279133-NPPT-and-RTL8372N-integ.patch
+0013-net-ethernet-zte-add-ZX279133-NPPT.patch
+0014-net-dsa-add-ZX279133-LAN-conduit-and-RTL8372N-suppor.patch
+0015-arm64-dts-zte-enable-SR1010-networking.patch
+0016-arm64-defconfig-enable-ZX279133-networking.patch

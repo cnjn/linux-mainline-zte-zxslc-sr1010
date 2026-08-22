@@ -1,0 +1,35 @@
+Patch 0016: arm64: defconfig: enable ZX279133 networking
+
+Scope:
+- enable the seven non-derived symbols required by the complete SR1010 WAN/LAN
+  configuration in the arm64 defconfig
+
+Selections:
+- CONFIG_ZTE_ZX279133_ETH=y
+- CONFIG_ZTE_ZX279133_RTL8372N=m
+- CONFIG_ZX279051_PHY=y
+- CONFIG_MDIO_ZX279133=y
+- CONFIG_PCS_XPCS=y
+- CONFIG_PHY_ZX279133_PON_SERDES=y
+- CONFIG_PHY_ZX279133_UNI_SERDES=y
+
+Derived configuration:
+- PCS_XPCS selects PHYLINK, which selects PHYLIB and SWPHY
+- both ZX279133 SerDes providers select GENERIC_PHY
+- ZTE_ZX279133_ETH enables the default-y built-in LAN conduit
+- modular RTL8372N selects the modular private-VLAN DSA tagger
+
+Validation:
+- strict whole-patch checkpatch reports 0 errors, warnings or checks
+- git diff --check passes
+- applying this defconfig produced the seven requested symbols plus:
+  CONFIG_ZTE_ZX279133_LAN_CONDUIT=y and
+  CONFIG_NET_DSA_TAG_ZX279133_RTL8372N=m
+- the resulting arm64 defconfig completed Image, modules and
+  zte/zx279133-sr1010.dtb builds without driver or linkage errors
+- independent review status: GO; no missing or unnecessary symbol found
+
+The switch and tagger remain modules so generic arm64 kernels do not perform the
+board-specific external-switch reset and initialization unless the module is
+loaded. WAN, MDIO, PCS and both SerDes providers remain built in for rootfs and
+firmware-loading independence.

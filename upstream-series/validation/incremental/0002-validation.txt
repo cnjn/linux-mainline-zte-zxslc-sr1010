@@ -1,0 +1,25 @@
+Patch 0002: clk: zte: extend ZX279133 network clocks
+
+Scope:
+- drivers/clk/clk-zx279133.c only
+- adds the 125 MHz fixed-factor parent
+- registers PON IDM/TM/PCLK/SMAC/MAC gates
+- registers PON SerDes PCLK and Uni SerDes 50 MHz gates
+- removes temporary CLK_IGNORE_UNUSED use from owned network clocks
+- skips sparse gate table entries
+
+Dependencies:
+- applies after 0001-dt-bindings-zx279133-topcrm.patch
+- reset IDs from patch 0001 are consumed by separate zte,zx296718-reset nodes;
+  no new reset-controller implementation is part of patch 0002
+
+Validation:
+- 0001 and 0002 apply sequentially to an isolated HEAD-derived tree
+- resulting clock provider and binding headers are byte-identical to the worktree
+- git diff --check passes
+- strict checkpatch on drivers/clk/clk-zx279133.c: 0 errors, 0 warnings, 0 checks
+- full ZXDBG build passes
+- built FIT SHA-256: 588e999cb00a91d9dc34ac4e029d371407b42cea5aeba5e9f73a690ee5399b8f
+
+The only source edit made while extracting this patch was whitespace alignment in
+the Uni SerDes 50 MHz registration call; it does not change hardware behavior.

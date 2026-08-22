@@ -1,0 +1,49 @@
+Patch 0015: arm64: dts: zte: add SR1010 networking
+
+Scope:
+- ZX279133 SoC network syscons, PON/Uni SerDes, NPPT and XPCS nodes
+- SR1010 reserved memory, external ZX279051 PHY, RTL8372N SMI endpoint,
+  LAN conduit/switch topology and network-node enablement
+
+Static/schema validation:
+- strict whole-patch checkpatch reports 0 errors, warnings or checks
+- git diff --check passes
+- patches 0001 through 0015 apply sequentially
+- the sequential tree builds zte/zx279133-sr1010.dtb without DTC warnings
+- dt-mk-schema regenerated a full processed schema from the sequential tree
+- dt-validate accepted the built SR1010 DTB with rc 0 and no diagnostics
+- both DTS files are byte-identical to the current board-tested worktree
+
+Resource validation:
+- IDM CCI covers 0x10e00078/0x8 and PON route covers 0x17000080/0x4
+- NPPT has two 16MiB MMIO regions, five ordered IRQs and six ordered clocks
+- PON and Uni SerDes providers own separate MMIO, clocks and reset lines
+- XPCS0 uses the Uni-SerDes clock and XPCS1 uses the PON-SerDes clock
+- reserved regions are contiguous, non-overlapping, page aligned and inside RAM:
+  IDM [0x9d700000,0x9e100000), SE hash [0x9e100000,0x9f100000),
+  BMU [0x9f100000,0xa0000000)
+- memory-region order is BMU, SE hash, IDM, matching the driver indices
+- WAN PHY reset is GPIO0 offset 1 (global GPIO1); RTL8372N reset is GPIO1
+  offset 1 (global GPIO17); both are active-low and have separate owners
+- MDIO0 carries the RTL8372N SMI endpoint at 0x1d; MDIO1 carries ZX279051
+  at address 1 with 2.5Gbps max speed and 100ms reset delays
+- RTL8372N physical ports 4..7 map to lan4..lan1 and CPU port 8 references
+  the dedicated lan-cpu conduit
+
+Exact runtime validation inherited from the same DTS/source image:
+- FIT SHA-256:
+  57157ef89349344b0a2957f58dbabe8419f755ba1c37514b960860fc4dbec615
+- installed RTL8372N module matched the rootfs artifact byte-for-byte
+- WAN cold-booted at 2.5Gbps and passed interface-bound ping 5/5
+- VLAN100 lan1 passed 7/7 and approximately 939/937 Mbit/s host-to-board,
+  946/941 Mbit/s board-to-host
+- same-boot RTL8372N unload/reload restored LAN and WAN ping 5/5
+- no Oops, panic, watchdog, runtime-PM or timeout fault was observed
+
+Independent review status: GO, no blocker or high-severity finding
+
+Residual medium risk:
+- user ports are described as fixed 2500/full while the RTL8372N driver reports
+  live switch speed/duplex fields for 10/100/1000/2500 operation. This exceeds
+  phylink's fixed-link model and should eventually be replaced by standard
+  integrated-PHY/status modeling without changing the validated datapath.

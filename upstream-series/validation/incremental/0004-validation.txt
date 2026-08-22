@@ -1,0 +1,31 @@
+Patch 0004: phy: zte: add ZX279133 PON SerDes provider
+
+Scope:
+- adds the drivers/phy/zte Kconfig and Makefile integration
+- adds only CONFIG_PHY_ZX279133_PON_SERDES
+- adds phy-zx279133-pon-serdes.c
+- deliberately excludes the Uni SerDes provider for the following patch
+
+Provider contract:
+- Generic PHY set_mode supports SGMII and 2500BASE-X
+- programs the evidence-backed 49-word profiles
+- owns the PON SerDes peripheral clock and two local reset lines
+- serializes mode and power lifecycle state
+- saves and restores shared TOPCRM/PLL state
+- polls PLL/CDR state with bounded timeouts
+
+Validation:
+- provider source strict checkpatch: 0 errors, 0 warnings, 0 checks
+- patch checkpatch: 0 errors and 0 checks; the sole warning is the generic
+  new-file MAINTAINERS reminder, while patch 0003 already adds coverage
+- git diff --check passes
+- patches 0001 through 0004 apply sequentially to a HEAD-derived tree
+- the resulting provider is byte-identical to the worktree
+- the standalone patch contains no Uni SerDes Kconfig, Makefile, or source entry
+- production configuration has CONFIG_PHY_ZX279133_PON_SERDES=y
+- full ZXDBG build compiled drivers/phy/zte/phy-zx279133-pon-serdes.o
+- built FIT SHA-256: 8dd2472928de329afd14dde3615ff1e8cbe07421282a01115c61d29d346fc32f
+
+Extraction cleanup was limited to comments, continuation alignment, and making
+the Kconfig help text accurately describe both validated profiles. No register
+value, ordering, timeout, or lifecycle behavior was changed.

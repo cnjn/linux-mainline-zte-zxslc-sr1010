@@ -1,0 +1,32 @@
+Patch 0010: dt-bindings: net: extend ZTE ZX279133 NPPT Ethernet
+
+Scope:
+- Documentation/devicetree/bindings/net/zte,zx279133-nppt.yaml
+
+Changes:
+- document the full NPPT/PPS register, IRQ, clock and reserved-memory layout
+- document WAN PCS, PON SerDes, PON-route syscon and IDM-CCI syscon resources
+- require the WAN PCS and named PON SerDes resources used unconditionally by
+  the Ethernet driver
+- describe the optional built-in LAN conduit child and RTL8372N switch child
+- when the switch child is present, require the LAN conduit, XPCS0 phandle and
+  second named Uni SerDes PHY
+- update the example with the mandatory WAN SerDes phandle
+
+Validation:
+- strict source and patch checkpatch: 0 errors, 0 warnings, 0 checks
+- isolated dt_binding_check passes
+- full dt-validate using Documentation/devicetree/bindings/processed-schema.json
+  against the rebuilt zx279133-sr1010.dtb reports no errors
+- independent read-only review returned schema-content GO with no blocker or
+  high-severity correctness finding
+- register, interrupt, clock, reserved-memory, PCS and PHY ordering matches the
+  active SR1010 DTS
+- git diff --check passes
+- patches 0001 through 0010 apply sequentially
+
+Residual architectural risk:
+- XPCS0 and the Uni SerDes are represented as NPPT-parent resources consumed by
+  the switch integration through zte,lan-pcs-handle. This is schema-valid and
+  matches the tested ownership model, but upstream reviewers may prefer those
+  resources to move to the conduit child in a later design revision.

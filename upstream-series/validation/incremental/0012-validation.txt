@@ -1,0 +1,59 @@
+Patch 0012: net: ethernet: zte: add ZX279133 NPPT Ethernet
+
+Scope:
+- drivers/net/ethernet/{Kconfig,Makefile}
+- drivers/net/ethernet/zte/{Kconfig,Makefile}
+- decomposed ZX279133 main/TM/NP/IDM/MAC/netdev sources and private headers
+- WAN eth0 only; no LAN conduit, DSA, switch source-port or private-VLAN policy
+- MAINTAINERS
+
+Changes:
+- add the ZX279133 NPPT/XMAC1/IDM Ethernet driver as a composite object rather
+  than the former 6500+ line monolithic source
+- retain zx279133_hardware_prepare()/unprepare() as the ordered lifecycle
+  coordinator while splitting TM, PPU/SPA/NPPU, IDM, MAC/XPCS and netdev code
+- use coherent DMA ownership for active TX/RX descriptor and free-ring memory
+- validate the complete IDM reserved-memory window through free ring 4 with
+  overflow-safe 32-bit DMA-range checks
+- propagate all XPCS C45 access errors, preserve original negative poll errors,
+  and fail closed if the post-enable SGMII VEND2 reapply fails
+- initialize the MAC/phylink interface from standard DT phy-mode and leave
+  dynamic SGMII/2500BASE-X selection to ZX279051 PHYLIB read_status()
+- deliver RX directly to eth0 and submit TX to the validated WAN destination
+  port 6; no later RTL8372N transport contract is present
+
+Static/build validation:
+- all added WAN driver sources and headers pass strict checkpatch with 0 errors,
+  0 warnings and 0 checks
+- whole-patch strict checkpatch reports 0 errors and 0 checks; its sole warning
+  is the generic new-file MAINTAINERS reminder, while the patch adds coverage
+- git diff --check passes
+- patch applies after patches 0001 through 0011
+- standalone WAN-only configuration builds with CONFIG_ZTE_ZX279133_ETH=y and
+  no LAN conduit or RTL8372N switch symbol
+- independent review confirmed standalone first/last-user lifetime consistency
+  and found no RTL8372N, DSA, source-port or private-VLAN policy in this patch
+
+WAN-only board validation:
+- FIT SHA-256:
+  fb29b7dfb4401510bed686507f99b91ed05c88f9a7dda75a035e5d39bce1c9bd
+- cold boot reached 2.5Gbps/full and interface-bound ping passed 5/5
+- five-second iperf3 reached 2.35 Gbit/s host-to-board and 1.94 Gbit/s
+  board-to-host with zero reverse retransmissions
+- two 2.5G eth0 down/up cycles restored link and 5/5 ping
+- controlled PHYLIB 1G advertisement followed by two eth0 down/up cycles passed
+  5/5 ping and 944/941 Mbit/s host-to-board
+- no LAN conduit or switch module was instantiated in this test
+
+Upstream review status: NO-GO (work-in-progress patch, not submission-ready)
+
+Remaining code blockers:
+- phylink mac_link_up() is void, so a late mode-programming failure can be left
+  fail-closed in hardware but cannot yet prevent transient carrier publication
+- PCS ownership remains non-standard: the MAC driver programs broad
+  PMA/PCS/VEND2 mode state behind generic dw-xpcs to preserve the validated
+  XMAC-reset-before-quirk and XMAC/SOPC-enable-before-reapply sequence
+
+External prerequisite:
+- zte/zx279133/mcode_intel.bin still needs documented redistribution authority,
+  license and a linux-firmware WHENCE entry before upstream submission

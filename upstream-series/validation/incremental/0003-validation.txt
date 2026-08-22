@@ -1,0 +1,26 @@
+Patch 0003: dt-bindings: phy: add ZTE ZX279133 PON SerDes
+
+Scope:
+- Documentation/devicetree/bindings/phy/zte,zx279133-pon-serdes.yaml
+- MAINTAINERS coverage for ZX279133 PHY bindings and drivers
+
+The binding documents:
+- SerDes, companion PLL, and dedicated TOPCRM mode-word resources
+- one PON SerDes peripheral clock
+- separate active-low SerDes and APB reset lines
+- the shared TOPCRM syscon phandle
+- a zero-cell Generic PHY provider
+
+Validation:
+- dt-doc-validate passes
+- isolated gmake DT_SCHEMA_FILES=... dt_binding_check passes, including example build
+- git diff --check passes
+- patches 0001 through 0003 apply sequentially to a HEAD-derived tree
+- the resulting binding and MAINTAINERS file are byte-identical to the worktree
+- checkpatch reports 0 errors and 0 checks; its sole warning is the generic
+  new-file MAINTAINERS reminder even though this patch adds matching
+  MAINTAINERS patterns
+
+The PHY driver and Kconfig/Makefile integration are deliberately excluded and
+will be submitted in the following patch, as required by DT binding submission
+practice.
