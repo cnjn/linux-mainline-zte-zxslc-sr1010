@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/net/dsa/zte,zx279133-rtl8372n.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: RTL8372N switch on the ZTE ZX279133 NPPT LAN path
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+description:
+  The RTL8372N CPU port connects to ZX279133 XMAC0. Switch management uses the
+  SoC MDIO controller's indirect SMI transport, represented by zte,mdio-handle.
+  The CPU conduit is a dedicated netdev owned by the NPPT Ethernet controller
+  rather than the WAN netdev.
+
+properties:
+  compatible:
+    const: zte,zx279133-rtl8372n
+
+  zte,mdio-handle:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: MDIO child implementing the RTL8372N indirect SMI transport
+
+  reset-gpios:
+    maxItems: 1
+    description: Active-low RTL8372N hardware reset
+
+allOf:
+  - $ref: dsa.yaml#/$defs/ethernet-ports
+
+required:
+  - compatible
+  - zte,mdio-handle
+  - reset-gpios
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+
+    mdio {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        rtl8372n_smi: switch-controller@1d {
+            compatible = "realtek,rtl8372n";
+            reg = <0x1d>;
+        };
+    };
+
+    ethernet {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        lan_cpu: ethernet-lan-cpu {
+            compatible = "zte,zx279133-lan-conduit";
+        };
+
+        switch {
+            compatible = "zte,zx279133-rtl8372n";
+            zte,mdio-handle = <&rtl8372n_smi>;
+            reset-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
+
+            ports {
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                port@7 {
+                    reg = <7>;
+                    label = "lan1";
+                    phy-mode = "internal";
+                    fixed-link {
+                        speed = <2500>;
+                        full-duplex;
+                    };
+                };
+
+                port@8 {
+                    reg = <8>;
+                    ethernet = <&lan_cpu>;
+                    phy-mode = "10gbase-r";
+                    fixed-link {
+                        speed = <10000>;
+                        full-duplex;
+                    };
+                };
+            };
+        };
+    };
+...

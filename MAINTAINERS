@@ -28412,6 +28412,7 @@ F:	Documentation/devicetree/bindings/clock/zte,zx279133-*.yaml
 F:	Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml
 F:	Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
 F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
+F:	Documentation/devicetree/bindings/net/dsa/zte,zx279133-*.yaml
 F:	Documentation/devicetree/bindings/net/zte,sr1010-rtl8372n-id-audit.yaml
 F:	Documentation/devicetree/bindings/net/zte,sr1010-zx279051-audit.yaml
 F:	Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
