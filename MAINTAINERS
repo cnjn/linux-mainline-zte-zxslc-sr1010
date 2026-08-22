@@ -28413,6 +28413,7 @@ F:	Documentation/devicetree/bindings/gpio/zte,zx279133-gpio.yaml
 F:	Documentation/devicetree/bindings/hwmon/zte,zx279133-pvt.yaml
 F:	Documentation/devicetree/bindings/mfd/zte,zx279133-wdt-reset.yaml
 F:	Documentation/devicetree/bindings/net/dsa/zte,zx279133-*.yaml
+F:	Documentation/networking/dsa/zx279133-rtl8372n.rst
 F:	Documentation/devicetree/bindings/net/zte,sr1010-rtl8372n-id-audit.yaml
 F:	Documentation/devicetree/bindings/net/zte,sr1010-zx279051-audit.yaml
 F:	Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
@@ -28425,6 +28426,8 @@ F:	Documentation/devicetree/bindings/soc/zte/zte,zx279133-*.yaml
 F:	Documentation/devicetree/bindings/soc/zte,zx279133-pwm-audit.yaml
 F:	Documentation/devicetree/bindings/soc/zte,zx279133-xpcs-nppt-audit.yaml
 F:	drivers/net/ethernet/zte/
+F:	include/net/dsa_zx279133_rtl8372n.h
+F:	net/dsa/tag_zx279133_rtl8372n.c
 F:	drivers/soc/zte/
 F:	Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
 F:	Documentation/devicetree/bindings/usb/zte,zx279133-xhci.yaml

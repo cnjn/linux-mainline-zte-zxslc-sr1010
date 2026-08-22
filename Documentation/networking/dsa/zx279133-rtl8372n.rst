@@ -1,0 +1,43 @@
+.. SPDX-License-Identifier: GPL-2.0-only
+
+===================================
+ZTE ZX279133 and RTL8372N DSA switch
+===================================
+
+The SR1010 connects RTL8372N user ports 4 through 7 to ZX279133 XMAC0 through
+switch CPU port 8.  The ``lan-cpu`` conduit is separate from the WAN netdev.
+
+CPU-link transport
+==================
+
+The switch and conduit carry the source user port in private VLAN IDs 59
+through 62.  These VLAN IDs are an internal CPU-link protocol and must not be
+configured as customer VLANs.  The DSA tagger removes the private VLAN on
+receive and inserts the appropriate private VLAN on transmit.
+
+Customer VLAN restrictions
+==========================
+
+The currently supported customer VLAN mode is one untagged access VLAN per
+user port.  A VLAN added to a user port must have both the ``pvid`` and
+``untagged`` flags.  Tagged or trunk VLANs are not supported.
+
+VID 1 is reserved by the initial switch state and private VIDs 59 through 62
+are reserved by the CPU-link transport.  Create a VLAN-aware bridge with
+``vlan_default_pvid 0`` before adding an RTL8372N user port.  For example::
+
+  ip link add br0 type bridge vlan_filtering 1 vlan_default_pvid 0
+  ip link set lan1 master br0
+  bridge vlan add dev lan1 vid 100 pvid untagged
+  bridge vlan add dev br0 vid 100 self
+
+The driver keeps each private transport VLAN isolated to one user port and CPU
+port 8.  Linux performs bridge forwarding; the driver does not advertise
+hardware bridge forwarding for this transport.
+
+FDB scope
+=========
+
+Static FDB operations are supported for VLAN-unaware bridges.  Static FDB
+offload for a nonzero customer VID is rejected because customer VLAN filtering
+is performed after the private transport tag is removed.

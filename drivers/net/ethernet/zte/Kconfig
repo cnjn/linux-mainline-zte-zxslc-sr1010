@@ -34,4 +34,18 @@ config ZTE_ZX279133_LAN_CONDUIT
 	  Shared DMA and datapath ownership remains in the parent driver,
 	  which coordinates WAN and LAN lifecycle and queue accounting.
 
+config ZTE_ZX279133_RTL8372N
+	tristate "ZTE ZX279133 RTL8372N DSA switch driver"
+	depends on ZTE_ZX279133_ETH
+	select ZTE_ZX279133_LAN_CONDUIT
+	depends on PHY_ZX279133_UNI_SERDES
+	depends on PCS_XPCS
+	depends on NET_DSA
+	select NET_DSA_TAG_ZX279133_RTL8372N
+	help
+	  Build the RTL8372N DSA switch driver for the SR1010 LAN path. The
+	  driver owns the external switch reset, XMAC0/XPCS0/Uni-SerDes link,
+	  physical ports 4 through 7, and CPU port 8. It registers four DSA
+	  user ports through the dedicated ZX279133 LAN conduit.
+
 endif
