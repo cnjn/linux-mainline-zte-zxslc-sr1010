@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config NET_VENDOR_ZTE
+	bool "ZTE Ethernet devices"
+	default y
+	help
+	  Enable support for Ethernet controllers integrated in ZTE SoCs.
+	  This option controls the visibility of the individual ZTE Ethernet
+	  drivers and does not build a driver by itself. Select the controller
+	  option below for the target SoC.
+
+if NET_VENDOR_ZTE
+
+config ZTE_ZX279133_ETH
+	tristate "ZTE ZX279133 NPPT Ethernet support"
+	depends on OF && HAS_IOMEM && HAS_DMA
+	depends on COMMON_CLK_ZX279133
+	depends on PHY_ZX279133_PON_SERDES
+	depends on PCS_XPCS
+	select PAGE_POOL
+	help
+	  Enable support for the NPPT Ethernet controller and IDM packet DMA
+	  engine in the ZTE ZX279133 SoC. The driver provides phylink MAC/PCS
+	  integration, TX completion, page-pool RX, and the SR1010 WAN path.
+	  It also manages the packet-processing firmware and reserved DMA pools.
+
+endif

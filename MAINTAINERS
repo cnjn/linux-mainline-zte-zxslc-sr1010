@@ -28424,6 +28424,7 @@ F:	Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
 F:	Documentation/devicetree/bindings/soc/zte/zte,zx279133-*.yaml
 F:	Documentation/devicetree/bindings/soc/zte,zx279133-pwm-audit.yaml
 F:	Documentation/devicetree/bindings/soc/zte,zx279133-xpcs-nppt-audit.yaml
+F:	drivers/net/ethernet/zte/
 F:	drivers/soc/zte/
 F:	Documentation/devicetree/bindings/spi/zte,zx279133-sfc.yaml
 F:	Documentation/devicetree/bindings/usb/zte,zx279133-xhci.yaml
