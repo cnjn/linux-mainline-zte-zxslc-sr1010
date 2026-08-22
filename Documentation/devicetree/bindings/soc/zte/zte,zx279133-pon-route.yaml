@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/zte/zte,zx279133-pon-route.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE ZX279133 PON SerDes route control
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+description:
+  The route control selects whether the PON SerDes is connected to XMAC1.
+  It is separate from the PON protocol register block and is consumed by the
+  NPPT Ethernet controller for the direct WAN path.
+
+properties:
+  compatible:
+    items:
+      - const: zte,zx279133-pon-route
+      - const: syscon
+
+  reg:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    syscon@17000080 {
+        compatible = "zte,zx279133-pon-route", "syscon";
+        reg = <0x17000080 0x4>;
+    };
+
+...

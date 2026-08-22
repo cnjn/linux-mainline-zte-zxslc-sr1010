@@ -28421,6 +28421,7 @@ F:	Documentation/devicetree/bindings/nvmem/zte,zx279133-efuse.yaml
 F:	Documentation/devicetree/bindings/phy/zte,zx279133-*.yaml
 F:	Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
 F:	Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
+F:	Documentation/devicetree/bindings/soc/zte/zte,zx279133-*.yaml
 F:	Documentation/devicetree/bindings/soc/zte,zx279133-pwm-audit.yaml
 F:	Documentation/devicetree/bindings/soc/zte,zx279133-xpcs-nppt-audit.yaml
 F:	drivers/soc/zte/
