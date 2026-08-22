@@ -28433,6 +28433,7 @@ F:	drivers/hwmon/zx279133-pvt.c
 F:	drivers/net/mdio/mdio-sr1010-rtl8372n-audit.c
 F:	drivers/net/mdio/mdio-sr1010-zx279051-audit.c
 F:	drivers/net/mdio/mdio-zx279133.c
+F:	drivers/net/phy/zx279051*
 F:	drivers/nvmem/zx279133-efuse.c
 F:	drivers/phy/zte/
 F:	drivers/pinctrl/pinctrl-zx279133.c

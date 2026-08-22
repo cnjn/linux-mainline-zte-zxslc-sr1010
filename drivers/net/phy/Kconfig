@@ -462,6 +462,15 @@ config VITESSE_PHY
 	help
 	  Currently supports the vsc8244
 
+config ZX279051_PHY
+	tristate "ZTE ZX279051 PHY"
+	help
+	  Support the ZTE ZX279051 multi-gigabit Ethernet PHY. The device is
+	  enumerated through a firmware-provided PHY ID while its vendor and
+	  IEEE MMD registers are accessed through direct Clause 45 transactions.
+	  The driver restores the post-reset hardware state and supports
+	  10/100/1000/2500BASE-T operation.
+
 config XILINX_GMII2RGMII
 	tristate "Xilinx GMII2RGMII converter driver"
 	help
