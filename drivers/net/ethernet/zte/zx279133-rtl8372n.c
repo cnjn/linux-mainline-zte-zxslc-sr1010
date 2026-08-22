@@ -188,6 +188,7 @@ struct zx279133_rtl8372n {
 	bool vlan62_tx_active;
 	bool dsa_registered;
 	unsigned long vlan_filtering_mask;
+	unsigned long vlan_unaware_vid1_mask;
 	u16 bridge_pvid[9];
 	bool bridge_pvid_valid[9];
 };
@@ -1785,11 +1786,23 @@ static void
 zx279133_rtl8372n_port_bridge_leave(struct dsa_switch *ds, int port,
 				    struct dsa_bridge bridge)
 {
+	struct zx279133_rtl8372n *priv = ds->priv;
+
 	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
 		return;
 
+	clear_bit(port, &priv->vlan_unaware_vid1_mask);
 	dev_info(ds->dev, "port %d left bridge %s\n", port,
 		 bridge.dev->name);
+}
+
+static bool
+rtl8372n_port_in_vlan_unaware_bridge(struct dsa_switch *ds, int port)
+{
+	struct net_device *bridge;
+
+	bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
+	return bridge && !br_vlan_enabled(bridge);
 }
 
 static int
@@ -1801,6 +1814,12 @@ zx279133_rtl8372n_port_vlan_filtering(struct dsa_switch *ds, int port,
 
 	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
 		return -EOPNOTSUPP;
+	if (vlan_filtering &&
+	    test_bit(port, &priv->vlan_unaware_vid1_mask)) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "VID 1 is reserved; set vlan_default_pvid 0 before enabling VLAN filtering");
+		return -EBUSY;
+	}
 
 	/* Customer VLANs are nested inside the fixed per-port CPU-link VLAN.
 	 * Keep the validated transport PVID and hardware filtering policy intact;
@@ -1857,6 +1876,19 @@ zx279133_rtl8372n_port_vlan_add(struct dsa_switch *ds, int port,
 		return 0;
 	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
 		return -EINVAL;
+
+	/* A VLAN-unaware bridge still publishes its bookkeeping PVID 1 through
+	 * switchdev. It has no data-path meaning until VLAN filtering is enabled,
+	 * so leave the private transport PVID and VLAN table untouched.
+	 */
+	if (vlan->vid == 1 &&
+	    rtl8372n_port_in_vlan_unaware_bridge(ds, port)) {
+		set_bit(port, &priv->vlan_unaware_vid1_mask);
+		dev_dbg(ds->dev, "ignored VLAN-unaware VID 1 add on port %d\n",
+			port);
+		return 0;
+	}
+
 	ret = rtl8372n_customer_vlan_check(vlan->vid, extack);
 	if (ret)
 		return ret;
@@ -1951,6 +1983,15 @@ zx279133_rtl8372n_port_vlan_del(struct dsa_switch *ds, int port,
 		return 0;
 	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
 		return -EINVAL;
+
+	if (vlan->vid == 1 &&
+	    rtl8372n_port_in_vlan_unaware_bridge(ds, port)) {
+		clear_bit(port, &priv->vlan_unaware_vid1_mask);
+		dev_dbg(ds->dev, "ignored VLAN-unaware VID 1 delete on port %d\n",
+			port);
+		return 0;
+	}
+
 	if (!vlan->vid || vlan->vid >= VLAN_N_VID ||
 	    vlan->vid == 1 || rtl8372n_is_transport_vid(vlan->vid))
 		return -EINVAL;

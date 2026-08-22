@@ -23,8 +23,15 @@ user port.  A VLAN added to a user port must have both the ``pvid`` and
 ``untagged`` flags.  Tagged or trunk VLANs are not supported.
 
 VID 1 is reserved by the initial switch state and private VIDs 59 through 62
-are reserved by the CPU-link transport.  Create a VLAN-aware bridge with
-``vlan_default_pvid 0`` before adding an RTL8372N user port.  For example::
+are reserved by the CPU-link transport.  The driver ignores the implicit VID 1
+add/delete notifications from a VLAN-unaware bridge, where the PVID has no
+data-path meaning, so user ports can join a conventional VLAN-unaware bridge.
+Before enabling VLAN filtering, remove that implicit PVID by setting
+``vlan_default_pvid 0``; enabling VLAN filtering while VID 1 remains is
+rejected.
+
+Create a VLAN-aware bridge with ``vlan_default_pvid 0`` before adding an
+RTL8372N user port.  For example::
 
   ip link add br0 type bridge vlan_filtering 1 vlan_default_pvid 0
   ip link set lan1 master br0
