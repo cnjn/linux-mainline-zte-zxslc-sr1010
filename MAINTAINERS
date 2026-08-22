@@ -28437,7 +28437,7 @@ F:	drivers/pinctrl/pinctrl-zx279133.c
 F:	drivers/spi/spi-zx279133-sfc.c
 F:	drivers/watchdog/zx279133_wdt.c
 F:	include/dt-bindings/clock/zte,zx279133-*.h
-F:	include/dt-bindings/reset/zte,zx279133-lsp.h
+F:	include/dt-bindings/reset/zte,zx279133-*.h
 
 SENARYTECH AUDIO CODEC DRIVER
 M:	bo liu <bo.liu@senarytech.com>

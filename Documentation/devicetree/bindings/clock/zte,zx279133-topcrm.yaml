@@ -18,8 +18,8 @@ description:
   and PCLK use read-only even dividers. This preserves the firmware-selected
   boot topology without allowing Linux to reprogram a PLL, mux, or system
   divider. The PVT working clock uses a separate read-only divider followed by
-  a gate. The provider also models the universal-SerDes PCLK and the
-  firmware-selected PON/NPPT working-clock path with a read-only mux.
+  a gate. The provider also models the universal-SerDes and PON-SerDes PCLKs
+  and the firmware-selected PON/NPPT working-clock path with a read-only mux.
 
 properties:
   compatible:
