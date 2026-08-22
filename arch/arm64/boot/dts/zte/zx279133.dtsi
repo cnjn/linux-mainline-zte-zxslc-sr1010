@@ -4,6 +4,7 @@
 #include <dt-bindings/clock/zte,zx279133-topcrm.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/reset/zte,zx279133-lsp.h>
+#include <dt-bindings/reset/zte,zx279133-topcrm.h>
 
 / {
 	compatible = "zte,zx279133";
@@ -110,6 +111,11 @@
 			clock-names = "osc25m", "pll-lsp", "pll-1376m",
 				      "pll-fpp", "pll-cpu";
 			#clock-cells = <1>;
+		};
+
+		idm_cci: syscon@10e00078 {
+			compatible = "zte,zx279133-idm-cci", "syscon";
+			reg = <0x0 0x10e00078 0x0 0x8>;
 		};
 
 		top_reset: reset-controller@10e10060 {
@@ -418,12 +424,67 @@
 			status = "disabled";
 		};
 
-		nppt: packet-processor@19000000 {
+		pon_serdes: phy@16000000 {
+			compatible = "zte,zx279133-pon-serdes";
+			reg = <0x0 0x16000000 0x0 0x10000>,
+			      <0x0 0x16010000 0x0 0x10000>,
+			      <0x0 0x10e100c0 0x0 0x8>;
+			reg-names = "serdes", "pll", "topcrm-mode";
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_PON_SERDES_PCLK>;
+			clock-names = "pclk";
+			resets = <&local_reset ZX279133_LOCAL_RESET_PON_SERDES>,
+				 <&local_reset ZX279133_LOCAL_RESET_PON_SERDES_APB>;
+			reset-names = "serdes", "apb";
+			zte,topcrm = <&topcrm>;
+			#phy-cells = <0>;
+			status = "disabled";
+		};
+
+		pon_route: syscon@17000080 {
+			compatible = "zte,zx279133-pon-route", "syscon";
+			reg = <0x0 0x17000080 0x0 0x4>;
+		};
+
+		uni_serdes: phy@16100000 {
+			compatible = "zte,zx279133-uni-serdes";
+			reg = <0x0 0x16100000 0x0 0x100000>;
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_UNI_SERDES_PCLK>,
+					 <&topcrm ZX279133_TOPCRM_CLK_UNI_SERDES_50M>;
+			clock-names = "pclk", "ref50m";
+			resets = <&local_reset ZX279133_LOCAL_RESET_UNI_SERDES_RX>,
+				 <&local_reset ZX279133_LOCAL_RESET_UNI_SERDES_TX>;
+			reset-names = "rx", "tx";
+			#phy-cells = <0>;
+			status = "disabled";
+		};
+
+		nppt: ethernet@19000000 {
 			compatible = "zte,zx279133-nppt";
-			reg = <0x0 0x19000000 0x0 0x1000000>;
-			interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&topcrm ZX279133_TOPCRM_CLK_PON_WOE1_WCLK>;
-			clock-names = "wclk";
+			reg = <0x0 0x19000000 0x0 0x1000000>,
+			      <0x0 0x18000000 0x0 0x1000000>;
+			reg-names = "nppt", "pps";
+			interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "nppt", "rx", "idm", "buffer-release",
+					  "local-test";
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_PON_IDM_ACLK>,
+				 <&topcrm ZX279133_TOPCRM_CLK_PON_TM_ACLK>,
+				 <&topcrm ZX279133_TOPCRM_CLK_PON_PCLK>,
+				 <&topcrm ZX279133_TOPCRM_CLK_PON_SMAC_WCLK>,
+				 <&topcrm ZX279133_TOPCRM_CLK_PON_WOE1_WCLK>,
+				 <&topcrm ZX279133_TOPCRM_CLK_PON_MAC_WCLK>;
+			clock-names = "idm-aclk", "tm-aclk", "pclk", "smac-wclk",
+				      "woe1-wclk", "mac-wclk";
+			pcs-handle = <&xpcs1>;
+			zte,lan-pcs-handle = <&xpcs0>;
+			phys = <&pon_serdes>, <&uni_serdes>;
+			phy-names = "serdes", "lan-serdes";
+			zte,pon-route = <&pon_route>;
+			zte,idm-cci = <&idm_cci>;
+			phy-mode = "2500base-x";
 			status = "disabled";
 		};
 
@@ -442,7 +503,7 @@
 			reg = <0x0 0x1b000000 0x0 0x800000>;
 			reg-names = "direct";
 			reg-io-width = <4>;
-			clocks = <&topcrm ZX279133_TOPCRM_CLK_UNI_SERDES_PCLK>;
+			clocks = <&topcrm ZX279133_TOPCRM_CLK_PON_SERDES_PCLK>;
 			clock-names = "csr";
 			status = "disabled";
 		};
