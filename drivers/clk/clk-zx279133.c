@@ -21,7 +21,7 @@
 #define ZX279133_TOPCRM_UNI_SERDES_GATE_CTRL	0x44
 #define ZX279133_TOPCRM_PON_GATE_CTRL	0x48
 #define ZX279133_TOPCRM_BUS_DIV_CTRL	0x5c
-#define ZX279133_TOPCRM_NUM_CLKS	(ZX279133_TOPCRM_CLK_PON_WOE1_WCLK + 1)
+#define ZX279133_TOPCRM_NUM_CLKS	(ZX279133_TOPCRM_CLK_UNI_SERDES_50M + 1)
 #define ZX279133_UART0_CLK_CTRL	0x24
 #define ZX279133_UART_PCLK_GATE	0
 #define ZX279133_UART_WCLK_GATE	1
@@ -73,6 +73,7 @@ enum zx279133_topcrm_parent {
 	ZX279133_PARENT_CLK25M,
 	ZX279133_PARENT_CLK50M,
 	ZX279133_PARENT_CLK100M,
+	ZX279133_PARENT_CLK125M,
 	ZX279133_PARENT_CLK200M,
 	ZX279133_PARENT_CLK250M,
 	ZX279133_PARENT_CLK344M,
@@ -146,6 +147,9 @@ static const struct zx279133_topcrm_factor_desc topcrm_factors[] = {
 	},
 	[ZX279133_PARENT_CLK100M] = {
 		.name = "clk100m", .fw_name = "pll-lsp", .mult = 1, .div = 20,
+	},
+	[ZX279133_PARENT_CLK125M] = {
+		.name = "clk125m", .fw_name = "pll-lsp", .mult = 1, .div = 16,
 	},
 	[ZX279133_PARENT_CLK200M] = {
 		.name = "clk200m", .fw_name = "pll-lsp", .mult = 1, .div = 10,
@@ -273,6 +277,36 @@ static const struct zx279133_topcrm_gate_desc topcrm_gates[] = {
 		.reg_offset = ZX279133_TOPCRM_PVT_PCLK_GATE_CTRL,
 		.bit_idx = ZX279133_TOPCRM_PVT_PCLK_GATE,
 		.parent = ZX279133_PARENT_CLK172M,
+	},
+	[ZX279133_TOPCRM_CLK_PON_IDM_ACLK] = {
+		.name = "pon_idm_aclk",
+		.reg_offset = ZX279133_TOPCRM_PON_GATE_CTRL,
+		.bit_idx = 0,
+		.parent = ZX279133_PARENT_SYS_ACLK,
+	},
+	[ZX279133_TOPCRM_CLK_PON_TM_ACLK] = {
+		.name = "pon_tm_aclk",
+		.reg_offset = ZX279133_TOPCRM_PON_GATE_CTRL,
+		.bit_idx = 1,
+		.parent = ZX279133_PARENT_SYS_ACLK,
+	},
+	[ZX279133_TOPCRM_CLK_PON_PCLK] = {
+		.name = "pon_pclk",
+		.reg_offset = ZX279133_TOPCRM_PON_GATE_CTRL,
+		.bit_idx = 2,
+		.parent = ZX279133_PARENT_SYS_PCLK,
+	},
+	[ZX279133_TOPCRM_CLK_PON_SMAC_WCLK] = {
+		.name = "pon_smac_wclk",
+		.reg_offset = ZX279133_TOPCRM_PON_GATE_CTRL,
+		.bit_idx = 7,
+		.parent = ZX279133_PARENT_CLK125M,
+	},
+	[ZX279133_TOPCRM_CLK_PON_MAC_WCLK] = {
+		.name = "pon_mac_wclk",
+		.reg_offset = ZX279133_TOPCRM_PON_GATE_CTRL,
+		.bit_idx = 12,
+		.parent = ZX279133_PARENT_CLK250M,
 	},
 };
 
@@ -445,7 +479,7 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
 
 	hw = devm_clk_hw_register_gate_parent_hw(dev, "uni_serdes_pclk",
 						 priv->parents[ZX279133_PARENT_SYS_PCLK],
-						 CLK_IGNORE_UNUSED,
+						 0,
 						 base + ZX279133_TOPCRM_UNI_SERDES_GATE_CTRL,
 						 8, 0, &priv->lock);
 	if (IS_ERR(hw))
@@ -453,10 +487,30 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
 				     "failed to register uni_serdes_pclk gate\n");
 	priv->data.hws[ZX279133_TOPCRM_CLK_UNI_SERDES_PCLK] = hw;
 
+	hw = devm_clk_hw_register_gate_parent_hw(dev, "uni_serdes_50m",
+						 priv->parents[ZX279133_PARENT_CLK50M],
+						 0,
+						 base + ZX279133_TOPCRM_UNI_SERDES_GATE_CTRL,
+						 9, 0, &priv->lock);
+	if (IS_ERR(hw))
+		return dev_err_probe(dev, PTR_ERR(hw),
+				     "failed to register uni_serdes_50m gate\n");
+	priv->data.hws[ZX279133_TOPCRM_CLK_UNI_SERDES_50M] = hw;
+
+	hw = devm_clk_hw_register_gate_parent_hw(dev, "pon_serdes_pclk",
+						 priv->parents[ZX279133_PARENT_SYS_PCLK],
+						 0,
+						 base + ZX279133_TOPCRM_UNI_SERDES_GATE_CTRL,
+						 0, 0, &priv->lock);
+	if (IS_ERR(hw))
+		return dev_err_probe(dev, PTR_ERR(hw),
+				     "failed to register pon_serdes_pclk gate\n");
+	priv->data.hws[ZX279133_TOPCRM_CLK_PON_SERDES_PCLK] = hw;
+
 	/* NPPT uses the vendor-named PON WOE1 working-clock path. */
 	hw = devm_clk_hw_register_gate_parent_hw(dev, "pon_woe1_wclk",
 						 priv->parents[ZX279133_PARENT_PON_NPPT_WCLK_MUX],
-						 CLK_IGNORE_UNUSED,
+						 0,
 						 base + ZX279133_TOPCRM_PON_GATE_CTRL,
 						 10, 0, &priv->lock);
 	if (IS_ERR(hw))
@@ -467,6 +521,9 @@ static int zx279133_topcrm_clk_probe(struct platform_device *pdev)
 	for (index = 0; index < ARRAY_SIZE(topcrm_gates); index++) {
 		const struct zx279133_topcrm_gate_desc *desc =
 			&topcrm_gates[index];
+
+		if (!desc->name)
+			continue;
 
 		reg = base + desc->reg_offset;
 		if (index == ZX279133_TOPCRM_CLK_TEMPSENSOR_WCLK) {
