@@ -1,5 +1,17 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
+config PHY_ZX279133_UNI_SERDES
+	tristate "ZTE ZX279133 internal Uni SerDes PHY"
+	depends on OF && HAS_IOMEM
+	depends on COMMON_CLK_ZX279133 || COMPILE_TEST
+	select GENERIC_PHY
+	help
+	  Enable the internal Uni SerDes PHY used by the ZX279133 XMAC0 LAN
+	  CPU uplink. The driver supports the USXGMII and 10GBASE-R consumer
+	  modes that use the recovered 10G serial profile. It controls the
+	  peripheral/reference clocks, local resets, and lock polling through
+	  the Generic PHY framework.
+
 config PHY_ZX279133_PON_SERDES
 	tristate "ZTE ZX279133 PON SerDes PHY"
 	depends on OF && HAS_IOMEM
