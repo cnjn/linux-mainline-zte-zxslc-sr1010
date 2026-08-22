@@ -12,15 +12,23 @@
 #include <linux/workqueue.h>
 
 #include "zx279133-stats.h"
+#include "zx279133-lan.h"
 
 #define ZX279133_NUM_CLOCKS	6
 #define ZX279133_NUM_IRQS	5
 
-/* Validated WAN hardware constants. */
+/* Validated WAN/LAN hardware constants. */
 #define zx279133_tx_queue		1
 #define zx279133_tx_port		6
+#define ZX279133_LAN_TX_PORT		5
+#define ZX279133_LAN_SOURCE_PORT_MIN	59
+#define ZX279133_LAN_SOURCE_PORT_MAX	62
+#define ZX279133_LAN_SOURCE_PORT_NATIVE	5
+#define ZX279133_LAN_INGRESS_VID	1
+#define ZX279133_LAN_VID		62
 #define ZX279133_TX_RECLAIM_DELAY_MS	10
 #define ZX279133_DATAPATH_USER_WAN	BIT(0)
+#define ZX279133_DATAPATH_USER_LAN	BIT(1)
 #define zx279133_tx_selector		0x0f
 #define zx279133_tx_pon_control		0x08000000
 #define zx279133_tx_word4_bit23		0
@@ -489,6 +497,8 @@ struct zx279133_eth;
 struct zx279133_eth {
 	struct device *dev;
 	struct net_device *ndev;
+	struct net_device *lan_ndev;
+	struct zx279133_lan_service lan_service;
 	struct zx279133_netdev_stats stats;
 	void __iomem *base;
 	void __iomem *pps_base;
@@ -598,7 +608,7 @@ struct zx279133_eth {
 	spinlock_t tx_lock;
 	/* Serializes RX and local interrupt enable state. */
 	spinlock_t irq_lock;
-	/* Serializes XMAC reset and SOPC state. */
+	/* Serializes shared XMAC reset and SOPC state with the LAN child. */
 	struct mutex xmac_lock;
 	/* Serializes ownership of the shared NPPT/IDM datapath. */
 	struct mutex datapath_lock;
@@ -607,6 +617,9 @@ struct zx279133_eth {
 	struct delayed_work rx_refill_work;
 	unsigned long datapath_users;
 	bool hardware_prepared;
+	bool lan_datapath_ready;
+	bool lan_vlan62_active;
+	bool lan_dsa_active;
 	bool serdes_powered;
 	bool np_reset_prepared;
 	bool greg_prepared;
@@ -645,7 +658,10 @@ struct zx279133_eth {
 static inline struct zx279133_netdev_stats *
 zx279133_netdev_stats(struct zx279133_eth *eth, struct net_device *ndev)
 {
-	return &eth->stats;
+	if (ndev == eth->ndev)
+		return &eth->stats;
+
+	return &((struct zx279133_lan_netdev_priv *)netdev_priv(ndev))->stats;
 }
 
 static inline void
@@ -712,5 +728,6 @@ int zx279133_hardware_prepare(struct zx279133_eth *eth);
 void zx279133_hardware_unprepare(struct zx279133_eth *eth);
 extern const struct ethtool_ops zx279133_ethtool_ops;
 extern const struct net_device_ops zx279133_netdev_ops;
+extern const struct zx279133_lan_service_ops zx279133_lan_service_ops;
 
 #endif /* __ZX279133_H__ */

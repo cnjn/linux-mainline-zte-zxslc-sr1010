@@ -2,6 +2,7 @@
 
 #include <linux/dma-mapping.h>
 #include <linux/etherdevice.h>
+#include <linux/if_vlan.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/prefetch.h>
@@ -166,6 +167,33 @@ static struct page *zx279133_idm_rx_take_page(struct zx279133_eth *eth,
 
 unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth);
 
+static struct sk_buff *
+zx279133_idm_rx_insert_vlan(struct sk_buff *skb, u16 vid)
+{
+	return vlan_insert_tag_set_proto(skb, htons(ETH_P_8021Q), vid);
+}
+
+static void zx279133_idm_rx_put_vlan(struct sk_buff *skb, u16 vid)
+{
+	__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), vid);
+}
+
+static bool zx279133_idm_rx_normalize_vlan(struct vlan_ethhdr *vhdr)
+{
+	u16 tci;
+
+	if (vhdr->h_vlan_proto != htons(ETH_P_8021Q))
+		return false;
+
+	tci = ntohs(vhdr->h_vlan_TCI);
+	if ((tci & VLAN_VID_MASK) == ZX279133_LAN_INGRESS_VID) {
+		tci = (tci & ~VLAN_VID_MASK) | ZX279133_LAN_VID;
+		vhdr->h_vlan_TCI = htons(tci);
+	}
+
+	return true;
+}
+
 static void zx279133_idm_rx_sync_for_device(struct zx279133_eth *eth,
 					    struct page *page, u16 len)
 {
@@ -301,9 +329,84 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 		}
 
 		if (skb) {
-			skb->protocol = eth_type_trans(skb, ndev);
+			struct net_device *rx_ndev = ndev;
+			u8 src_port = (word1 >> 16) & 0x3f;
+			bool lan_vlan_active;
+			bool lan_dsa_active;
+			bool lan_source;
+
+			/* LAN-only cold start exposes the native XMAC0 source as
+			 * logical port 5. That value is ambiguous once WAN owns its
+			 * port state too. Concurrent operation uses the SR1010 LAN
+			 * logical-port range 59..62; source 62 is board-validated.
+			 */
+			lan_source = (src_port >= ZX279133_LAN_SOURCE_PORT_MIN &&
+				      src_port <= ZX279133_LAN_SOURCE_PORT_MAX) ||
+				     (src_port == ZX279133_LAN_SOURCE_PORT_NATIVE &&
+				      !(READ_ONCE(eth->datapath_users) &
+					ZX279133_DATAPATH_USER_WAN));
+			lan_dsa_active = READ_ONCE(eth->lan_dsa_active);
+			lan_vlan_active = READ_ONCE(eth->lan_vlan62_active);
+			if (lan_source && !lan_dsa_active && !lan_vlan_active) {
+				if (eth->lan_ndev)
+					zx279133_stats_rx_dropped(eth, eth->lan_ndev);
+				dev_kfree_skb_any(skb);
+				goto release_desc;
+			}
+
+			if (lan_dsa_active && lan_source && eth->lan_ndev) {
+				bool vlan_header = false;
+				u16 transport_vid =
+					src_port == ZX279133_LAN_SOURCE_PORT_NATIVE ?
+					ZX279133_LAN_VID : src_port;
+
+				rx_ndev = eth->lan_ndev;
+				if (len >= sizeof(struct vlan_ethhdr)) {
+					struct vlan_ethhdr *vhdr =
+						(struct vlan_ethhdr *)skb->data;
+					u16 tci = ntohs(vhdr->h_vlan_TCI);
+					u16 ingress_vid = tci & VLAN_VID_MASK;
+
+					if (vhdr->h_vlan_proto == htons(ETH_P_8021Q) &&
+					    (ingress_vid == ZX279133_LAN_INGRESS_VID ||
+					     (ingress_vid >= ZX279133_LAN_SOURCE_PORT_MIN &&
+					      ingress_vid <= ZX279133_LAN_SOURCE_PORT_MAX))) {
+						/* The switch's private transport VID may arrive
+						 * as VID 1 or another transport VID. Normalize
+						 * that sideband to the descriptor-selected port.
+						 */
+						vlan_header = true;
+						tci = (tci & ~VLAN_VID_MASK) |
+						      transport_vid;
+						vhdr->h_vlan_TCI = htons(tci);
+					}
+				}
+				/* Preserve a customer VLAN already present in-band by
+				 * stacking the private transport VID outside it. The DSA
+				 * tagger removes only this outer sideband tag.
+				 */
+				if (!vlan_header) {
+					skb = zx279133_idm_rx_insert_vlan(skb, transport_vid);
+					if (!skb) {
+						zx279133_stats_rx_dropped(eth, rx_ndev);
+						goto release_desc;
+					}
+				}
+			} else if (lan_vlan_active && lan_source) {
+				bool vlan_header = false;
+
+				if (len >= sizeof(struct vlan_ethhdr)) {
+					struct vlan_ethhdr *vhdr;
+
+					vhdr = (struct vlan_ethhdr *)skb->data;
+					vlan_header = zx279133_idm_rx_normalize_vlan(vhdr);
+				}
+				if (!vlan_header)
+					zx279133_idm_rx_put_vlan(skb, ZX279133_LAN_VID);
+			}
+			skb->protocol = eth_type_trans(skb, rx_ndev);
 			napi_gro_receive(napi, skb);
-			dev_sw_netstats_rx_add(ndev, len);
+			dev_sw_netstats_rx_add(rx_ndev, len);
 		}
 		goto release_desc;
 
@@ -645,6 +748,12 @@ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth)
 	    eth->tx_pending < ZX279133_IDM_TX_DEPTH - 1) {
 		if (netif_queue_stopped(eth->ndev))
 			netif_wake_queue(eth->ndev);
+		if ((READ_ONCE(eth->datapath_users) &
+		     ZX279133_DATAPATH_USER_LAN) &&
+		    READ_ONCE(eth->lan_datapath_ready) && eth->lan_ndev &&
+		    netif_running(eth->lan_ndev) &&
+		    netif_queue_stopped(eth->lan_ndev))
+			netif_wake_queue(eth->lan_ndev);
 	}
 
 	return packets;
@@ -824,6 +933,8 @@ int zx279133_idm_tx_prepare(struct zx279133_eth *eth)
 	memset(eth->tx_slots, 0,
 	       sizeof(*eth->tx_slots) * ZX279133_IDM_TX_DEPTH);
 	netdev_tx_reset_queue(netdev_get_tx_queue(eth->ndev, 0));
+	if (eth->lan_ndev)
+		netdev_tx_reset_queue(netdev_get_tx_queue(eth->lan_ndev, 0));
 	dev_dbg(eth->dev,
 		"IDM TX: queue %u, port 0x%02x, selector 0x%02x, pon_control %#x, word4 bit23 %u, cfg bit24 %u (doorbell %#x, done %#x)\n",
 		zx279133_tx_queue, zx279133_tx_port & 0xff,

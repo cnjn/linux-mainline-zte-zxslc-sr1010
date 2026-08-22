@@ -8,6 +8,7 @@
 #include <linux/etherdevice.h>
 #include <linux/firmware.h>
 #include <linux/hash.h>
+#include <linux/if_vlan.h>
 #include <linux/io.h>
 #include <linux/iopoll.h>
 #include <linux/ip.h>
@@ -20,6 +21,7 @@
 #include <linux/ethtool.h>
 #include <linux/of.h>
 #include <linux/of_net.h>
+#include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/pcs/pcs-xpcs.h>
 #include <linux/phy/phy.h>
@@ -534,7 +536,15 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to register netdev\n");
 
-	dev_info(dev, "WAN netdev registered\n");
+	eth->lan_service.ops = &zx279133_lan_service_ops;
+	platform_set_drvdata(pdev, &eth->lan_service);
+
+	ret = devm_of_platform_populate(dev);
+	if (ret)
+		return dev_err_probe(dev, ret,
+				     "failed to populate LAN child devices\n");
+
+	dev_info(dev, "WAN netdev and LAN child devices registered\n");
 
 	return 0;
 }

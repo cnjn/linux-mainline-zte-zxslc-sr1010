@@ -4,6 +4,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
+#include <linux/if_vlan.h>
 #include <linux/io.h>
 #include <linux/ip.h>
 #include <linux/netdevice.h>
@@ -17,6 +18,7 @@
 #include <net/page_pool/helpers.h>
 
 #include "zx279133.h"
+#include "zx279133-lan.h"
 
 static int zx279133_shared_idm_prepare(struct zx279133_eth *eth)
 {
@@ -95,6 +97,8 @@ static bool zx279133_shared_tx_pause(struct zx279133_eth *eth)
 	WRITE_ONCE(eth->tx_stopping, true);
 	if (netif_running(eth->ndev))
 		netif_tx_disable(eth->ndev);
+	if (eth->lan_ndev && netif_running(eth->lan_ndev))
+		netif_tx_disable(eth->lan_ndev);
 	cancel_delayed_work_sync(&eth->tx_reclaim_work);
 
 	return zx279133_idm_tx_drain(eth);
@@ -114,6 +118,10 @@ static void zx279133_shared_tx_resume(struct zx279133_eth *eth)
 	if ((eth->datapath_users & ZX279133_DATAPATH_USER_WAN) &&
 	    netif_running(eth->ndev))
 		netif_wake_queue(eth->ndev);
+	if ((eth->datapath_users & ZX279133_DATAPATH_USER_LAN) &&
+	    eth->lan_datapath_ready && eth->lan_ndev &&
+	    netif_running(eth->lan_ndev))
+		netif_wake_queue(eth->lan_ndev);
 }
 
 static void zx279133_shared_idm_release(struct zx279133_eth *eth,
@@ -222,7 +230,7 @@ static int zx279133_stop(struct net_device *ndev)
 	} else {
 		if (!tx_quiesced)
 			netdev_warn(ndev,
-				    "shared TX did not quiesce while another user remains active\n");
+				    "shared TX did not quiesce while LAN remains active\n");
 		zx279133_shared_tx_resume(eth);
 	}
 	mutex_unlock(&eth->datapath_lock);
@@ -250,13 +258,40 @@ static bool zx279133_tx_hw_csum_tcp(struct sk_buff *skb)
 		iph->protocol == IPPROTO_TCP;
 }
 
+static u8 zx279133_tx_destination_port(struct zx279133_eth *eth,
+				       struct sk_buff *skb,
+					bool lan_tx)
+{
+	u16 vid;
+
+	if (lan_tx)
+		return ZX279133_LAN_TX_PORT;
+	if (!READ_ONCE(eth->lan_vlan62_active))
+		return zx279133_tx_port;
+	if (skb_vlan_tag_present(skb)) {
+		vid = skb_vlan_tag_get_id(skb);
+	} else if (skb->protocol == htons(ETH_P_8021Q)) {
+		const struct vlan_ethhdr *vhdr;
+
+		if (!pskb_may_pull(skb, sizeof(*vhdr)))
+			return zx279133_tx_port;
+		vhdr = vlan_eth_hdr(skb);
+		vid = ntohs(vhdr->h_vlan_TCI) & VLAN_VID_MASK;
+	} else {
+		return zx279133_tx_port;
+	}
+
+	return vid == ZX279133_LAN_VID ? ZX279133_LAN_TX_PORT :
+		zx279133_tx_port;
+}
+
 static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 					      struct net_device *hw_ndev,
 					      struct net_device *ndev)
 {
 	struct zx279133_eth *eth = netdev_priv(hw_ndev);
-	/* BQL tracks the physical IDM TX queue rather than an individual
-	 * origin netdev.
+	/* WAN and LAN share one IDM hardware TX queue, so BQL must track the
+	 * physical queue rather than either logical netdev independently.
 	 */
 	struct netdev_queue *txq = netdev_get_tx_queue(hw_ndev, 0);
 	struct zx279133_idm_desc *desc;
@@ -299,7 +334,7 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 		zx279133_stats_tx_dropped(eth, ndev);
 		return NETDEV_TX_OK;
 	}
-	tx_port = zx279133_tx_port;
+	tx_port = zx279133_tx_destination_port(eth, skb, ndev != hw_ndev);
 
 	if (zx279133_tx_bounce_offset > 63)
 		goto drop;
@@ -471,6 +506,8 @@ static void zx279133_tx_timeout_common(struct zx279133_eth *eth,
 	 * from immediately retriggering after the common recovery attempt.
 	 */
 	netif_trans_update(eth->ndev);
+	if (eth->lan_ndev)
+		netif_trans_update(eth->lan_ndev);
 
 	if (!prepared || stopping) {
 		netdev_warn(ndev,
@@ -870,4 +907,338 @@ const struct net_device_ops zx279133_netdev_ops = {
 	.ndo_validate_addr	= eth_validate_addr,
 	.ndo_change_mtu		= zx279133_change_mtu,
 	.ndo_get_stats64	= zx279133_get_stats64,
+};
+
+static struct zx279133_eth *
+zx279133_lan_service_to_eth(struct zx279133_lan_service *service);
+
+static int
+zx279133_lan_netdev_setup(struct zx279133_lan_service *service,
+			  struct net_device *ndev)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+	int ret = 0;
+
+	mutex_lock(&eth->datapath_lock);
+	if (eth->lan_ndev && eth->lan_ndev != ndev) {
+		ret = -EBUSY;
+		goto out_unlock;
+	}
+	eth->lan_ndev = ndev;
+	ndev->watchdog_timeo = eth->ndev->watchdog_timeo;
+	ndev->min_mtu = eth->ndev->min_mtu;
+	ndev->max_mtu = eth->ndev->max_mtu;
+	ndev->features = eth->ndev->features;
+	ndev->hw_features = eth->ndev->hw_features;
+	ndev->vlan_features = eth->ndev->vlan_features;
+	eth_hw_addr_set(ndev, eth->ndev->dev_addr);
+	netif_carrier_off(ndev);
+
+out_unlock:
+	mutex_unlock(&eth->datapath_lock);
+	return ret;
+}
+
+static void
+zx279133_lan_netdev_teardown(struct zx279133_lan_service *service,
+			     struct net_device *ndev)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	mutex_lock(&eth->datapath_lock);
+	if (eth->lan_ndev == ndev)
+		eth->lan_ndev = NULL;
+	mutex_unlock(&eth->datapath_lock);
+}
+
+static int
+zx279133_lan_netdev_open(struct zx279133_lan_service *service,
+			 struct net_device *ndev)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+	int ret = 0;
+
+	mutex_lock(&eth->datapath_lock);
+	if (!(eth->datapath_users & ZX279133_DATAPATH_USER_LAN) ||
+	    !eth->lan_datapath_ready ||
+	    !READ_ONCE(eth->hardware_prepared)) {
+		ret = -ENETDOWN;
+		goto out_unlock;
+	}
+
+	netif_carrier_on(ndev);
+	netif_start_queue(ndev);
+
+out_unlock:
+	mutex_unlock(&eth->datapath_lock);
+	return ret;
+}
+
+static int
+zx279133_lan_netdev_stop(struct zx279133_lan_service *service,
+			 struct net_device *ndev)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+	bool tx_quiesced;
+
+	mutex_lock(&eth->datapath_lock);
+	if (eth->datapath_users & ZX279133_DATAPATH_USER_LAN) {
+		tx_quiesced = zx279133_shared_tx_pause(eth);
+		if (!tx_quiesced)
+			netdev_warn(ndev, "shared TX did not quiesce at LAN stop\n");
+		zx279133_shared_tx_resume(eth);
+	}
+	netif_stop_queue(ndev);
+	netif_carrier_off(ndev);
+	mutex_unlock(&eth->datapath_lock);
+
+	return 0;
+}
+
+static int
+zx279133_lan_netdev_change_mtu(struct zx279133_lan_service *service,
+			       struct net_device *ndev, int new_mtu)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	if (new_mtu < ETH_MIN_MTU || new_mtu > eth->ndev->max_mtu)
+		return -EINVAL;
+
+	WRITE_ONCE(ndev->mtu, new_mtu);
+	return 0;
+}
+
+static netdev_tx_t
+zx279133_lan_netdev_xmit(struct zx279133_lan_service *service,
+			 struct sk_buff *skb, struct net_device *ndev)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+	netdev_tx_t ret;
+
+	if (!(READ_ONCE(eth->datapath_users) & ZX279133_DATAPATH_USER_LAN) ||
+	    !READ_ONCE(eth->lan_datapath_ready) ||
+	    !READ_ONCE(eth->hardware_prepared))
+		return NETDEV_TX_BUSY;
+
+	skb->dev = eth->ndev;
+	ret = zx279133_start_xmit_common(skb, eth->ndev, ndev);
+	if (ret == NETDEV_TX_BUSY)
+		skb->dev = ndev;
+
+	return ret;
+}
+
+static void
+zx279133_lan_netdev_tx_timeout(struct zx279133_lan_service *service,
+			       struct net_device *ndev, unsigned int txqueue)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	zx279133_tx_timeout_common(eth, ndev, txqueue);
+}
+
+static void
+zx279133_lan_netdev_get_stats64(struct zx279133_lan_service *service,
+				struct net_device *ndev,
+			       struct rtnl_link_stats64 *stats)
+{
+	struct zx279133_lan_netdev_priv *priv = netdev_priv(ndev);
+
+	zx279133_fill_stats64(ndev, &priv->stats, stats);
+}
+
+static struct zx279133_eth *
+zx279133_lan_service_to_eth(struct zx279133_lan_service *service)
+{
+	return container_of(service, struct zx279133_eth, lan_service);
+}
+
+static int zx279133_lan_datapath_get(struct zx279133_lan_service *service)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+	bool first_user;
+	int ret = 0;
+
+	mutex_lock(&eth->datapath_lock);
+	if (eth->datapath_users & ZX279133_DATAPATH_USER_LAN) {
+		ret = -EBUSY;
+		goto out_unlock;
+	}
+	first_user = !eth->datapath_users;
+	if (first_user) {
+		ret = zx279133_hardware_prepare(eth);
+		if (ret)
+			goto out_unlock;
+
+		ret = pm_runtime_resume_and_get(eth->xpcs_mdiodev->bus->parent);
+		if (ret < 0)
+			goto err_hardware_unprepare;
+		eth->xpcs_runtime_held = true;
+
+		ret = zx279133_shared_idm_prepare(eth);
+		if (ret)
+			goto err_hardware_unprepare;
+		zx279133_shared_rx_start(eth);
+	}
+	eth->datapath_users |= ZX279133_DATAPATH_USER_LAN;
+	mutex_unlock(&eth->datapath_lock);
+
+	return 0;
+
+err_hardware_unprepare:
+	zx279133_hardware_unprepare(eth);
+	if (eth->xpcs_runtime_held) {
+		pm_runtime_put(eth->xpcs_mdiodev->bus->parent);
+		eth->xpcs_runtime_held = false;
+	}
+out_unlock:
+	mutex_unlock(&eth->datapath_lock);
+	return ret;
+}
+
+static void
+zx279133_lan_datapath_set_ready(struct zx279133_lan_service *service,
+				bool ready)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	mutex_lock(&eth->datapath_lock);
+	eth->lan_datapath_ready = ready;
+	if (eth->lan_ndev && netif_running(eth->lan_ndev)) {
+		if (!ready) {
+			netif_tx_disable(eth->lan_ndev);
+			netif_carrier_off(eth->lan_ndev);
+		} else if ((eth->datapath_users & ZX279133_DATAPATH_USER_LAN) &&
+			   eth->hardware_prepared) {
+			netif_carrier_on(eth->lan_ndev);
+			netif_wake_queue(eth->lan_ndev);
+		}
+	}
+	mutex_unlock(&eth->datapath_lock);
+}
+
+static int
+zx279133_lan_datapath_quiesce(struct zx279133_lan_service *service)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+	bool tx_quiesced;
+	int ret = 0;
+
+	mutex_lock(&eth->datapath_lock);
+	if (!(eth->datapath_users & ZX279133_DATAPATH_USER_LAN))
+		goto out_unlock;
+	eth->lan_datapath_ready = false;
+	if (eth->lan_ndev && netif_running(eth->lan_ndev))
+		netif_tx_disable(eth->lan_ndev);
+	tx_quiesced = zx279133_shared_tx_pause(eth);
+	if (!tx_quiesced) {
+		netdev_err(eth->lan_ndev,
+			   "shared TX did not quiesce before LAN teardown\n");
+		ret = -ETIMEDOUT;
+		goto out_unlock;
+	}
+	zx279133_shared_tx_resume(eth);
+
+out_unlock:
+	mutex_unlock(&eth->datapath_lock);
+	return ret;
+}
+
+static void zx279133_lan_datapath_put(struct zx279133_lan_service *service)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+	bool last_user;
+	bool tx_quiesced;
+
+	mutex_lock(&eth->datapath_lock);
+	if (!(eth->datapath_users & ZX279133_DATAPATH_USER_LAN))
+		goto out_unlock;
+	last_user = eth->datapath_users == ZX279133_DATAPATH_USER_LAN;
+	if (last_user)
+		zx279133_shared_rx_stop(eth);
+	tx_quiesced = zx279133_shared_tx_pause(eth);
+	eth->datapath_users &= ~ZX279133_DATAPATH_USER_LAN;
+	if (last_user) {
+		zx279133_shared_idm_release(eth, eth->lan_ndev, tx_quiesced);
+		if (eth->xpcs_runtime_held) {
+			pm_runtime_put(eth->xpcs_mdiodev->bus->parent);
+			eth->xpcs_runtime_held = false;
+		}
+	} else {
+		if (!tx_quiesced)
+			netdev_warn(eth->lan_ndev,
+				    "shared TX did not quiesce while WAN remains active\n");
+		zx279133_shared_tx_resume(eth);
+	}
+
+out_unlock:
+	mutex_unlock(&eth->datapath_lock);
+}
+
+static void
+zx279133_lan_set_vlan62_active(struct zx279133_lan_service *service,
+			       bool active)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	WRITE_ONCE(eth->lan_vlan62_active, active);
+}
+
+static void
+zx279133_lan_set_dsa_active(struct zx279133_lan_service *service, bool active)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	WRITE_ONCE(eth->lan_dsa_active, active);
+}
+
+static u32 zx279133_lan_nppt_read(struct zx279133_lan_service *service,
+				  u32 offset)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	return readl(eth->base + offset);
+}
+
+static void zx279133_lan_nppt_write(struct zx279133_lan_service *service,
+				    u32 offset, u32 value)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	writel(value, eth->base + offset);
+}
+
+static void zx279133_lan_xmac_lock(struct zx279133_lan_service *service)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	mutex_lock(&eth->xmac_lock);
+}
+
+static void zx279133_lan_xmac_unlock(struct zx279133_lan_service *service)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	mutex_unlock(&eth->xmac_lock);
+}
+
+const struct zx279133_lan_service_ops zx279133_lan_service_ops = {
+	.nppt_read = zx279133_lan_nppt_read,
+	.nppt_write = zx279133_lan_nppt_write,
+	.xmac_lock = zx279133_lan_xmac_lock,
+	.xmac_unlock = zx279133_lan_xmac_unlock,
+	.datapath_get = zx279133_lan_datapath_get,
+	.datapath_set_ready = zx279133_lan_datapath_set_ready,
+	.datapath_quiesce = zx279133_lan_datapath_quiesce,
+	.datapath_put = zx279133_lan_datapath_put,
+	.set_vlan62_active = zx279133_lan_set_vlan62_active,
+	.set_dsa_active = zx279133_lan_set_dsa_active,
+	.netdev_setup = zx279133_lan_netdev_setup,
+	.netdev_teardown = zx279133_lan_netdev_teardown,
+	.netdev_open = zx279133_lan_netdev_open,
+	.netdev_stop = zx279133_lan_netdev_stop,
+	.netdev_xmit = zx279133_lan_netdev_xmit,
+	.netdev_tx_timeout = zx279133_lan_netdev_tx_timeout,
+	.netdev_get_stats64 = zx279133_lan_netdev_get_stats64,
+	.netdev_change_mtu = zx279133_lan_netdev_change_mtu,
 };
