@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config PHY_ZX279133_PON_SERDES
+	tristate "ZTE ZX279133 PON SerDes PHY"
+	depends on OF && HAS_IOMEM
+	depends on COMMON_CLK_ZX279133 || COMPILE_TEST
+	depends on MFD_SYSCON
+	select GENERIC_PHY
+	help
+	  Enable the Ethernet mode of the PON SerDes integrated in the ZTE
+	  ZX279133 SoC. The driver supports the SGMII and 2.5GBASE-X profiles
+	  used by the SR1010 WAN path. It controls the SerDes clock, local
+	  resets, PLL mode words, and lock polling through the Generic PHY
+	  framework.
