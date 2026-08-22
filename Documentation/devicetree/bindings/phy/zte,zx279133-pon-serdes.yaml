@@ -1,0 +1,109 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/phy/zte,zx279133-pon-serdes.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ZTE ZX279133 PON Ethernet SerDes PHY
+
+maintainers:
+  - cnjn <1779895255@qq.com>
+
+description:
+  The ZX279133 PON SerDes can be routed to XMAC1 for Ethernet operation. The
+  PHY has a SerDes register window, a companion PLL window, and mode words in a
+  non-overlapping part of TOPCRM. Shared TOPCRM mux fields are accessed through
+  a syscon phandle. The external PLL reference source is firmware-selected and
+  is not described as an input clock until its parent is established.
+
+properties:
+  $nodename:
+    pattern: "^phy@[0-9a-f]+$"
+
+  compatible:
+    const: zte,zx279133-pon-serdes
+
+  reg:
+    items:
+      - description: PON SerDes registers
+      - description: PON SerDes companion PLL registers
+      - description: TOPCRM PON PLL mode words at offsets 0xc0 and 0xc4
+
+  reg-names:
+    items:
+      - const: serdes
+      - const: pll
+      - const: topcrm-mode
+
+  clocks:
+    maxItems: 1
+
+  clock-names:
+    const: pclk
+
+  resets:
+    maxItems: 2
+
+  reset-names:
+    items:
+      - const: serdes
+      - const: apb
+
+  zte,topcrm:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description:
+      Phandle to TOPCRM syscon for masked updates to shared PON SerDes mode and
+      clock-selection fields outside the dedicated mode-word resource.
+
+  '#phy-cells':
+    const: 0
+
+required:
+  - compatible
+  - reg
+  - reg-names
+  - clocks
+  - clock-names
+  - resets
+  - reset-names
+  - zte,topcrm
+  - '#phy-cells'
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/reset/zte,zx279133-topcrm.h>
+
+    pclk {
+        compatible = "fixed-clock";
+        #clock-cells = <0>;
+        clock-frequency = <125000000>;
+    };
+
+    topcrm: syscon@10e10000 {
+        compatible = "syscon";
+        reg = <0x10e10000 0x60>;
+    };
+
+    local_reset: reset-controller@10e10070 {
+        compatible = "zte,zx296718-reset";
+        reg = <0x10e10070 0x8>;
+        #reset-cells = <1>;
+    };
+
+    phy@16000000 {
+        compatible = "zte,zx279133-pon-serdes";
+        reg = <0x16000000 0x10000>,
+              <0x16010000 0x10000>,
+              <0x10e100c0 0x8>;
+        reg-names = "serdes", "pll", "topcrm-mode";
+        clocks = <&pclk>;
+        clock-names = "pclk";
+        resets = <&local_reset ZX279133_LOCAL_RESET_PON_SERDES>,
+                 <&local_reset ZX279133_LOCAL_RESET_PON_SERDES_APB>;
+        reset-names = "serdes", "apb";
+        zte,topcrm = <&topcrm>;
+        #phy-cells = <0>;
+    };
+...

@@ -28417,6 +28417,7 @@ F:	Documentation/devicetree/bindings/net/zte,sr1010-zx279051-audit.yaml
 F:	Documentation/devicetree/bindings/net/zte,zx279133-mdio.yaml
 F:	Documentation/devicetree/bindings/net/zte,zx279133-nppt.yaml
 F:	Documentation/devicetree/bindings/nvmem/zte,zx279133-efuse.yaml
+F:	Documentation/devicetree/bindings/phy/zte,zx279133-*.yaml
 F:	Documentation/devicetree/bindings/pinctrl/zte,zx279133-pinctrl.yaml
 F:	Documentation/devicetree/bindings/reset/zte,zx296718-reset.yaml
 F:	Documentation/devicetree/bindings/soc/zte,zx279133-pwm-audit.yaml
@@ -28433,6 +28434,7 @@ F:	drivers/net/mdio/mdio-sr1010-rtl8372n-audit.c
 F:	drivers/net/mdio/mdio-sr1010-zx279051-audit.c
 F:	drivers/net/mdio/mdio-zx279133.c
 F:	drivers/nvmem/zx279133-efuse.c
+F:	drivers/phy/zte/
 F:	drivers/pinctrl/pinctrl-zx279133.c
 F:	drivers/spi/spi-zx279133-sfc.c
 F:	drivers/watchdog/zx279133_wdt.c
