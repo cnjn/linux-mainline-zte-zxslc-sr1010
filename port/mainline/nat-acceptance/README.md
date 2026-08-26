@@ -1,8 +1,9 @@
 # SR1010 UDP NAT acceptance
 
 This directory preserves the fixed-topology UDP NAT test used to accept the
-ZX279133 NPPT backend. It deliberately uses standard TC flower rules and host
-NIC counters; it does not depend on driver debugfs or hardware statistics.
+ZX279133 NPPT backend. Throughput acceptance deliberately uses endpoint NIC
+counters; `tc -s` can additionally verify the driver's per-flow hardware
+packet, byte, and last-used reporting without any debugfs interface.
 
 ## Topology
 

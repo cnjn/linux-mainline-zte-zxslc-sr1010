@@ -390,8 +390,8 @@ Board acceptance on 2026-08-23 used FIT SHA256
 
 This proves the flower-to-SDT14 add/delete path and both forwarding directions
 on silicon, including WANID-backed source NAT. Matching-packet counters and
-throughput remain a separate performance acceptance item because the current
-driver does not yet read vendor fast-entry hit statistics. The final clean
+throughput were separate acceptance items at this milestone and are closed by
+the later performance and hardware-statistics sections. The final clean
 build is `/Volumes/code/zx279133/out/sr1010-zxdbg.itb`, 5,193,488 bytes,
 SHA256 `b348949946d04fcb9d7f1388bd1e88ad97d430562e02a0229c8d438953d6b726`;
 the only source change after the board-accepted image was whitespace alignment.
@@ -469,9 +469,10 @@ Gbit/s of payload for ten seconds. Windows transmitted 1,953,125 packets at
 removed, the canonical flow still returned `10/10`, and dmesg contained no
 BUG, Oops, WARNING, WANID failure, or SMMU timeout.
 
-Hardware fast-entry counters and hardware-assisted aging remain unimplemented.
-The preserved vendor observations, rejected experiments, and acceptance gates
-are recorded separately in [FAST_STATS_RESEARCH.md](FAST_STATS_RESEARCH.md).
+This performance image did not yet report hardware fast-entry statistics. The
+subsequent per-flow packet, byte, and last-used implementation and its exact
+counter acceptance are recorded separately in
+[FAST_STATS_RESEARCH.md](FAST_STATS_RESEARCH.md).
 
 ## UDP NAT Line-Rate Acceptance
 
@@ -539,7 +540,8 @@ hardware as `[UNREPLIED]` and expiring on the short unreplied timeout.
 An unreplied UDP connection still uses the short conntrack timeout and may
 leave and later re-enter the hardware path. This is normal for a one-way UDP
 probe and is not representative of an established NAT exchange. Real hardware
-packet, byte, and last-used reporting remains outside this acceptance.
+packet, byte, and last-used reporting was accepted in the later statistics
+milestone documented in [FAST_STATS_RESEARCH.md](FAST_STATS_RESEARCH.md).
 
 ## Single-flow TCP NAT Acceptance
 
