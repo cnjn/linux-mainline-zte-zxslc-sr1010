@@ -527,10 +527,14 @@ Mac en8 received 6,092,547 of 6,093,128 packets at 2.459733 Gbit/s over 30
 seconds, a 0.00954% packet difference.
 
 The final FIT, SHA256
-`d95fb415eda545d59b5270674bbffa5a9c6966f833c076ec0398c7d1b8980cfb`, repeated
+`89bdc3dead0d2da3c74ed60daa31b08acdf479bd9586e7ed2d2ace5521cd78f9`, repeated
 the direct `bootm` acceptance at 2.5 Gbit/s; its embedded nftables 1.1.6 also
 created `[HW_OFFLOAD]` for an ordinary UDP connection. The kernel log contained
 no BUG, Oops, WARNING, WANID, or SMMU failure.
+
+`CONFIG_NFT_CT=y` and a `ct state established` guard now defer `flow add`
+until conntrack has observed a reply. This prevents one-way UDP from entering
+hardware as `[UNREPLIED]` and expiring on the short unreplied timeout.
 
 An unreplied UDP connection still uses the short conntrack timeout and may
 leave and later re-enter the hardware path. This is normal for a one-way UDP

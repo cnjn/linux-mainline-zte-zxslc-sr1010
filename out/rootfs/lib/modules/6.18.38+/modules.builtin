@@ -74,6 +74,7 @@ kernel/net/netfilter/nfnetlink.ko
 kernel/net/netfilter/nf_conntrack.ko
 kernel/net/netfilter/nf_nat.ko
 kernel/net/netfilter/nf_tables.ko
+kernel/net/netfilter/nft_ct.ko
 kernel/net/netfilter/nft_flow_offload.ko
 kernel/net/netfilter/nft_nat.ko
 kernel/net/netfilter/nft_chain_nat.ko

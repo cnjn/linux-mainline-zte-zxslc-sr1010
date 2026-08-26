@@ -9,7 +9,7 @@ table inet sr1010 {
 
 	chain forward {
 		type filter hook forward priority filter; policy accept;
-		ip protocol { tcp, udp } flow add @fast
+		ct state established ip protocol { tcp, udp } flow add @fast
 	}
 
 	chain srcnat {

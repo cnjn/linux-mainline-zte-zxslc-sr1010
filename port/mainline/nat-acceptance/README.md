@@ -85,6 +85,10 @@ nft flush ruleset
 grep 'ASSURED' /proc/net/nf_conntrack
 ```
 
+The `flow add` rule is gated by `ct state established`. One-way UDP remains in
+software until the first real reply reaches conntrack, avoiding an
+`[UNREPLIED]` hardware flow that expires on the short UDP timeout.
+
 ## LAN-to-WAN sender
 
 Copy `UdpPaced.cs` to Windows and load it from PowerShell. The following sends
@@ -117,6 +121,16 @@ contains one UDP five-tuple.
 clang -O3 -pthread udp-pacer.c -o /tmp/udp-pacer
 /tmp/udp-pacer 30 2460000000
 ```
+
+Optional arguments select the local port, sender delay in milliseconds, and
+translated router port:
+
+```sh
+/tmp/udp-pacer SECONDS LINK_BPS LOCAL_PORT DELAY_MS REMOTE_PORT
+```
+
+A zero link rate runs only the four receive-drain sockets. Each socket replies
+to its first packet so conntrack becomes established before hardware offload.
 
 Compare Mac transmit bytes with Windows `ReceivedBytes` and compare the
 sender's packet count with Windows `ReceivedUnicastPackets`.

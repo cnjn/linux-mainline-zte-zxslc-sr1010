@@ -12,6 +12,7 @@ public static class UdpPaced
 		using (var socket = new Socket(AddressFamily.InterNetwork,
 					       SocketType.Dgram, ProtocolType.Udp)) {
 			socket.SendBufferSize = 4 * 1024 * 1024;
+			socket.ReceiveBufferSize = 4 * 1024 * 1024;
 			socket.Bind(new IPEndPoint(
 				IPAddress.Parse("192.168.5.100"), port));
 			socket.Connect(new IPEndPoint(
@@ -21,7 +22,30 @@ public static class UdpPaced
 			var ready = new CountdownEvent(threads);
 			var workers = new Thread[threads];
 			long packets = 0, bytes = 0, errors = 0;
+			long receivedPackets = 0, receivedBytes = 0;
+			int stopping = 0;
 			double payloadBps = targetLinkBps * length / (length + 42.0);
+			var receiver = new Thread(() => {
+				var payload = new byte[2048];
+				long localPackets = 0;
+				long localBytes = 0;
+
+				while (Volatile.Read(ref stopping) == 0) {
+					if (!socket.Poll(100000, SelectMode.SelectRead))
+						continue;
+					try {
+						localBytes += socket.Receive(payload);
+						localPackets++;
+					} catch (SocketException exception) {
+						if (exception.SocketErrorCode !=
+						    SocketError.ConnectionReset)
+							throw;
+					}
+				}
+				receivedPackets = localPackets;
+				receivedBytes = localBytes;
+			});
+			receiver.Start();
 
 			for (int i = 0; i < threads; i++) {
 				workers[i] = new Thread(() => {
@@ -61,12 +85,16 @@ public static class UdpPaced
 			gate.Set();
 			foreach (var worker in workers)
 				worker.Join();
+			Volatile.Write(ref stopping, 1);
+			receiver.Join();
 			totalTimer.Stop();
 
 			return String.Format(
 				"port={0} threads={1} packets={2} bytes={3} " +
-				"errors={4} seconds={5:F6} payload_bps={6:F0}",
+				"errors={4} rx_packets={5} rx_bytes={6} " +
+				"seconds={7:F6} payload_bps={8:F0}",
 				port, threads, packets, bytes, errors,
+				receivedPackets, receivedBytes,
 				totalTimer.Elapsed.TotalSeconds,
 				bytes * 8.0 / totalTimer.Elapsed.TotalSeconds);
 		}
