@@ -7,7 +7,8 @@
 # when invoked from the host.
 #
 # Usage (from host):
-#   /Volumes/code/zx279133/linux-6.18.38/port/mainline/build-zxdbg.sh
+#   ./port/mainline/nat-acceptance/build-nft-static.sh
+#   ./port/mainline/build-zxdbg.sh
 #
 # Output: /Volumes/code/zx279133/out/sr1010-zxdbg.itb
 #
@@ -21,6 +22,7 @@ IMAGE=${IMAGE:-sr1010-stage15-builder}
 OUT=${OUT:-"$ZXROOT/out"}
 BUSYBOX=${BUSYBOX:-"$ZXROOT/busybox"}
 IPERF3=${IPERF3:-"$ZXROOT/iperf3"}
+NFT=${NFT:-"$OUT/nft"}
 JOBS=${JOBS:-4}
 CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
 
@@ -35,6 +37,7 @@ if [ "${ZXDBG_INNER:-0}" != 1 ]; then
 		-e JOBS="$JOBS" \
 		-e OUT="$OUT" \
 		-e BUSYBOX="$BUSYBOX" \
+		-e NFT="$NFT" \
 		-e CROSS_COMPILE="$CROSS_COMPILE" \
 		-e ZXDBG_ENABLE_VLAN_IPV6 \
                 -e KERNEL_SRC \
@@ -55,6 +58,7 @@ for tool in "${CROSS_COMPILE}gcc" make mkimage gzip dtc sha256sum strings; do
 		echo "missing build tool: $tool" >&2; exit 1; }
 done
 [ -x "$BUSYBOX" ] || { echo "missing prebuilt busybox: $BUSYBOX" >&2; exit 1; }
+[ -x "$NFT" ] || { echo "missing static nft: $NFT" >&2; exit 1; }
 
 mkdir -p "$KERNEL_OUT" "$OUT"
 
@@ -66,6 +70,8 @@ cp "$BUSYBOX" "$ROOTFS/bin/busybox"
 chmod 0755 "$ROOTFS/bin/busybox"
 cp "$IPERF3" "$ROOTFS/bin/iperf3"
 chmod 0755 "$ROOTFS/bin/iperf3"
+cp "$NFT" "$ROOTFS/bin/nft"
+chmod 0755 "$ROOTFS/bin/nft"
 install -m 0755 "$SCRIPT_DIR/initramfs/init" "$ROOTFS/init"
 mkdir -p "$ROOTFS/lib/firmware/zte/zx279133"
 cp "$ZXROOT/out/mcode_intel.bin" \
@@ -94,6 +100,7 @@ dir /lib/firmware/zte/zx279133 0755 0 0
 file /init $ROOTFS/init 0755 0 0
 file /bin/busybox $ROOTFS/bin/busybox 0755 0 0
 file /bin/iperf3 $ROOTFS/bin/iperf3 0755 0 0
+file /bin/nft $ROOTFS/bin/nft 0755 0 0
 file /lib/firmware/zte/zx279133/mcode_intel.bin \
 	$ROOTFS/lib/firmware/zte/zx279133/mcode_intel.bin 0644 0 0
 EOF
@@ -138,9 +145,11 @@ for want in CONFIG_MODULES=y CONFIG_MODULE_UNLOAD=y CONFIG_NET_DSA=y \
 	CONFIG_ZTE_ZX279133_RTL8372N=m \
 	CONFIG_ZX279051_PHY=y \
 	CONFIG_HIGH_RES_TIMERS=y \
-	CONFIG_BLK_DEV_INITRD=y CONFIG_INET=y CONFIG_PACKET=y \
+	CONFIG_BLK_DEV_INITRD=y CONFIG_INET=y CONFIG_PACKET=y CONFIG_SYSCTL=y \
+	CONFIG_PROC_SYSCTL=y \
 	CONFIG_IPV6=y CONFIG_VLAN_8021Q=y \
-	CONFIG_NETFILTER=y CONFIG_NF_FLOW_TABLE=y \
+	CONFIG_NETFILTER=y CONFIG_NF_CONNTRACK_PROCFS=y \
+	CONFIG_NF_FLOW_TABLE=y CONFIG_NF_FLOW_TABLE_PROCFS=y \
 	CONFIG_NF_FLOW_TABLE_INET=y CONFIG_NFT_FLOW_OFFLOAD=y \
 	CONFIG_NET_SCHED=y CONFIG_NET_CLS_ACT=y CONFIG_NET_CLS_FLOWER=y \
 	CONFIG_NET_ACT_MIRRED=y CONFIG_NET_ACT_PEDIT=y CONFIG_NET_ACT_CSUM=y \

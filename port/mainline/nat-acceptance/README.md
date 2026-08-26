@@ -13,10 +13,29 @@ NIC counters; it does not depend on driver debugfs or hardware statistics.
 | Router LAN | `lan1` | `192.168.5.1/24` | DSA port |
 | LAN peer | Windows | `192.168.5.100/24` | `f8:89:3c:26:fe:02` |
 
-Boot the FIT from the patched U-Boot shell with:
+Stage a newly built FIT once with:
 
 ```text
 tftpboot sr1010-zxdbg.itb; bootm
+```
+
+For every subsequent reset acceptance, restart from Linux and reuse the FIT
+already retained at `0x88000000`:
+
+```text
+Linux:  reboot -f
+U-Boot: bootm
+```
+
+The acceptance boot must not run `tftpboot`: its U-Boot network path
+initializes the WAN PHY and SerDes. U-Boot `reset` does not retain a valid FIT
+on this board, so it cannot replace the Linux `reboot -f` step.
+
+Build the pinned static nftables binary before rebuilding the diagnostic FIT:
+
+```sh
+./port/mainline/nat-acceptance/build-nft-static.sh
+./port/mainline/build-zxdbg.sh
 ```
 
 All board changes below are runtime-only.
@@ -40,6 +59,31 @@ TC=/tmp/tc /tmp/tc-udp-flow.sh add 5202 2
 ```
 
 Both devices must report `in_hw` and `in_hw_count 1` for the installed rule.
+
+## Automatic nftables flowtable
+
+Do not install the manual TC rules for this test. The diagnostic image embeds
+a static `nft` binary, enables IPv4 forwarding, and provides conntrack procfs.
+Load the standard ruleset with:
+
+```sh
+nft -f /tmp/nft-flowtable.nft
+```
+
+Start a normal UDP or TCP connection from Windows to the WAN peer. After
+bidirectional traffic has established conntrack, verify hardware offload with:
+
+```sh
+grep HW_OFFLOAD /proc/net/nf_conntrack
+```
+
+The ruleset contains ordinary SNAT and `flow add`; it does not encode a
+five-tuple or any pedit action. To test deletion while retaining conntrack:
+
+```sh
+nft flush ruleset
+grep 'ASSURED' /proc/net/nf_conntrack
+```
 
 ## LAN-to-WAN sender
 

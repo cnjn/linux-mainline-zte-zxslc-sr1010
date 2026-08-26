@@ -1,0 +1,19 @@
+flush ruleset
+
+table inet sr1010 {
+	flowtable fast {
+		hook ingress priority 0;
+		devices = { lan1, eth0 };
+		flags offload;
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy accept;
+		ip protocol { tcp, udp } flow add @fast
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "eth0" ip saddr 192.168.5.0/24 snat ip to 192.168.1.1
+	}
+}

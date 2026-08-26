@@ -48,6 +48,7 @@ mount_fs devtmpfs /dev
 mount_fs proc /proc
 mount_fs sysfs /sys
 mount_fs tmpfs /run
+printf '1\n' > /proc/sys/net/ipv4/ip_forward
 mkdir -p /dev/pts /root /sys/kernel/debug /var/run
 mount -t devpts devpts /dev/pts 2>/dev/null || true
 mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null || true

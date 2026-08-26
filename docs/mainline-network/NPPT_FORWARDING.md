@@ -494,3 +494,45 @@ and inter-packet gap overhead. Temporary performance rules were removed after
 each run; the canonical UDP flow still returned `10/10`, both canonical rules
 remained in hardware, and the kernel log remained clean. Reproducible rule and
 sender sources live in `port/mainline/nat-acceptance/`.
+
+## nftables Flowtable Integration
+
+The diagnostic image now contains a statically linked nftables 1.1.6 binary,
+enables IPv4 forwarding, and exposes conntrack and flowtable procfs state.
+`nft-flowtable.nft` uses an ordinary inet flowtable over `lan1` and `eth0`, an
+accepting forward chain with `flow add`, and an IPv4 SNAT postrouting rule. No
+TC flower rule is installed for this test.
+
+On the first RAM boot of the image, a normal UDP/5000 exchange returned
+`20/20`; `/proc/net/nf_conntrack` marked the translated connection
+`[HW_OFFLOAD]`. A separate UDP/5202 connection then sustained 2.459986 Gbit/s
+at the Windows transmitter and 2.459971 Gbit/s at Mac en8 for 30 seconds, with
+a 0.00056% packet difference.
+
+A 70-second run with periodic reverse traffic remained `[HW_OFFLOAD]` at the
+5, 30, and 60 second checkpoints. Windows transmitted 14,217,379 packets at
+2.459995 Gbit/s and Mac received 14,216,465 packets at 2.459836 Gbit/s, a
+0.00643% packet difference. Immediately flushing the nftables ruleset changed
+the conntrack state from `[HW_OFFLOAD]` to `[ASSURED]` while preserving the
+software connection, proving the standard hardware-delete lifecycle.
+
+The source state was also accepted without U-Boot network initialization:
+Linux ran `reboot -f` and the next U-Boot shell ran only `bootm`. Two
+consecutive direct boots reached 2.5 Gbit/s. The ZX279051 driver now retries
+autonegotiation once when 2.5G is advertised locally but the first result
+falls back below 2.5G; a forced 1G negotiation exercised the fallback and
+recovered to 2.5G. During the direct-boot performance acceptance, the
+automatic nftables UDP flow reached `[HW_OFFLOAD]` with no manual TC rule and
+Mac en8 received 6,092,547 of 6,093,128 packets at 2.459733 Gbit/s over 30
+seconds, a 0.00954% packet difference.
+
+The final FIT, SHA256
+`d95fb415eda545d59b5270674bbffa5a9c6966f833c076ec0398c7d1b8980cfb`, repeated
+the direct `bootm` acceptance at 2.5 Gbit/s; its embedded nftables 1.1.6 also
+created `[HW_OFFLOAD]` for an ordinary UDP connection. The kernel log contained
+no BUG, Oops, WARNING, WANID, or SMMU failure.
+
+An unreplied UDP connection still uses the short conntrack timeout and may
+leave and later re-enter the hardware path. This is normal for a one-way UDP
+probe and is not representative of an established NAT exchange. Real hardware
+packet, byte, and last-used reporting remains outside this acceptance.

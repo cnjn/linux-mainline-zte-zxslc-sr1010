@@ -18,6 +18,7 @@ dir /lib/firmware/zte/zx279133 0755 0 0
 file /init /Volumes/code/zx279133/out/rootfs/init 0755 0 0
 file /bin/busybox /Volumes/code/zx279133/out/rootfs/bin/busybox 0755 0 0
 file /bin/iperf3 /Volumes/code/zx279133/out/rootfs/bin/iperf3 0755 0 0
+file /bin/nft /Volumes/code/zx279133/out/rootfs/bin/nft 0755 0 0
 file /lib/firmware/zte/zx279133/mcode_intel.bin 	/Volumes/code/zx279133/out/rootfs/lib/firmware/zte/zx279133/mcode_intel.bin 0644 0 0
 slink /bin/sh /bin/busybox 0755 0 0
 slink /bin/ash /bin/busybox 0755 0 0
