@@ -42,6 +42,7 @@ static_assert(ARRAY_SIZE(zx279051_fullmask_writes) == 117);
 struct zx279051_priv {
 	phy_interface_t host_interface;
 	unsigned int host_speed_code;
+	bool nbaset_retry_done;
 };
 
 static int zx279051_read_mmd(struct phy_device *phydev, int devad, u16 regnum)
@@ -655,8 +656,10 @@ static int zx279051_set_linkmode(struct phy_device *phydev)
 
 static int zx279051_config_aneg(struct phy_device *phydev)
 {
+	struct zx279051_priv *priv = phydev->priv;
 	int ret;
 
+	priv->nbaset_retry_done = false;
 	ret = zx279051_set_linkmode(phydev);
 	if (ret)
 		return ret;
@@ -752,6 +755,13 @@ static int zx279051_read_status(struct phy_device *phydev)
 		ret = zx279051_read_lpa(phydev);
 		if (ret)
 			return ret;
+		/* The first fallback may omit the partner's 2.5G ability bit. */
+		if (speed_code != 6 && !priv->nbaset_retry_done &&
+		    linkmode_test_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT,
+				      phydev->advertising)) {
+			priv->nbaset_retry_done = true;
+			return zx279051_set_linkmode(phydev);
+		}
 		phy_resolve_aneg_pause(phydev);
 	}
 
