@@ -174,6 +174,20 @@ and after the traffic interval. Treat the resulting packet rate as a tested
 floor unless the endpoint NIC transmit counter proves that the sender reached
 minimum-frame wire rate.
 
+## Multi-flow lifecycle
+
+Use a separate port per connection and keep each sender below line rate. During
+the run, filter `/proc/net/nf_conntrack` by those ports and require every entry
+to show `[HW_OFFLOAD]`. After traffic stops, the hardware marker must disappear
+at `nf_flowtable_udp_timeout` while conntrack remains alive for its normal UDP
+timeout.
+
+Flushing the complete nftables ruleset must remove every hardware marker
+without deleting conntrack. Recreating the flowtable does not retroactively
+offload connections owned by the destroyed table, so use a new connection for
+the post-flush allocation check; it must reach `[HW_OFFLOAD]` without rebooting
+or reloading the network driver.
+
 ## Single-flow TCP NAT
 
 Load `TcpStream.cs` on Windows. Windows always opens one connection through

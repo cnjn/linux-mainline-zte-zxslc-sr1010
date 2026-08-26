@@ -8,6 +8,13 @@ programming and packet forwarding only; `FLOW_CLS_STATS` must not claim
 hardware packet, byte, or last-used updates until the lookup path that drives
 the vendor side tables has been reproduced and validated.
 
+The production driver therefore returns `-EOPNOTSUPP` for `FLOW_CLS_STATS`.
+The former synthetic callback, which reported the rule insertion time as
+`lastused`, has been removed. The age index carried by the validated ZCAM
+response format is still allocated and released with each rule; this is
+resource ownership, not a claim that the inactive age side table is reporting
+hits.
+
 This note preserves the useful evidence from Pi session
 `01a039cf-767f-7157-ab4c-1c9563470913` without retaining its experimental
 kernel code or debugfs register-write interfaces.

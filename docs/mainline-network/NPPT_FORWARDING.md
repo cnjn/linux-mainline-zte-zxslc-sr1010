@@ -527,7 +527,7 @@ Mac en8 received 6,092,547 of 6,093,128 packets at 2.459733 Gbit/s over 30
 seconds, a 0.00954% packet difference.
 
 The final FIT, SHA256
-`7c1abae82cad7b294b1f959b48ba7a4349554e17b42d434fdc4cafd155d7a405`, repeated
+`f17db5af220c4cacacf5c3f1f067c3e9f01c427587ee42ee33f8fe4936533d5d`, repeated
 the direct `bootm` acceptance at 2.5 Gbit/s; its embedded nftables 1.1.6 also
 created `[HW_OFFLOAD]` for an ordinary UDP connection. The kernel log contained
 no BUG, Oops, WARNING, WANID, or SMMU failure.
@@ -586,3 +586,29 @@ not the NPPT maximum packet rate; the Windows C# sender was the limiting
 generator. `UdpPaced.cs` and `udp-pacer.c` now report PPS directly, and the
 macOS tool accepts an optional payload length for repeatable reverse-direction
 small-packet tests.
+
+## Multi-Flow and Lifecycle Acceptance
+
+The driver no longer implements `FLOW_CLS_STATS` with the flow insertion time.
+That value was neither a packet hit nor a last-used update and could make
+netfilter treat synthetic data as hardware activity. Until the vendor
+parser/statistics path is reproduced, stats requests correctly return
+`-EOPNOTSUPP`; the age index in the ZCAM response remains allocated because it
+is part of the validated response format, but no age-table state is claimed.
+
+Four established UDP connections on dedicated ports ran concurrently at
+10 Mbit/s each. Once startup completed, all four conntrack entries showed
+`[HW_OFFLOAD]` in every one-second sample from test second 2 through second 43.
+Each sender completed 31,373 packets without a send error. A separate idle-flow
+test retained one hardware entry through second 27 and removed it at second 28,
+while its conntrack entry remained present; this matches the configured
+30-second `nf_flowtable_udp_timeout` after accounting for the delay between the
+last packet and the first sample.
+
+With four other flows active, `nft flush ruleset` changed the dedicated-port
+count from four hardware entries to zero without removing the four conntrack
+entries. Reloading the ruleset did not retroactively offload those existing
+connections, but a new connection immediately reached `[HW_OFFLOAD]`. This
+matches the driver's ZCAM, IKEY, age-index, and one-WANID SNAT cleanup, and
+confirms that subsequent allocation succeeds. Existing connections must be
+recreated if the complete nftables flowtable is destroyed and created again.
