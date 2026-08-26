@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* ZTE ZX279133 NPPT IPv4 flow-table offload. */
+/* ZTE ZX279133 NPPT IPv4/IPv6 flow-table offload. */
 
 #include <linux/bitmap.h>
 #include <linux/etherdevice.h>
 #include <linux/iopoll.h>
 #include <linux/ip.h>
+#include <linux/ipv6.h>
 #include <linux/jiffies.h>
 #include <linux/slab.h>
 #include <linux/tcp.h>
@@ -60,6 +61,8 @@ struct zx279133_flow_tuple {
 struct zx279133_flow_data {
 	struct ethhdr eth;
 	struct zx279133_flow_tuple tuple;
+	struct in6_addr src_v6;
+	struct in6_addr dst_v6;
 };
 
 struct zx279133_flow_entry {
@@ -212,6 +215,44 @@ static void zx279133_fast_key_build(u8 *key,
 	put_unaligned(ntohs(tuple->src_port), (u16 *)(key + 5));
 	zx279133_put_ipv4(key + 7, tuple->dst_addr);
 	zx279133_put_ipv4(key + 11, tuple->src_addr);
+	key[15] = ip_proto;
+}
+
+#define ZX279133_IPV6_CRC_POLY		0x04c11db7
+
+static u32 zx279133_ipv6_crc32(u32 crc, const u8 *data, size_t len)
+{
+	int bit;
+
+	while (len--) {
+		crc ^= (u32)*data++ << 24;
+		for (bit = 0; bit < 8; bit++)
+			crc = crc & BIT(31) ?
+				(crc << 1) ^ ZX279133_IPV6_CRC_POLY : crc << 1;
+	}
+
+	return crc;
+}
+
+static void zx279133_fast_key_build_v6(u8 *key,
+				       const struct zx279133_flow_data *data,
+				       u8 ip_proto)
+{
+	u32 crc;
+
+	memset(key, 0, ZX279133_FAST_KEY_SIZE);
+	put_unaligned(ntohs(data->tuple.dst_port), (u16 *)(key + 3));
+	put_unaligned(ntohs(data->tuple.src_port), (u16 *)(key + 5));
+
+	/* SPA full-tuple mode covers destination then source for DIP32 and
+	 * source then destination for SIP32, using big-endian CRC-32.
+	 */
+	crc = zx279133_ipv6_crc32(0, data->dst_v6.s6_addr, sizeof(data->dst_v6));
+	crc = zx279133_ipv6_crc32(crc, data->src_v6.s6_addr, sizeof(data->src_v6));
+	put_unaligned(crc, (u32 *)(key + 7));
+	crc = zx279133_ipv6_crc32(0, data->src_v6.s6_addr, sizeof(data->src_v6));
+	crc = zx279133_ipv6_crc32(crc, data->dst_v6.s6_addr, sizeof(data->dst_v6));
+	put_unaligned(crc, (u32 *)(key + 11));
 	key[15] = ip_proto;
 }
 
@@ -485,10 +526,11 @@ zx279133_flow_parse(struct zx279133_flow_offload *offload,
 		    struct zx279133_flow_data *data,
 		    struct zx279133_flow_tuple *xlate,
 		    enum zx279133_flow_port *ingress, u16 *lan_vid,
-		    u8 *ip_proto, u16 *pppoe_sid)
+		    u8 *ip_proto, u16 *pppoe_sid, bool *ipv6)
 {
 	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
 	struct flow_match_ipv4_addrs addrs;
+	struct flow_match_ipv6_addrs addrs6;
 	struct flow_match_control control;
 	struct flow_match_basic basic;
 	struct flow_match_ports ports;
@@ -501,7 +543,8 @@ zx279133_flow_parse(struct zx279133_flow_offload *offload,
 
 	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CONTROL) ||
 	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC) ||
-	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV4_ADDRS) ||
+	    (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV4_ADDRS) &&
+	     !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV6_ADDRS)) ||
 	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS))
 		return -EOPNOTSUPP;
 
@@ -520,12 +563,21 @@ zx279133_flow_parse(struct zx279133_flow_offload *offload,
 		return -EOPNOTSUPP;
 
 	flow_rule_match_control(rule, &control);
-	if (control.key->addr_type != FLOW_DISSECTOR_KEY_IPV4_ADDRS ||
-	    flow_rule_has_control_flags(control.mask->flags, f->common.extack))
+	if (flow_rule_has_control_flags(control.mask->flags, f->common.extack))
 		return -EOPNOTSUPP;
+	switch (control.key->addr_type) {
+	case FLOW_DISSECTOR_KEY_IPV4_ADDRS:
+		*ipv6 = false;
+		break;
+	case FLOW_DISSECTOR_KEY_IPV6_ADDRS:
+		*ipv6 = true;
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
 
 	flow_rule_match_basic(rule, &basic);
-	if (basic.key->n_proto != htons(ETH_P_IP) ||
+	if (basic.key->n_proto != htons(*ipv6 ? ETH_P_IPV6 : ETH_P_IP) ||
 	    basic.mask->n_proto != htons(0xffff) ||
 	    basic.mask->ip_proto != 0xff ||
 	    (basic.key->ip_proto != IPPROTO_TCP &&
@@ -533,11 +585,23 @@ zx279133_flow_parse(struct zx279133_flow_offload *offload,
 		return -EOPNOTSUPP;
 	*ip_proto = basic.key->ip_proto;
 
-	flow_rule_match_ipv4_addrs(rule, &addrs);
-	if (addrs.mask->src != htonl(~0U) || addrs.mask->dst != htonl(~0U))
-		return -EOPNOTSUPP;
-	data->tuple.src_addr = addrs.key->src;
-	data->tuple.dst_addr = addrs.key->dst;
+	if (*ipv6) {
+		flow_rule_match_ipv6_addrs(rule, &addrs6);
+		if (memchr_inv(&addrs6.mask->src, 0xff,
+			       sizeof(addrs6.mask->src)) ||
+		    memchr_inv(&addrs6.mask->dst, 0xff,
+			       sizeof(addrs6.mask->dst)))
+			return -EOPNOTSUPP;
+		data->src_v6 = addrs6.key->src;
+		data->dst_v6 = addrs6.key->dst;
+	} else {
+		flow_rule_match_ipv4_addrs(rule, &addrs);
+		if (addrs.mask->src != htonl(~0U) ||
+		    addrs.mask->dst != htonl(~0U))
+			return -EOPNOTSUPP;
+		data->tuple.src_addr = addrs.key->src;
+		data->tuple.dst_addr = addrs.key->dst;
+	}
 
 	flow_rule_match_ports(rule, &ports);
 	if (ports.mask->src != htons(0xffff) ||
@@ -596,7 +660,8 @@ zx279133_flow_parse(struct zx279133_flow_offload *offload,
 			ret = 0;
 			break;
 		case FLOW_ACT_MANGLE_HDR_TYPE_IP4:
-			ret = zx279133_flow_mangle_ipv4(act, xlate);
+			ret = *ipv6 ? -EOPNOTSUPP :
+				zx279133_flow_mangle_ipv4(act, xlate);
 			break;
 		case FLOW_ACT_MANGLE_HDR_TYPE_TCP:
 		case FLOW_ACT_MANGLE_HDR_TYPE_UDP:
@@ -635,21 +700,25 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	u8 fast[ZX279133_FAST_DATA_SIZE];
 	u32 ikey[ZX279133_FAST_IKEY_SIZE / sizeof(u32)];
 	u32 table[ZX279133_ZCAM_ENTRY_SIZE / sizeof(u32)];
-	bool pppoe, snat;
+	bool ipv6, pppoe, snat;
 	u16 lan_vid, pppoe_sid = 0;
 	u8 ip_proto;
 	int ret;
 
 	ret = zx279133_flow_parse(offload, bind_dev, f, &data, &xlate,
-				  &ingress, &lan_vid, &ip_proto, &pppoe_sid);
+				  &ingress, &lan_vid, &ip_proto, &pppoe_sid,
+				  &ipv6);
 	if (ret)
 		return ret;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
 		return -ENOMEM;
-	zx279133_fast_key_build(entry->key, &data.tuple, ip_proto);
-	snat = xlate.src_addr != data.tuple.src_addr;
+	if (ipv6)
+		zx279133_fast_key_build_v6(entry->key, &data, ip_proto);
+	else
+		zx279133_fast_key_build(entry->key, &data.tuple, ip_proto);
+	snat = !ipv6 && xlate.src_addr != data.tuple.src_addr;
 	entry->snat = snat;
 
 	mutex_lock(&offload->lock);
