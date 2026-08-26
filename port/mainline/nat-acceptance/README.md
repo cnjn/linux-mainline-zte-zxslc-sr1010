@@ -1,4 +1,4 @@
-# SR1010 UDP NAT acceptance
+# SR1010 NPPT acceptance
 
 This directory preserves the fixed-topology UDP NAT test used to accept the
 ZX279133 NPPT backend. Throughput acceptance deliberately uses endpoint NIC
@@ -90,6 +90,32 @@ grep 'ASSURED' /proc/net/nf_conntrack
 The `flow add` rule is gated by `ct state established`. One-way UDP remains in
 software until the first real reply reaches conntrack, avoiding an
 `[UNREPLIED]` hardware flow that expires on the short UDP timeout.
+
+## IPv6 routed flowtable
+
+The IPv6 test is pure routing: it does not use NAT66. Assign
+`fd00:1::1/64` to the router WAN, `fd00:5::1/64` to `lan1`, and enable IPv6
+forwarding. The WAN peer uses `fd00:1::100/64` with a route for `fd00:5::/64`
+through the router WAN link-local address; the LAN peer uses
+`fd00:5::100/64` with a route for the WAN peer through `fd00:5::1`.
+
+```sh
+ip -6 addr add fd00:1::1/64 dev eth0
+ip -6 addr add fd00:5::1/64 dev lan1
+sysctl -w net.ipv6.conf.all.forwarding=1
+nft -f /tmp/nft-ipv6-flowtable.nft
+```
+
+Start an established TCP or UDP exchange between the two peers and require
+both hardware directions to remain present while traffic is active:
+
+```sh
+grep 'HW_OFFLOAD' /proc/net/nf_conntrack
+```
+
+The IPv6 rule is deliberately separate from the IPv4/NAT ruleset. It admits
+exact TCP and UDP routes only; IPv6 address or transport-header translation is
+outside this acceptance.
 
 ## LAN-to-WAN sender
 

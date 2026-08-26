@@ -669,3 +669,30 @@ backend rather than dropping it or falsely claiming offload. No debugfs or
 production-register interface was added; the one-off userspace netlink helper
 used to configure VID 100 was removed from host and board after the test. The
 kernel log remained free of BUG, Oops, WARNING, WANID, and SMMU failures.
+
+## IPv6 Routed Offload
+
+Exact IPv6 TCP and UDP routes use the same 16-byte NPPT key as IPv4, with the
+source and destination addresses compressed to the vendor SIP32 and DIP32
+fields. The live SPA lookup path uses big-endian CRC-32 with polynomial
+`0x04c11db7`: SIP32 covers source then destination, while DIP32 covers
+destination then source. The existing SPA initialization selects the matching
+full-tuple CRC mode. IPv6 address and transport-header translation are not
+accepted; this milestone is routed forwarding, not NAT66.
+
+The runtime topology used `fd00:5::100/64` on the Windows LAN peer,
+`fd00:5::1/64` on router `lan1`, `fd00:1::1/64` on router `eth0`, and
+`fd00:1::100/64` on the macOS WAN peer. Bidirectional ping passed before
+enabling the flowtable. During a single established TCP connection, both
+original and reply directions were programmed and conntrack remained marked
+`[HW_OFFLOAD]` while traffic was active.
+
+The final LAN-to-WAN run delivered 2 GiB at 2.340 Gbit/s at the Windows sender
+and 2.336 Gbit/s at the macOS receiver. The WAN-to-LAN run delivered 2 GiB at
+2.262 Gbit/s at the macOS sender and 2.260 Gbit/s at the Windows receiver.
+Both active connections showed `[HW_OFFLOAD]`. During a separate 1 GiB
+LAN-to-WAN run, aggregate router CPU advanced by one busy tick and 12,350 idle
+ticks, with no softirq increase; the 2 GiB reverse run advanced only idle
+ticks. These are single-stream hardware-path results, not a claim that the
+endpoint harness measured the NPPT IPv6 ceiling. The reproducible ruleset is
+`nat-acceptance/nft-ipv6-flowtable.nft`.

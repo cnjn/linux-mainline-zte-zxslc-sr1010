@@ -1,0 +1,15 @@
+flush ruleset
+
+table inet sr1010v6 {
+	flowtable fast {
+		hook ingress priority 0;
+		devices = { lan1, eth0 };
+		flags offload;
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy accept;
+		meta nfproto ipv6 ct state established
+			meta l4proto { tcp, udp } flow add @fast
+	}
+}
