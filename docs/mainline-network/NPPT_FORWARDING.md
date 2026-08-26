@@ -612,3 +612,27 @@ connections, but a new connection immediately reached `[HW_OFFLOAD]`. This
 matches the driver's ZCAM, IKEY, age-index, and one-WANID SNAT cleanup, and
 confirms that subsequent allocation succeeds. Existing connections must be
 recreated if the complete nftables flowtable is destroyed and created again.
+
+## Bridge, Access-VLAN, and Software-Fallback Acceptance
+
+Moving `192.168.5.1/24` from `lan1` to a VLAN-unaware `br0` did not change the
+offload result. The DSA port joined the bridge, Windows remained reachable, and
+an established UDP NAT connection through the bridge reached `[HW_OFFLOAD]`.
+This confirms that the netfilter route actions still resolve the physical DSA
+egress needed by the NPPT response.
+
+The same bridge was then changed to VLAN-aware mode with default PVID 0 and
+customer VID 100 configured as PVID/untagged on both `lan1` and the bridge self
+port. Windows stayed untagged and reachable. A UDP NAT connection on port 5700
+again reached `[HW_OFFLOAD]` with bidirectional delivery. This is the supported
+access-VLAN model: the customer VLAN is nested inside the private DSA CPU-link
+transport, and tagged trunk VLANs remain outside the current driver scope.
+
+ICMP is intentionally absent from the nftables `flow add` rule. Four Windows
+pings crossed the VLAN-aware bridge and SNAT path with zero loss and 1 ms
+reported latency; the ICMP conntrack entry contained no `[HW_OFFLOAD]` marker.
+This verifies ordinary software forwarding for a protocol outside the hardware
+backend rather than dropping it or falsely claiming offload. No debugfs or
+production-register interface was added; the one-off userspace netlink helper
+used to configure VID 100 was removed from host and board after the test. The
+kernel log remained free of BUG, Oops, WARNING, WANID, and SMMU failures.

@@ -188,6 +188,22 @@ offload connections owned by the destroyed table, so use a new connection for
 the post-flush allocation check; it must reach `[HW_OFFLOAD]` without rebooting
 or reloading the network driver.
 
+## Bridge and access VLAN
+
+For a bridge test, remove the LAN address from `lan1`, enslave it to `br0`, and
+assign `192.168.5.1/24` to `br0`. Keep `lan1` in the nftables flowtable device
+set because it remains the physical ingress. The same UDP connection must still
+reach `[HW_OFFLOAD]`.
+
+The RTL8372N driver supports an untagged access VLAN over its private CPU-link
+transport. Set the bridge default PVID to 0, add the customer VID as
+PVID/untagged on `lan1` and the bridge self port, then enable VLAN filtering.
+The LAN peer stays untagged. Tagged trunk VLANs are not part of this acceptance.
+
+For software fallback, send ICMP through the routed SNAT path. Ping must work,
+and the matching conntrack entry must not contain `[HW_OFFLOAD]` because the
+flow-add rule admits only established TCP and UDP.
+
 ## Single-flow TCP NAT
 
 Load `TcpStream.cs` on Windows. Windows always opens one connection through
