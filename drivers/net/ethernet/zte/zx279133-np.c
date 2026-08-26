@@ -444,6 +444,35 @@ int zx279133_program_wanid_sip(struct zx279133_eth *eth, u32 wanid,
 				    ARRAY_SIZE(data), ZX279133_SMMU0_CMD_WRITE);
 }
 
+#define ZX279133_WANID_PPPOE_SID	GENMASK(31, 16)
+#define ZX279133_WANID_PPPOE_MODE	GENMASK(27, 26)
+
+int zx279133_program_wanid_pppoe(struct zx279133_eth *eth, u32 wanid,
+				 u8 mode, u16 sid, u8 *old_mode,
+				 u16 *old_sid)
+{
+	u32 data[ZX279133_SMMU0_WORDS];
+	int ret;
+
+	if (wanid >= ZX279133_WANID_COUNT || mode > 3)
+		return -EINVAL;
+	ret = zx279133_smmu0_read(eth, (16386 + wanid) << 7, data,
+				  ARRAY_SIZE(data), ZX279133_SMMU0_CMD_READ);
+	if (ret)
+		return ret;
+	if (old_sid)
+		*old_sid = FIELD_GET(ZX279133_WANID_PPPOE_SID, data[0]);
+	if (old_mode)
+		*old_mode = FIELD_GET(ZX279133_WANID_PPPOE_MODE, data[3]);
+	data[0] &= ~ZX279133_WANID_PPPOE_SID;
+	data[0] |= FIELD_PREP(ZX279133_WANID_PPPOE_SID, sid);
+	data[3] &= ~ZX279133_WANID_PPPOE_MODE;
+	data[3] |= FIELD_PREP(ZX279133_WANID_PPPOE_MODE, mode);
+
+	return zx279133_smmu0_write(eth, (16386 + wanid) << 7, data,
+				    ARRAY_SIZE(data), ZX279133_SMMU0_CMD_WRITE);
+}
+
 #define ZX279133_FAST_IKEY_BASE_BLOCK	23186
 #define ZX279133_FAST_STAT_BASE_BLOCK	0x9081
 #define ZX279133_FAST_STAT_ENTRY_STRIDE	64
@@ -943,7 +972,9 @@ int zx279133_wan_port_bringup(struct zx279133_eth *eth)
  * g_core_sdt_info_133. The ERAM pool starts at block 12288 (4096 age
  * blocks plus 8192 blocks skipped for the QMG) and the allocator is
  * strictly sequential. ERAM (type 1), hash (type 3), statistics (type 4),
- * and WRAM (type 5) descriptors are created below.
+ * and WRAM (type 5) descriptors are created below. SDT14 keeps the
+ * factory's 512-bit fast-flow format but stores its response inline so
+ * PPPoE can retain the len_changed field omitted by compact SDT43.
  */
 static const u32 zx279133_core_sdt_info[][4] = {
 	{ 0x0,  1, 0x3, 0x1000 },  { 0x1,  1, 0x3, 0x1 },
@@ -963,7 +994,7 @@ static const u32 zx279133_core_sdt_info[][4] = {
 	{ 0x45, 1, 0x3, 0x20 },    { 0x46, 1, 0x3, 0x20 },
 	{ 0x9,  3, 0x8, 0x64 },    { 0xa,  3, 0xa, 0x94 },
 	{ 0xb,  3, 0x22, 0xd4 },   { 0xd,  3, 0x30, 0xd8 },
-	{ 0xe,  3, 0x10, 0xed },   { 0x2b, 3, 0x10, 0xb8 },
+	{ 0xe,  3, 0x10, 0xc1 },   { 0x2b, 3, 0x10, 0xb8 },
 	{ 0x43, 3, 0x30, 0xd8 },   { 0x2d, 3, 0x2, 0x40 },
 	{ 0x1e, 3, 0x6, 0x1000054 }, { 0x33, 3, 0x6, 0x54 },
 	{ 0x21, 3, 0x4, 0x44 },    { 0x24, 3, 0x4, 0x40 },

@@ -26,7 +26,7 @@
 #define ZX279133_ZCAM_BLOCKS		4
 #define ZX279133_ZCAM_CELLS		5
 #define ZX279133_ZCAM_ADDRS		256
-#define ZX279133_ZCAM_ENTRY_SIZE	32
+#define ZX279133_ZCAM_ENTRY_SIZE	64
 #define ZX279133_ZCAM_SLOTS		(ZX279133_ZCAM_BLOCKS * \
 					 ZX279133_ZCAM_CELLS * \
 					 ZX279133_ZCAM_ADDRS)
@@ -34,10 +34,15 @@
 #define ZX279133_SE_ALG_WR_DONE		0x50000
 #define ZX279133_SE_ALG_WR_CMD		0x50004
 #define ZX279133_SE_ALG_WR_DATA		0x50008
-#define ZX279133_SE_ALG_ENTRY_MASK	0x3
 #define ZX279133_SE_HASH_AGCLK		BIT(2)
-#define ZX279133_FAST_SDT_SELECTOR	0x01
-#define ZX279133_FAST_SDT_FOOTER	0xc1
+#define ZX279133_FAST_MULTI_SELECTOR	0x01
+#define ZX279133_FAST_MULTI_FOOTER	0xc1
+#define ZX279133_FAST_FULL_SELECTOR	0x02
+#define ZX279133_FAST_FULL_FOOTER	0xe2
+#define ZX279133_PPPOE_PUSH_WANID	0
+#define ZX279133_PPPOE_POP_WANID	16
+#define ZX279133_PPPOE_PUSH		1
+#define ZX279133_PPPOE_POP		2
 
 enum zx279133_flow_port {
 	ZX279133_FLOW_PORT_NONE,
@@ -69,7 +74,9 @@ struct zx279133_flow_entry {
 	u64 bytes;
 	unsigned long lastused;
 	bool has_stat;
+	bool has_age;
 	bool snat;
+	bool pppoe;
 };
 
 struct zx279133_flow_offload {
@@ -85,6 +92,10 @@ struct zx279133_flow_offload {
 	__be32 snat_addr;
 	u32 snat_users;
 	u32 saved_wanid_sip;
+	u16 pppoe_sid;
+	u16 saved_pppoe_sid[2];
+	u32 pppoe_users;
+	u8 saved_pppoe_mode[2];
 };
 
 struct zx279133_flow_block {
@@ -127,8 +138,8 @@ static u16 zx279133_crc16(u16 poly, const u8 *data, size_t len)
 }
 
 static int zx279133_zcam_alloc(struct zx279133_flow_offload *offload,
-			       const u8 *key, u8 *zblock, u8 *zcell,
-			       u8 *zaddr)
+			       const u8 *key, u8 selector, u8 *zblock,
+			       u8 *zcell, u8 *zaddr)
 {
 	u8 hash_input[49] = {};
 	unsigned int slot;
@@ -136,7 +147,7 @@ static int zx279133_zcam_alloc(struct zx279133_flow_offload *offload,
 	int block, cell;
 
 	/* np.ko hashes the SDT selector, key, and zero response tail. */
-	hash_input[0] = ZX279133_FAST_SDT_SELECTOR;
+	hash_input[0] = selector;
 	memcpy(hash_input + 1, key, ZX279133_FAST_KEY_SIZE);
 	for (block = 0; block < ZX279133_ZCAM_BLOCKS; block++) {
 		crc = zx279133_crc16(block & 1 ? 0x8005 : 0x1021,
@@ -157,7 +168,7 @@ static int zx279133_zcam_alloc(struct zx279133_flow_offload *offload,
 
 static int zx279133_zcam_write(struct zx279133_flow_offload *offload,
 			       u8 zblock, u8 zcell, u8 zaddr,
-			       const u32 *table)
+			       const u32 *table, unsigned int words)
 {
 	struct zx279133_eth *eth = offload->eth;
 	u32 agclk, cmd, status;
@@ -173,11 +184,11 @@ static int zx279133_zcam_write(struct zx279133_flow_offload *offload,
 	if (ret)
 		goto out_restore_clock;
 
-	for (i = 0; i < ZX279133_ZCAM_ENTRY_SIZE / sizeof(*table); i++)
+	for (i = 0; i < words; i++)
 		writel(table[i], eth->pps_base + ZX279133_SE_ALG_WR_DATA + 4 * i);
 
 	cmd = zaddr | (zblock >> 1) << 12 | (zblock & 1) << 11 |
-		zcell << 8 | ZX279133_SE_ALG_ENTRY_MASK << 16;
+		zcell << 8 | ((BIT(words / 4) - 1) & 0xf) << 16;
 	writel(cmd, eth->pps_base + ZX279133_SE_ALG_WR_CMD);
 
 out_restore_clock:
@@ -209,7 +220,7 @@ static void zx279133_fast_response_build(u8 *fast,
 					 const struct zx279133_flow_tuple *xlate,
 					 enum zx279133_flow_port ingress,
 					 u16 lan_vid, u16 ikey, u16 stat,
-					 bool has_stat)
+					 bool has_stat, bool pppoe)
 {
 	int i;
 
@@ -217,6 +228,8 @@ static void zx279133_fast_response_build(u8 *fast,
 	 * byte first, exactly as np.ko's fast_hashinfo_set() emits them.
 	 */
 	memset(fast, 0, ZX279133_FAST_DATA_SIZE);
+	if (pppoe)
+		put_unaligned(4, (u32 *)(fast + 16));
 	put_unaligned(stat, (u16 *)(fast + 2));
 	for (i = 0; i < ETH_ALEN; i++)
 		fast[8 + i] = data->eth.h_dest[ETH_ALEN - 1 - i];
@@ -246,8 +259,8 @@ static void zx279133_fast_response_build(u8 *fast,
 	}
 }
 
-static void zx279133_fast_table_build(u32 *table, const u8 *fast,
-				      const u8 *key, u16 age)
+static void zx279133_fast_multi_table_build(u32 *table, const u8 *fast,
+					    const u8 *key, u16 age)
 {
 	u8 packed[18] = {};
 	u8 *bytes = (u8 *)table;
@@ -266,10 +279,25 @@ static void zx279133_fast_table_build(u32 *table, const u8 *fast,
 	packed[16] = tail >> 16;
 	packed[17] = tail >> 24;
 
-	memset(table, 0, ZX279133_ZCAM_ENTRY_SIZE);
+	memset(table, 0, ZX279133_ZCAM_ENTRY_SIZE / 2);
 	memcpy(bytes, packed + 3, 15);
 	memcpy(bytes + 15, key, ZX279133_FAST_KEY_SIZE);
-	bytes[31] = ZX279133_FAST_SDT_FOOTER;
+	bytes[31] = ZX279133_FAST_MULTI_FOOTER;
+}
+
+static void zx279133_fast_full_table_build(u32 *table, const u8 *fast,
+					   const u8 *key)
+{
+	u8 *bytes = (u8 *)table;
+
+	/* SDT14 is a 512-bit single-hash table.  With age/AS disabled its
+	 * 32-byte response is stored intact ahead of the key, retaining the
+	 * len_changed field that SDT43's compact response omits.
+	 */
+	memset(table, 0, ZX279133_ZCAM_ENTRY_SIZE);
+	memcpy(bytes + 15, fast, ZX279133_FAST_DATA_SIZE);
+	memcpy(bytes + 47, key, ZX279133_FAST_KEY_SIZE);
+	bytes[63] = ZX279133_FAST_FULL_FOOTER;
 }
 
 static void zx279133_flow_mangle_eth(const struct flow_action_entry *act,
@@ -392,13 +420,72 @@ static void zx279133_flow_snat_put(struct zx279133_flow_offload *offload)
 	offload->snat_addr = 0;
 }
 
+static int zx279133_flow_pppoe_get(struct zx279133_flow_offload *offload,
+				   u16 sid)
+{
+	int ret;
+
+	if (offload->pppoe_users) {
+		if (offload->pppoe_sid != sid)
+			return -EOPNOTSUPP;
+		offload->pppoe_users++;
+		return 0;
+	}
+
+	ret = zx279133_program_wanid_pppoe(offload->eth,
+					   ZX279133_PPPOE_PUSH_WANID,
+					   ZX279133_PPPOE_PUSH, sid,
+					   &offload->saved_pppoe_mode[0],
+					   &offload->saved_pppoe_sid[0]);
+	if (ret)
+		return ret;
+	ret = zx279133_program_wanid_pppoe(offload->eth,
+					   ZX279133_PPPOE_POP_WANID,
+					   ZX279133_PPPOE_POP, 0,
+					   &offload->saved_pppoe_mode[1],
+					   &offload->saved_pppoe_sid[1]);
+	if (ret) {
+		zx279133_program_wanid_pppoe(offload->eth,
+					     ZX279133_PPPOE_PUSH_WANID,
+					     offload->saved_pppoe_mode[0],
+					     offload->saved_pppoe_sid[0],
+					     NULL, NULL);
+		return ret;
+	}
+	offload->pppoe_sid = sid;
+	offload->pppoe_users = 1;
+
+	return 0;
+}
+
+static void zx279133_flow_pppoe_put(struct zx279133_flow_offload *offload)
+{
+	int ret;
+
+	if (--offload->pppoe_users)
+		return;
+	ret = zx279133_program_wanid_pppoe(offload->eth,
+					   ZX279133_PPPOE_POP_WANID,
+					   offload->saved_pppoe_mode[1],
+					   offload->saved_pppoe_sid[1],
+					   NULL, NULL);
+	ret |= zx279133_program_wanid_pppoe(offload->eth,
+					    ZX279133_PPPOE_PUSH_WANID,
+					    offload->saved_pppoe_mode[0],
+					    offload->saved_pppoe_sid[0],
+					    NULL, NULL);
+	if (ret)
+		dev_warn(offload->eth->dev, "failed to restore WANID PPPoE state\n");
+	offload->pppoe_sid = 0;
+}
+
 static int
 zx279133_flow_parse(struct zx279133_flow_offload *offload,
 		    struct net_device *bind_dev, struct flow_cls_offload *f,
 		    struct zx279133_flow_data *data,
 		    struct zx279133_flow_tuple *xlate,
 		    enum zx279133_flow_port *ingress, u16 *lan_vid,
-		    u8 *ip_proto)
+		    u8 *ip_proto, u16 *pppoe_sid)
 {
 	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
 	struct flow_match_ipv4_addrs addrs;
@@ -471,6 +558,11 @@ zx279133_flow_parse(struct zx279133_flow_offload *offload,
 			break;
 		case FLOW_ACTION_CSUM:
 			break;
+		case FLOW_ACTION_PPPOE_PUSH:
+			if (*pppoe_sid || !act->pppoe.sid)
+				return -EOPNOTSUPP;
+			*pppoe_sid = act->pppoe.sid;
+			break;
 		default:
 			return -EOPNOTSUPP;
 		}
@@ -485,6 +577,8 @@ zx279133_flow_parse(struct zx279133_flow_offload *offload,
 	     egress != ZX279133_FLOW_PORT_WAN) ||
 	    (*ingress == ZX279133_FLOW_PORT_WAN &&
 	     egress != ZX279133_FLOW_PORT_LAN))
+		return -EOPNOTSUPP;
+	if (*pppoe_sid && *ingress != ZX279133_FLOW_PORT_LAN)
 		return -EOPNOTSUPP;
 	if (*ingress == ZX279133_FLOW_PORT_WAN) {
 		ret = zx279133_flow_lan_vid(offload->eth, odev, lan_vid);
@@ -541,13 +635,13 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	u8 fast[ZX279133_FAST_DATA_SIZE];
 	u32 ikey[ZX279133_FAST_IKEY_SIZE / sizeof(u32)];
 	u32 table[ZX279133_ZCAM_ENTRY_SIZE / sizeof(u32)];
-	bool snat;
-	u16 lan_vid;
+	bool pppoe, snat;
+	u16 lan_vid, pppoe_sid = 0;
 	u8 ip_proto;
 	int ret;
 
 	ret = zx279133_flow_parse(offload, bind_dev, f, &data, &xlate,
-				  &ingress, &lan_vid, &ip_proto);
+				  &ingress, &lan_vid, &ip_proto, &pppoe_sid);
 	if (ret)
 		return ret;
 
@@ -568,8 +662,20 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 		ret = -EEXIST;
 		goto out_free;
 	}
-	ret = zx279133_zcam_alloc(offload, entry->key, &entry->zblock,
-				  &entry->zcell, &entry->zaddr);
+	if (!pppoe_sid && ingress == ZX279133_FLOW_PORT_LAN &&
+	    offload->pppoe_users) {
+		ret = -EOPNOTSUPP;
+		goto out_free;
+	}
+	pppoe = pppoe_sid || (ingress == ZX279133_FLOW_PORT_WAN &&
+				      offload->pppoe_users);
+	entry->pppoe = pppoe;
+	entry->has_age = !pppoe;
+	ret = zx279133_zcam_alloc(offload, entry->key,
+				  pppoe ? ZX279133_FAST_FULL_SELECTOR :
+					   ZX279133_FAST_MULTI_SELECTOR,
+				  &entry->zblock, &entry->zcell,
+				  &entry->zaddr);
 	if (ret)
 		goto out_free;
 	ret = zx279133_fast_index_alloc(offload->ikey_used,
@@ -596,19 +702,31 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 		if (ret)
 			goto out_release_stat;
 	}
+	if (pppoe) {
+		u16 sid = pppoe_sid ?: offload->pppoe_sid;
+
+		ret = zx279133_flow_pppoe_get(offload, sid);
+		if (ret)
+			goto out_put_snat;
+	}
 	zx279133_fast_response_build(fast, &data, &xlate, ingress, lan_vid,
 				     entry->ikey, entry->stat,
-				     entry->has_stat);
-	memcpy(ikey, fast, sizeof(ikey));
-	zx279133_fast_table_build(table, fast, entry->key, entry->age);
-	ret = zx279133_fast_ikey_write(offload->eth, entry->ikey, ikey);
-	if (ret)
-		goto out_put_snat;
+				     entry->has_stat, pppoe);
+	if (pppoe) {
+		zx279133_fast_full_table_build(table, fast, entry->key);
+	} else {
+		memcpy(ikey, fast, sizeof(ikey));
+		zx279133_fast_multi_table_build(table, fast, entry->key, entry->age);
+		ret = zx279133_fast_ikey_write(offload->eth, entry->ikey, ikey);
+		if (ret)
+			goto out_put_pppoe;
+	}
 	ret = xa_err(xa_store(&offload->flows, f->cookie, entry, GFP_KERNEL));
 	if (ret)
 		goto out_clear_ikey;
 	ret = zx279133_zcam_write(offload, entry->zblock, entry->zcell,
-				  entry->zaddr, table);
+				  entry->zaddr, table,
+				  pppoe ? ARRAY_SIZE(table) : ARRAY_SIZE(ikey) * 2);
 	if (ret) {
 		xa_erase(&offload->flows, f->cookie);
 		goto out_clear_ikey;
@@ -617,8 +735,13 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	return 0;
 
 out_clear_ikey:
-	memset(ikey, 0, sizeof(ikey));
-	zx279133_fast_ikey_write(offload->eth, entry->ikey, ikey);
+	if (!pppoe) {
+		memset(ikey, 0, sizeof(ikey));
+		zx279133_fast_ikey_write(offload->eth, entry->ikey, ikey);
+	}
+out_put_pppoe:
+	if (entry->pppoe)
+		zx279133_flow_pppoe_put(offload);
 out_put_snat:
 	if (snat)
 		zx279133_flow_snat_put(offload);
@@ -638,12 +761,33 @@ out_free:
 	return ret;
 }
 
+static int
+zx279133_flow_entry_hw_clear(struct zx279133_flow_offload *offload,
+			     const struct zx279133_flow_entry *entry)
+{
+	u32 ikey[ZX279133_FAST_IKEY_SIZE / sizeof(u32)] = {};
+	u32 table[ZX279133_ZCAM_ENTRY_SIZE / sizeof(u32)] = {};
+	int ret;
+
+	ret = zx279133_zcam_write(offload, entry->zblock, entry->zcell,
+				  entry->zaddr, table,
+				  entry->pppoe ? ARRAY_SIZE(table) :
+						 ARRAY_SIZE(ikey) * 2);
+	if (ret)
+		return ret;
+	if (!entry->pppoe) {
+		ret = zx279133_fast_ikey_write(offload->eth, entry->ikey, ikey);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
 static int zx279133_flow_destroy(struct zx279133_flow_offload *offload,
 				 struct flow_cls_offload *f)
 {
 	struct zx279133_flow_entry *entry;
-	u32 ikey[ZX279133_FAST_IKEY_SIZE / sizeof(u32)] = {};
-	u32 table[ZX279133_ZCAM_ENTRY_SIZE / sizeof(u32)] = {};
 	int ret;
 
 	mutex_lock(&offload->lock);
@@ -652,11 +796,7 @@ static int zx279133_flow_destroy(struct zx279133_flow_offload *offload,
 		ret = -ENOENT;
 		goto out_unlock;
 	}
-	ret = zx279133_zcam_write(offload, entry->zblock, entry->zcell,
-				  entry->zaddr, table);
-	if (ret)
-		goto out_unlock;
-	ret = zx279133_fast_ikey_write(offload->eth, entry->ikey, ikey);
+	ret = zx279133_flow_entry_hw_clear(offload, entry);
 	if (ret)
 		goto out_unlock;
 	xa_erase(&offload->flows, f->cookie);
@@ -666,6 +806,8 @@ static int zx279133_flow_destroy(struct zx279133_flow_offload *offload,
 	__clear_bit(entry->age, offload->age_used);
 	if (entry->has_stat)
 		__clear_bit(entry->stat, offload->stat_used);
+	if (entry->pppoe)
+		zx279133_flow_pppoe_put(offload);
 	if (entry->snat)
 		zx279133_flow_snat_put(offload);
 	kfree(entry);
@@ -690,11 +832,13 @@ static int zx279133_flow_stats(struct zx279133_flow_offload *offload,
 		ret = -ENOENT;
 		goto out_unlock;
 	}
-	ret = zx279133_fast_age_read_clear(offload->eth, entry->age, &used);
-	if (ret)
-		goto out_unlock;
-	if (used)
-		entry->lastused = jiffies;
+	if (entry->has_age) {
+		ret = zx279133_fast_age_read_clear(offload->eth, entry->age, &used);
+		if (ret)
+			goto out_unlock;
+		if (used)
+			entry->lastused = jiffies;
+	}
 	packets = entry->packets;
 	bytes = entry->bytes;
 	if (entry->has_stat) {
@@ -703,6 +847,9 @@ static int zx279133_flow_stats(struct zx279133_flow_offload *offload,
 		if (ret)
 			goto out_unlock;
 	}
+	if (!entry->has_age &&
+	    (packets != entry->packets || bytes != entry->bytes))
+		entry->lastused = jiffies;
 	lastused = entry->lastused;
 	flow_stats_update(&f->stats, bytes - entry->bytes,
 			  packets - entry->packets, 0, lastused,
@@ -747,6 +894,34 @@ static void zx279133_flow_block_release(void *cb_priv)
 	kfree(cb_priv);
 }
 
+static void
+zx279133_flow_entries_clear(struct zx279133_flow_offload *offload,
+			    bool clear_hardware)
+{
+	struct zx279133_flow_entry *entry;
+	unsigned long index;
+
+	mutex_lock(&offload->lock);
+	xa_for_each(&offload->flows, index, entry) {
+		if (clear_hardware &&
+		    zx279133_flow_entry_hw_clear(offload, entry))
+			dev_warn(offload->eth->dev,
+				 "failed to clear hardware flow %lu\n", index);
+		if (entry->pppoe)
+			zx279133_flow_pppoe_put(offload);
+		if (entry->snat)
+			zx279133_flow_snat_put(offload);
+		kfree(entry);
+	}
+	xa_destroy(&offload->flows);
+	xa_init(&offload->flows);
+	bitmap_zero(offload->zcam_used, ZX279133_ZCAM_SLOTS);
+	bitmap_zero(offload->ikey_used, ZX279133_FAST_IKEY_DEPTH);
+	bitmap_zero(offload->age_used, ZX279133_FAST_AGE_DEPTH);
+	bitmap_zero(offload->stat_used, ZX279133_FAST_STAT_DEPTH);
+	mutex_unlock(&offload->lock);
+}
+
 static int zx279133_flow_setup_block(struct zx279133_flow_offload *offload,
 				     struct net_device *ndev,
 				     struct flow_block_offload *f)
@@ -789,6 +964,8 @@ static int zx279133_flow_setup_block(struct zx279133_flow_offload *offload,
 		if (!flow_block_cb_decref(block_cb)) {
 			flow_block_cb_remove(block_cb, f);
 			list_del(&block_cb->driver_list);
+			if (list_empty(&offload->block_cb_list))
+				zx279133_flow_entries_clear(offload, true);
 		}
 		return 0;
 	default:
@@ -807,33 +984,14 @@ int zx279133_flow_offload_setup_tc(struct zx279133_eth *eth,
 
 void zx279133_flow_offload_flush(struct zx279133_eth *eth)
 {
-	struct zx279133_flow_offload *offload = eth->flow_offload;
-	struct zx279133_flow_entry *entry;
-	unsigned long index;
-
-	mutex_lock(&offload->lock);
-	xa_for_each(&offload->flows, index, entry)
-		kfree(entry);
-	xa_destroy(&offload->flows);
-	xa_init(&offload->flows);
-	bitmap_zero(offload->zcam_used, ZX279133_ZCAM_SLOTS);
-	bitmap_zero(offload->ikey_used, ZX279133_FAST_IKEY_DEPTH);
-	bitmap_zero(offload->age_used, ZX279133_FAST_AGE_DEPTH);
-	bitmap_zero(offload->stat_used, ZX279133_FAST_STAT_DEPTH);
-	offload->snat_addr = 0;
-	offload->snat_users = 0;
-	mutex_unlock(&offload->lock);
+	zx279133_flow_entries_clear(eth->flow_offload, false);
 }
 
 static void zx279133_flow_offload_cleanup(void *data)
 {
 	struct zx279133_flow_offload *offload = data;
-	struct zx279133_flow_entry *entry;
-	unsigned long index;
 
-	xa_for_each(&offload->flows, index, entry)
-		kfree(entry);
-	xa_destroy(&offload->flows);
+	zx279133_flow_entries_clear(offload, false);
 	offload->eth->flow_offload = NULL;
 }
 

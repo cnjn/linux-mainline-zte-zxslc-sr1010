@@ -711,6 +711,9 @@ int zx279133_program_wanid_cpu_mac(struct zx279133_eth *eth,
 				   const unsigned char *addr);
 int zx279133_program_wanid_sip(struct zx279133_eth *eth, u32 wanid,
 			       u32 sip, u32 *old_sip);
+int zx279133_program_wanid_pppoe(struct zx279133_eth *eth, u32 wanid,
+				 u8 mode, u16 sid, u8 *old_mode,
+				 u16 *old_sid);
 int zx279133_fast_ikey_write(struct zx279133_eth *eth, u32 index,
 			     const u32 *data);
 int zx279133_fast_stats_read(struct zx279133_eth *eth, u16 flow_id,
