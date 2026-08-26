@@ -36,6 +36,7 @@ Build the pinned static nftables binary before rebuilding the diagnostic FIT:
 
 ```sh
 ./port/mainline/nat-acceptance/build-nft-static.sh
+./port/mainline/nat-acceptance/prepare-pppd-root.sh
 ./port/mainline/build-zxdbg.sh
 ```
 
@@ -260,6 +261,56 @@ Add-Type -Path C:\Users\cnjn\AppData\Local\Temp\TcpStream.cs
 For `Send`, run a TCP sink on Mac port 5205. For `Receive`, run a TCP source on
 Mac port 5206. During each transfer, the matching conntrack entry must contain
 `[HW_OFFLOAD]`; after the connection closes, the entry must disappear.
+
+## PPPoE hardware offload
+
+Use an Alpine arm64 peer on the WAN link. Its Ethernet interface needs no IP
+address; the PPP endpoint owns `192.168.1.100` and assigns
+`192.168.1.1` to the router:
+
+```sh
+apk add ppp rp-pppoe iperf3 tcpdump
+modprobe ppp_generic
+modprobe ppp_async
+ip link set eth1 up
+pppoe-server -q /usr/sbin/pppd -Q /usr/sbin/pppoe \
+	-I eth1 -L 192.168.1.100 -R 192.168.1.1 -N 1 \
+	-O pppoe-server-options -C zx279133-test
+iperf3 -s -D
+```
+
+On the router, remove the diagnostic IPv4 address from the physical WAN,
+bring up the LAN DSA port, establish PPPoE, and load the physical-device
+flowtable. The routed output remains `ppp0`; the flowtable ingress devices are
+`eth0` and `lan1` so the driver receives the underlying hardware paths.
+
+```sh
+ip addr flush dev eth0
+modprobe tag_zx279133_rtl8372n
+modprobe zx279133-rtl8372n
+ifconfig lan1 192.168.5.1 netmask 255.255.255.0 up
+pppd plugin pppoe.so eth0 noauth noipdefault mtu 1492 mru 1492 nodetach &
+nft -f /etc/nft-pppoe-flowtable.nft
+```
+
+Require `ppp0` to show local `192.168.1.1`, peer `192.168.1.100`, and session
+ID 1. A live TCP or UDP NAT connection from Windows must show
+`[HW_OFFLOAD]` in `/proc/net/nf_conntrack`. Capture the WAN peer with:
+
+```sh
+tcpdump -i eth1 -ne 'ether proto 0x8864'
+```
+
+Both directions must remain PPPoE session frames with SID 1; no hardware
+forwarded `0x0800` frame is allowed on the physical WAN. Test bulk TCP in both
+directions and UDP with `iperf3`. The QEMU/vmnet peer used during acceptance
+limited TCP to roughly 0.4--0.5 Gbit/s, so this setup proves encapsulation,
+decapsulation, NAT, and hardware ownership rather than PPPoE line rate.
+
+For lifecycle acceptance, flush nftables while a hardware connection is
+active. WANID 0 must return from push mode to its saved session/mode and WANID
+16 from pop mode to its saved state immediately; a newly created flowtable
+must offload a new connection without rebooting.
 
 ## Cleanup
 

@@ -23,6 +23,7 @@ OUT=${OUT:-"$ZXROOT/out"}
 BUSYBOX=${BUSYBOX:-"$ZXROOT/busybox"}
 IPERF3=${IPERF3:-"$ZXROOT/iperf3"}
 NFT=${NFT:-"$OUT/nft"}
+PPPD_ROOT=${PPPD_ROOT:-"$OUT/ppp-root"}
 JOBS=${JOBS:-4}
 CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
 
@@ -38,6 +39,7 @@ if [ "${ZXDBG_INNER:-0}" != 1 ]; then
 		-e OUT="$OUT" \
 		-e BUSYBOX="$BUSYBOX" \
 		-e NFT="$NFT" \
+		-e PPPD_ROOT="$PPPD_ROOT" \
 		-e CROSS_COMPILE="$CROSS_COMPILE" \
 		-e ZXDBG_ENABLE_VLAN_IPV6 \
                 -e KERNEL_SRC \
@@ -59,20 +61,36 @@ for tool in "${CROSS_COMPILE}gcc" make mkimage gzip dtc sha256sum strings; do
 done
 [ -x "$BUSYBOX" ] || { echo "missing prebuilt busybox: $BUSYBOX" >&2; exit 1; }
 [ -x "$NFT" ] || { echo "missing static nft: $NFT" >&2; exit 1; }
+[ -x "$PPPD_ROOT/usr/sbin/pppd" ] || {
+	echo "missing PPP daemon: $PPPD_ROOT/usr/sbin/pppd" >&2; exit 1; }
 
 mkdir -p "$KERNEL_OUT" "$OUT"
 
 # ---- Assemble the initramfs root ------------------------------------------
 rm -rf "$ROOTFS"
 mkdir -p "$ROOTFS/bin" "$ROOTFS/sbin" "$ROOTFS/usr/bin" "$ROOTFS/usr/sbin" \
-	"$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/dev"
+	"$ROOTFS/usr/lib/pppd/2.5.3" "$ROOTFS/usr/lib" "$ROOTFS/lib" \
+	"$ROOTFS/usr/lib/ossl-modules" \
+	"$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/dev" "$ROOTFS/etc/ppp"
 cp "$BUSYBOX" "$ROOTFS/bin/busybox"
 chmod 0755 "$ROOTFS/bin/busybox"
 cp "$IPERF3" "$ROOTFS/bin/iperf3"
 chmod 0755 "$ROOTFS/bin/iperf3"
 cp "$NFT" "$ROOTFS/bin/nft"
 chmod 0755 "$ROOTFS/bin/nft"
+cp "$PPPD_ROOT/usr/sbin/pppd" "$ROOTFS/usr/sbin/pppd"
+cp "$PPPD_ROOT/usr/lib/pppd/2.5.3/pppoe.so" \
+	"$ROOTFS/usr/lib/pppd/2.5.3/pppoe.so"
+cp "$PPPD_ROOT/lib/ld-musl-aarch64.so.1" "$ROOTFS/lib/"
+cp "$PPPD_ROOT/usr/lib/libpcap.so.1" "$PPPD_ROOT/usr/lib/libssl.so.3" \
+	"$PPPD_ROOT/usr/lib/libcrypto.so.3" "$ROOTFS/usr/lib/"
+cp "$PPPD_ROOT/usr/lib/ossl-modules/legacy.so" \
+	"$ROOTFS/usr/lib/ossl-modules/legacy.so"
 install -m 0755 "$SCRIPT_DIR/initramfs/init" "$ROOTFS/init"
+install -m 0644 "$SCRIPT_DIR/initramfs/ppp-options" \
+	"$ROOTFS/etc/ppp/options"
+install -m 0644 "$SCRIPT_DIR/nat-acceptance/nft-pppoe-flowtable.nft" \
+	"$ROOTFS/etc/nft-pppoe-flowtable.nft"
 mkdir -p "$ROOTFS/lib/firmware/zte/zx279133"
 cp "$ZXROOT/out/mcode_intel.bin" \
 	"$ROOTFS/lib/firmware/zte/zx279133/mcode_intel.bin"
@@ -92,8 +110,14 @@ dir /sbin 0755 0 0
 dir /usr 0755 0 0
 dir /usr/bin 0755 0 0
 dir /usr/sbin 0755 0 0
+dir /usr/lib 0755 0 0
+dir /usr/lib/pppd 0755 0 0
+dir /usr/lib/pppd/2.5.3 0755 0 0
+dir /usr/lib/ossl-modules 0755 0 0
 dir /tmp 0755 0 0
 dir /lib 0755 0 0
+dir /etc 0755 0 0
+dir /etc/ppp 0755 0 0
 dir /lib/firmware 0755 0 0
 dir /lib/firmware/zte 0755 0 0
 dir /lib/firmware/zte/zx279133 0755 0 0
@@ -101,6 +125,18 @@ file /init $ROOTFS/init 0755 0 0
 file /bin/busybox $ROOTFS/bin/busybox 0755 0 0
 file /bin/iperf3 $ROOTFS/bin/iperf3 0755 0 0
 file /bin/nft $ROOTFS/bin/nft 0755 0 0
+file /usr/sbin/pppd $ROOTFS/usr/sbin/pppd 0755 0 0
+file /usr/lib/pppd/2.5.3/pppoe.so \
+	$ROOTFS/usr/lib/pppd/2.5.3/pppoe.so 0755 0 0
+file /lib/ld-musl-aarch64.so.1 $ROOTFS/lib/ld-musl-aarch64.so.1 0755 0 0
+file /usr/lib/libpcap.so.1 $ROOTFS/usr/lib/libpcap.so.1 0755 0 0
+file /usr/lib/libssl.so.3 $ROOTFS/usr/lib/libssl.so.3 0755 0 0
+file /usr/lib/libcrypto.so.3 $ROOTFS/usr/lib/libcrypto.so.3 0755 0 0
+file /usr/lib/ossl-modules/legacy.so \
+	$ROOTFS/usr/lib/ossl-modules/legacy.so 0755 0 0
+file /etc/ppp/options $ROOTFS/etc/ppp/options 0644 0 0
+file /etc/nft-pppoe-flowtable.nft \
+	$ROOTFS/etc/nft-pppoe-flowtable.nft 0644 0 0
 file /lib/firmware/zte/zx279133/mcode_intel.bin \
 	$ROOTFS/lib/firmware/zte/zx279133/mcode_intel.bin 0644 0 0
 EOF
