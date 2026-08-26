@@ -55,7 +55,6 @@ dir /lib/modules/6.18.38+/kernel/drivers/net/ethernet/zte 0755 0 0
 dir /lib/modules/6.18.38+/kernel/net 0755 0 0
 dir /lib/modules/6.18.38+/kernel/net/dsa 0755 0 0
 file /lib/modules/6.18.38+/kernel/drivers/net/ethernet/zte/zx279133-rtl8372n.ko /Volumes/code/zx279133/out/rootfs/lib/modules/6.18.38+/kernel/drivers/net/ethernet/zte/zx279133-rtl8372n.ko 0644 0 0
-file /lib/modules/6.18.38+/kernel/net/dsa/dsa_core.ko /Volumes/code/zx279133/out/rootfs/lib/modules/6.18.38+/kernel/net/dsa/dsa_core.ko 0644 0 0
 file /lib/modules/6.18.38+/kernel/net/dsa/tag_zx279133_rtl8372n.ko /Volumes/code/zx279133/out/rootfs/lib/modules/6.18.38+/kernel/net/dsa/tag_zx279133_rtl8372n.ko 0644 0 0
 file /lib/modules/6.18.38+/modules.alias /Volumes/code/zx279133/out/rootfs/lib/modules/6.18.38+/modules.alias 0644 0 0
 file /lib/modules/6.18.38+/modules.builtin /Volumes/code/zx279133/out/rootfs/lib/modules/6.18.38+/modules.builtin 0644 0 0

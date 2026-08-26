@@ -345,3 +345,152 @@ USB serial adapter is currently enumerated.
 Until those traces are complete, Phase 6.1 remains active. Controlled TX DMA is
 enabled only for one in-flight queue-1 descriptor; RX, NAPI, and IRQs remain
 disabled.
+
+## Mainline Flow Offload Frontend
+
+The factory acceleration frontend is split across two modules. `switch.ko`
+translates the vendor FFE flow object into a hardware-fast session, while
+`np.ko` exports `zte_api_fast_l3_session_add()` / `del()` and emits the NPPT
+fast-table entry. Mainline does not need the proprietary FFE layer: the
+equivalent ingress is `TC_SETUP_FT`/flower, which already supplies the exact
+match, rewrite, and redirect information.
+
+`drivers/net/ethernet/zte/zx279133-offload.c` now implements that direct path
+for exact-match IPv4 TCP/UDP forwarding between the LAN conduit and WAN:
+
+- the original five-tuple becomes the 16-byte SDT 14 key;
+- Ethernet, route, source/destination NAT, and port-NAT rewrites become the
+  32-byte fast response;
+- source NAT updates WANID 0's source-IPv4 word while the translated address
+  is in use;
+- entries use the vendor SDT 14 fallback representation, a 64-byte ZCAM row
+  with footer `0xe0`;
+- placement uses the four vendor ZCAM blocks, five cells per block, and the
+  alternating CRC16 polynomials `0x1021`/`0x8005`;
+- add and delete use the SE algorithm indirect window at PPS `0x50000`.
+
+The WAN and LAN conduit netdevs advertise `NETIF_F_HW_TC`. Each bound flow
+block retains its actual netdev, so ordinary clsact rules use the bind device
+as ingress while nft flowtable rules may override it with the META ifindex.
+The diagnostic configuration includes nftables flowtable, flower/ingress, and
+the pedit, mirred, and checksum actions required to exercise the frontend.
+
+Board acceptance on 2026-08-23 used FIT SHA256
+`6611b4cee0fe7bddeee654a2195774e5710f4f689e3a984fbe51a2c229c506bb`:
+
+- the image RAM-booted, PPU microcode reported `0x10001.0x1`, WAN reached
+  carrier, and the `192.168.1.100` peer replied;
+- a LAN-to-WAN exact TCP route reported `skip_sw`, `in_hw`, and
+  `in_hw_count 1`;
+- a LAN-to-WAN SNAT rule rewriting the IPv4 source and TCP source port, with
+  checksum update, reported the same hardware status;
+- a WAN-to-LAN exact TCP route also reported `in_hw_count 1`;
+- every rule deleted cleanly, both clsact blocks unbound, and dmesg contained
+  no BUG, Oops, WARNING, or WANID-restore failure.
+
+This proves the flower-to-SDT14 add/delete path and both forwarding directions
+on silicon, including WANID-backed source NAT. Matching-packet counters and
+throughput remain a separate performance acceptance item because the current
+driver does not yet read vendor fast-entry hit statistics. The final clean
+build is `/Volumes/code/zx279133/out/sr1010-zxdbg.itb`, 5,193,488 bytes,
+SHA256 `b348949946d04fcb9d7f1388bd1e88ad97d430562e02a0229c8d438953d6b726`;
+the only source change after the board-accepted image was whitespace alignment.
+
+## Untagged VLAN Action and Packet Acceptance
+
+Board acceptance on 2026-08-25 identified the final packet-delivery dependency.
+The vendor runtime initializes SE ERAM SDT 0 with the VLAN action template
+`ffc00000 0000ffff ffffffff 00003003`, while mainline left the table at zero.
+The accelerated IPv4 path indexes entry 0 for these untagged packets. A live
+A-B test was deterministic: clearing SDT 0 entry 0 produced `0/5` UDP echo
+replies, and restoring the factory entry produced `5/5`.
+
+`zx279133_vlan_runtime_prepare()` now writes only the required VID 0 entry.
+The write follows `zx279133_route_set(..., true)`: writing it earlier in
+`zx279133_np_prepare()` left the ERAM contents readable but did not activate
+packet delivery after the route gate changed state. The first FIT containing
+this fix was 5,178,688 bytes, SHA256
+`58ea78c319c4df5242fd33b224dbeac4d282829bdc55914f592d4631ec59566a`.
+
+That FIT was RAM-booted without any live table patch. After the initial
+link/neighbor warm-up, the exact UDP SNAT/DNAT flow delivered `10/10` replies.
+Four paced UDP flower flows all reported `skip_sw`, `in_hw`, and
+`in_hw_count 1`. Over ten seconds they forwarded 1.900 Gbit/s of UDP payload;
+the Mac en8 hardware counter measured 1.935 Gbit/s including Ethernet framing,
+with 25 packets difference out of 1,613,448 offered packets (0.00155%). An
+overload run saturated near 2.015 Gbit/s at en8. This closes functional packet
+delivery and established the initial 1.9 Gbit/s lossless hardware-NAT point.
+The overload result was then used to localize the remaining performance limit.
+
+## Traffic Manager Profiles and XMAC Flow Control
+
+The factory RED queue image differs by traffic class. Mainline now programs
+the recovered factory buffer template and the forwarding-queue profiles:
+
+- queues 320 through 359 use output maximum `0xe00`, guard `0x40`, and maximum
+  `0x200`;
+- queues 360 through 375 use output maximum `0xe00`, guard `0x80`, and maximum
+  `0x400`;
+- queue 360 reads back RAM 0 `0x00e00020`, RAM 2 `0x01000080`, and RAM 4
+  `ff803fff 0100ff80 00100200 00000020`.
+
+Matching the factory RED image removed a reconstruction error but did not move
+the overload ceiling. Direct A-B tests also ruled out the differing global RED
+high fields, SSCH spend-byte value, and an SSCH configuration bit. The latter
+stopped XMAC1 output when enabled in the mainline initialization order and was
+not retained.
+
+The actual limit was XMAC1 pause handling. Mainline advertised symmetric and
+asymmetric pause through phylink, producing `FLOW_CTRL=0xffff0002` and
+`RX_FLOW=1`; the same 2.3 Gbit/s payload offer then reached about 2.015 Gbit/s
+and lost roughly 13.7% of packets. The factory runtime instead leaves both
+pause-enable bits clear (`FLOW_CTRL=0xffff0000`, `RX_FLOW=0`). The decisive
+single-bit tests were:
+
+- both pause-enable bits clear: 2.365416 Gbit/s received versus 2.365624
+  Gbit/s sent, 0.00865% packet difference;
+- only `RX_FLOW` bit 0 set: 2.049945 Gbit/s received, 13.34446% packet
+  difference;
+- `FLOW_CTRL` TFE set with `RX_FLOW` clear: 2.365483 Gbit/s received, 0.00579%
+  packet difference.
+
+The WAN MAC therefore no longer advertises pause capabilities. This keeps
+phylink negotiation, ethtool reporting, and the XMAC register state consistent
+with the factory datapath instead of silently overriding an advertised mode.
+
+Final cold-boot acceptance used
+`/Volumes/code/zx279133/out/sr1010-zxdbg.itb`, 5,179,112 bytes, SHA256
+`6ae6893d7ca60bbec35ddef8fb262e400ff642cbf9c536e222659d22dbbce484`.
+The canonical UDP SNAT/DNAT flow returned `10/10`, and both directions reported
+`skip_sw`, `in_hw`, and `in_hw_count 1`. Four paced UDP flows offered 2.3
+Gbit/s of payload for ten seconds. Windows transmitted 1,953,125 packets at
+2.365624 Gbit/s including link framing; Mac en8 received 1,952,835 packets at
+2.365274 Gbit/s, a 0.01485% packet difference. The performance flows were then
+removed, the canonical flow still returned `10/10`, and dmesg contained no
+BUG, Oops, WARNING, WANID failure, or SMMU timeout.
+
+Hardware fast-entry counters and hardware-assisted aging remain unimplemented.
+The preserved vendor observations, rejected experiments, and acceptance gates
+are recorded separately in [FAST_STATS_RESEARCH.md](FAST_STATS_RESEARCH.md).
+
+## UDP NAT Line-Rate Acceptance
+
+The same cold-booted FIT was accepted again on 2026-08-26 with one exact UDP
+five-tuple and 1472-byte payloads. Four sender threads shared one socket (or
+four `SO_REUSEPORT` sockets with the same local port in the reverse direction),
+so the packets on the wire still formed one flow.
+
+- LAN to WAN: Windows transmitted 6,093,347 packets at 2.459645 Gbit/s and
+  Mac en8 received 6,092,929 packets at 2.459479 Gbit/s over 30 seconds, a
+  0.00686% packet difference.
+- WAN to LAN: Mac en8 transmitted 2.458635 Gbit/s and Windows received
+  2.458716 Gbit/s over 30 seconds. The generator submitted 6,093,128 packets
+  and Windows received 6,089,966, a 0.05189% packet difference.
+- Three additional hot LAN-to-WAN repetitions received 2.459383, 2.459958,
+  and 2.460054 Gbit/s with no sender errors.
+
+These rates are the expected 2.5GbE limit after Ethernet framing, preamble,
+and inter-packet gap overhead. Temporary performance rules were removed after
+each run; the canonical UDP flow still returned `10/10`, both canonical rules
+remained in hardware, and the kernel log remained clean. Reproducible rule and
+sender sources live in `port/mainline/nat-acceptance/`.

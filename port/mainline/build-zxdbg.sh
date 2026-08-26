@@ -128,7 +128,7 @@ if [ "${ZXDBG_ENABLE_VLAN_IPV6:-0}" = 1 ]; then
 	make -C "$KERNEL_SRC" O="$KERNEL_OUT" ARCH=arm64 olddefconfig
 fi
 
-for want in CONFIG_MODULES=y CONFIG_MODULE_UNLOAD=y CONFIG_NET_DSA=m \
+for want in CONFIG_MODULES=y CONFIG_MODULE_UNLOAD=y CONFIG_NET_DSA=y \
 	CONFIG_NET_DSA_TAG_ZX279133_RTL8372N=m \
 	CONFIG_MDIO_ZX279133=y CONFIG_PCS_XPCS=y CONFIG_PHYLINK=y \
 	CONFIG_PHY_ZX279133_UNI_SERDES=y \
@@ -140,6 +140,10 @@ for want in CONFIG_MODULES=y CONFIG_MODULE_UNLOAD=y CONFIG_NET_DSA=m \
 	CONFIG_HIGH_RES_TIMERS=y \
 	CONFIG_BLK_DEV_INITRD=y CONFIG_INET=y CONFIG_PACKET=y \
 	CONFIG_IPV6=y CONFIG_VLAN_8021Q=y \
+	CONFIG_NETFILTER=y CONFIG_NF_FLOW_TABLE=y \
+	CONFIG_NF_FLOW_TABLE_INET=y CONFIG_NFT_FLOW_OFFLOAD=y \
+	CONFIG_NET_SCHED=y CONFIG_NET_CLS_ACT=y CONFIG_NET_CLS_FLOWER=y \
+	CONFIG_NET_ACT_MIRRED=y CONFIG_NET_ACT_PEDIT=y CONFIG_NET_ACT_CSUM=y \
 	CONFIG_FW_LOADER=y; do
 	grep -qx "$want" "$KERNEL_OUT/.config" || {
 		echo "required kernel setting missing: $want" >&2; exit 1; }
@@ -147,7 +151,7 @@ done
 
 # ---- Build -----------------------------------------------------------------
 make -C "$KERNEL_SRC" O="$KERNEL_OUT" -j"$JOBS" \
-	modules zte/zx279133-sr1010.dtb
+	Image modules zte/zx279133-sr1010.dtb
 
 KREL=$(make -s -C "$KERNEL_SRC" O="$KERNEL_OUT" ARCH=arm64 kernelrelease)
 make -C "$KERNEL_SRC" O="$KERNEL_OUT" ARCH=arm64 \

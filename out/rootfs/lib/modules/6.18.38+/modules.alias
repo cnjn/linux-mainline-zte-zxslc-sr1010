@@ -1,5 +1,4 @@
 alias of:N*T*Czte,zx279133-rtl8372nC* zx279133_rtl8372n
 alias of:N*T*Czte,zx279133-rtl8372n zx279133_rtl8372n
-alias platform:dsa dsa_core
 alias dsa_tag:id-30 tag_zx279133_rtl8372n
 alias dsa_tag:zx279133-rtl8372n tag_zx279133_rtl8372n

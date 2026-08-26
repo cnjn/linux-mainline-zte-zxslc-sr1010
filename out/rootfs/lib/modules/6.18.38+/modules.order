@@ -1,3 +1,2 @@
 kernel/drivers/net/ethernet/zte/zx279133-rtl8372n.ko
-kernel/net/dsa/dsa_core.ko
 kernel/net/dsa/tag_zx279133_rtl8372n.ko
