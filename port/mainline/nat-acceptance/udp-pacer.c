@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 #define THREADS 4
-#define PAYLOAD_LEN 1472
+#define MAX_PAYLOAD_LEN 1472
 
 struct worker {
 	int fd;
@@ -19,6 +19,7 @@ struct worker {
 	uint64_t start_ns;
 	uint64_t end_ns;
 	double target_bps;
+	size_t payload_len;
 	uint64_t packets;
 	uint64_t bytes;
 	uint64_t errors;
@@ -39,7 +40,7 @@ static uint64_t now_ns(void)
 static void *send_worker(void *arg)
 {
 	struct worker *worker = arg;
-	char payload[PAYLOAD_LEN] = { 0 };
+	char payload[MAX_PAYLOAD_LEN] = { 0 };
 
 	for (;;) {
 		uint64_t current_ns = now_ns();
@@ -50,10 +51,10 @@ static void *send_worker(void *arg)
 			return NULL;
 		allowed = (current_ns - worker->start_ns) *
 			  worker->target_bps / 8000000000.0;
-		if (worker->bytes + sizeof(payload) > allowed)
+		if (worker->bytes + worker->payload_len > allowed)
 			continue;
 
-		sent = sendto(worker->fd, payload, sizeof(payload), 0,
+		sent = sendto(worker->fd, payload, worker->payload_len, 0,
 			      (struct sockaddr *)&worker->remote,
 			      sizeof(worker->remote));
 		if (sent > 0) {
@@ -107,6 +108,7 @@ int main(int argc, char **argv)
 	int port = 5202;
 	int remote_port = 5202;
 	int delay_ms = 0;
+	int payload_len = MAX_PAYLOAD_LEN;
 	double target_link_bps = 2460000000.0;
 	double target_payload_bps;
 
@@ -120,8 +122,12 @@ int main(int argc, char **argv)
 		delay_ms = atoi(argv[4]);
 	if (argc >= 6)
 		remote_port = atoi(argv[5]);
-	target_payload_bps = target_link_bps * PAYLOAD_LEN /
-			     (PAYLOAD_LEN + 42.0);
+	if (argc >= 7)
+		payload_len = atoi(argv[6]);
+	if (payload_len < 1 || payload_len > MAX_PAYLOAD_LEN)
+		return 3;
+	target_payload_bps = target_link_bps * payload_len /
+				     (payload_len + 42.0);
 
 	local.sin_family = AF_INET;
 	local.sin_port = htons(port);
@@ -145,6 +151,7 @@ int main(int argc, char **argv)
 			return 2;
 		workers[i].remote = remote;
 		workers[i].target_bps = target_payload_bps / THREADS;
+		workers[i].payload_len = payload_len;
 		pthread_create(&receivers[i], NULL, receive_worker, &workers[i]);
 	}
 	if (delay_ms) {
@@ -187,10 +194,11 @@ int main(int argc, char **argv)
 	end_ns = now_ns();
 
 	double elapsed = (end_ns - start_ns) / 1000000000.0;
-	printf("port=%d packets=%llu bytes=%llu errors=%llu "
+	printf("port=%d payload_len=%d packets=%llu bytes=%llu errors=%llu "
 	       "rx_packets=%llu rx_bytes=%llu seconds=%.6f "
-	       "payload_bps=%.0f\n",
-	       port, packets, bytes, errors, rx_packets, rx_bytes,
-	       elapsed, bytes * 8.0 / elapsed);
+	       "payload_bps=%.0f pps=%.0f rx_pps=%.0f\n",
+	       port, payload_len, packets, bytes, errors, rx_packets, rx_bytes,
+	       elapsed, bytes * 8.0 / elapsed, packets / elapsed,
+	       rx_packets / elapsed);
 	return 0;
 }

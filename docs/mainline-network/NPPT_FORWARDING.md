@@ -527,7 +527,7 @@ Mac en8 received 6,092,547 of 6,093,128 packets at 2.459733 Gbit/s over 30
 seconds, a 0.00954% packet difference.
 
 The final FIT, SHA256
-`89bdc3dead0d2da3c74ed60daa31b08acdf479bd9586e7ed2d2ace5521cd78f9`, repeated
+`7c1abae82cad7b294b1f959b48ba7a4349554e17b42d434fdc4cafd155d7a405`, repeated
 the direct `bootm` acceptance at 2.5 Gbit/s; its embedded nftables 1.1.6 also
 created `[HW_OFFLOAD]` for an ordinary UDP connection. The kernel log contained
 no BUG, Oops, WARNING, WANID, or SMMU failure.
@@ -551,3 +551,38 @@ payload bytes in 15.004102 seconds (2.369287 Gbit/s). Both connections showed
 SPA TCP-control mask remains at the vendor value `7`, so FIN and RST packets
 leave the fast path for normal conntrack teardown. `TcpStream.cs` preserves
 the single-connection Windows harness.
+
+## Bidirectional and Packet-Rate Acceptance
+
+The nftables flowtable submits an original and a reply `FLOW_CLS_REPLACE` for
+an established connection. A temporary diagnostic build confirmed that both
+UDP rules were accepted and programmed; the duplicate callback from the other
+bound flowtable device returned `-EEXIST` only after the same cookie was already
+installed. The diagnostic logging was then removed completely.
+
+WAN-to-LAN automatic NAT was accepted independently near line rate. macOS sent
+2,031,040 packets in 10.099449 seconds and the Windows NIC received 1,968,968
+packets / 2,980,990,123 bytes, or 2.361309 Gbit/s at the NIC counter. The
+3.05617% gap between successful userspace sends and NIC receives occurred
+between the sender and receiving NIC at saturation; the received NIC-counter
+rate is close to the 2.5G link ceiling after framing.
+
+Both hardware directions also ran simultaneously. At a 2.0 Gbit/s target per
+direction, the LAN-to-WAN sender produced 1,898,940 packets and macOS received
+1,897,670 (0.06688% difference); macOS produced 1,651,252 packets and Windows
+received 1,614,693 (2.21402% difference). At maximum targets, LAN-to-WAN still
+delivered 2,325,705 of 2,335,700 packets while WAN-to-LAN reached 1,687,835 of
+2,031,040. Since WAN-to-LAN alone reaches 2.361309 Gbit/s and `en8` is the
+host's USB 2.5G adapter, the simultaneous maximum is recorded as a testbed I/O
+ceiling, not an NPPT hardware ceiling. A second independent 2.5G host interface
+is needed to claim two-direction line rate. Router aggregate CPU utilization
+during the maximum-target run was 0.15432% (4 busy ticks out of 2,592).
+
+The minimum-frame test used an 18-byte UDP payload. Windows transmitted
+3,202,475 packets and macOS received 3,202,467 in 10.075111 seconds: 317,859
+packets/s with an eight-packet (0.00025%) difference. Router aggregate CPU was
+0.33529% (8 busy ticks out of 2,386). This establishes a lossless tested floor,
+not the NPPT maximum packet rate; the Windows C# sender was the limiting
+generator. `UdpPaced.cs` and `udp-pacer.c` now report PPS directly, and the
+macOS tool accepts an optional payload length for repeatable reverse-direction
+small-packet tests.

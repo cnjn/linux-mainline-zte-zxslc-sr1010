@@ -122,11 +122,11 @@ clang -O3 -pthread udp-pacer.c -o /tmp/udp-pacer
 /tmp/udp-pacer 30 2460000000
 ```
 
-Optional arguments select the local port, sender delay in milliseconds, and
-translated router port:
+Optional arguments select the local port, sender delay in milliseconds,
+translated router port, and UDP payload length:
 
 ```sh
-/tmp/udp-pacer SECONDS LINK_BPS LOCAL_PORT DELAY_MS REMOTE_PORT
+/tmp/udp-pacer SECONDS LINK_BPS LOCAL_PORT DELAY_MS REMOTE_PORT PAYLOAD_BYTES
 ```
 
 A zero link rate runs only the four receive-drain sockets. Each socket replies
@@ -134,6 +134,45 @@ to its first packet so conntrack becomes established before hardware offload.
 
 Compare Mac transmit bytes with Windows `ReceivedBytes` and compare the
 sender's packet count with Windows `ReceivedUnicastPackets`.
+
+For a minimum-sized Ethernet frame, use an 18-byte UDP payload. Both harnesses
+report transmit and receive PPS directly; endpoint NIC counters remain the
+acceptance source because a userspace receiver can drop after the NIC accepted
+the frame.
+
+## Simultaneous directions and packet rate
+
+Start the macOS command first. Its receive threads immediately drain the
+LAN-to-WAN stream and send the first reply; the delay then gives conntrack and
+the hardware flowtable time to install both directions before macOS starts
+sending:
+
+```sh
+/tmp/udp-pacer 10 1800000000 PORT 1500 PORT
+```
+
+Run the LAN endpoint for 11.5 seconds so it covers the delayed ten-second WAN
+sender interval:
+
+```powershell
+[UdpPaced]::Run(11500, 1472, PORT, 1800000000, 4)
+```
+
+For the minimum-frame packet-rate test, leave macOS in receive-only mode and
+send 18-byte payloads from Windows:
+
+```sh
+/tmp/udp-pacer 12 0 PORT 0 PORT 18
+```
+
+```powershell
+[UdpPaced]::Run(10000, 18, PORT, 2460000000, 8)
+```
+
+Read aggregate CPU counters from the router's first `/proc/stat` line before
+and after the traffic interval. Treat the resulting packet rate as a tested
+floor unless the endpoint NIC transmit counter proves that the sender reached
+minimum-frame wire rate.
 
 ## Single-flow TCP NAT
 

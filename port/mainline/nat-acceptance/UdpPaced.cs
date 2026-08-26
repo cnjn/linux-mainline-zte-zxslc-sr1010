@@ -92,11 +92,14 @@ public static class UdpPaced
 			return String.Format(
 				"port={0} threads={1} packets={2} bytes={3} " +
 				"errors={4} rx_packets={5} rx_bytes={6} " +
-				"seconds={7:F6} payload_bps={8:F0}",
+				"seconds={7:F6} payload_bps={8:F0} " +
+				"pps={9:F0} rx_pps={10:F0}",
 				port, threads, packets, bytes, errors,
 				receivedPackets, receivedBytes,
 				totalTimer.Elapsed.TotalSeconds,
-				bytes * 8.0 / totalTimer.Elapsed.TotalSeconds);
+				bytes * 8.0 / totalTimer.Elapsed.TotalSeconds,
+				packets / totalTimer.Elapsed.TotalSeconds,
+				receivedPackets / totalTimer.Elapsed.TotalSeconds);
 		}
 	}
 }
