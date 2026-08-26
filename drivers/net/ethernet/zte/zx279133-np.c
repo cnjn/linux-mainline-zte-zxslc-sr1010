@@ -448,6 +448,7 @@ int zx279133_program_wanid_sip(struct zx279133_eth *eth, u32 wanid,
 #define ZX279133_FAST_STAT_BASE_BLOCK	0x9081
 #define ZX279133_FAST_STAT_ENTRY_STRIDE	64
 #define ZX279133_SMMU0_CMD_READ64	0x08000000
+#define ZX279133_SMMU0_CMD_READ_CLEAR	0x40000000
 
 int zx279133_fast_ikey_write(struct zx279133_eth *eth, u32 index,
 			     const u32 *data)
@@ -489,6 +490,29 @@ int zx279133_fast_stats_read(struct zx279133_eth *eth, u16 flow_id,
 		return ret;
 
 	return zx279133_fast_stat_counter_read(eth, 2 * flow_id + 1, bytes);
+}
+
+int zx279133_fast_age_read_clear(struct zx279133_eth *eth, u16 age,
+				 bool *used)
+{
+	u32 data[ZX279133_SMMU0_WORDS];
+	bool first;
+	int ret;
+
+	if (age >= ZX279133_FAST_AGE_DEPTH)
+		return -EINVAL;
+	ret = zx279133_smmu0_read(eth, age, data, ARRAY_SIZE(data),
+				  ZX279133_SMMU0_CMD_READ_CLEAR);
+	if (ret)
+		return ret;
+	first = data[3] >> 31;
+	ret = zx279133_smmu0_read(eth, age, data, ARRAY_SIZE(data),
+				  ZX279133_SMMU0_CMD_READ_CLEAR);
+	if (ret)
+		return ret;
+	*used = first || data[3] >> 31;
+
+	return 0;
 }
 
 int zx279133_vlan_runtime_prepare(struct zx279133_eth *eth)

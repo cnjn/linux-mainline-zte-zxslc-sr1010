@@ -23,7 +23,6 @@
 #define ZX279133_FAST_DATA_SIZE		32
 #define ZX279133_FAST_IKEY_SIZE		16
 #define ZX279133_FAST_IKEY_DEPTH	4096
-#define ZX279133_FAST_AGE_DEPTH		4096
 #define ZX279133_ZCAM_BLOCKS		4
 #define ZX279133_ZCAM_CELLS		5
 #define ZX279133_ZCAM_ADDRS		256
@@ -69,6 +68,7 @@ struct zx279133_flow_entry {
 	u64 packets;
 	u64 bytes;
 	unsigned long lastused;
+	bool has_stat;
 	bool snat;
 };
 
@@ -103,7 +103,7 @@ static int zx279133_fast_index_alloc(unsigned long *used,
 {
 	unsigned long bit;
 
-	bit = find_next_zero_bit(used, depth, 1);
+	bit = find_first_zero_bit(used, depth);
 	if (bit == depth)
 		return -ENOSPC;
 	__set_bit(bit, used);
@@ -208,7 +208,8 @@ static void zx279133_fast_response_build(u8 *fast,
 					 const struct zx279133_flow_data *data,
 					 const struct zx279133_flow_tuple *xlate,
 					 enum zx279133_flow_port ingress,
-					 u16 lan_vid, u16 ikey, u16 stat)
+					 u16 lan_vid, u16 ikey, u16 stat,
+					 bool has_stat)
 {
 	int i;
 
@@ -224,7 +225,9 @@ static void zx279133_fast_response_build(u8 *fast,
 		      lan_vid, (u16 *)(fast + 20));
 	fast[23] = ingress == ZX279133_FLOW_PORT_WAN ? 16 : 0;
 	put_unaligned(ikey, (u16 *)(fast + 26));
-	fast[29] = ingress == ZX279133_FLOW_PORT_LAN ? 0x12 : 0x10;
+	fast[29] = ingress == ZX279133_FLOW_PORT_LAN ? BIT(1) : 0;
+	if (has_stat)
+		fast[29] |= BIT(4);
 	fast[30] = BIT(5) | BIT(4) | BIT(3);
 
 	if (xlate->src_addr != data->tuple.src_addr)
@@ -579,19 +582,23 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 		goto out_release_ikey;
 	ret = zx279133_fast_index_alloc(offload->stat_used,
 					ZX279133_FAST_STAT_DEPTH, &entry->stat);
-	if (ret)
+	if (!ret) {
+		entry->has_stat = true;
+		ret = zx279133_fast_stats_read(offload->eth, entry->stat,
+					       &entry->packets, &entry->bytes);
+		if (ret)
+			goto out_release_stat;
+	} else if (ret != -ENOSPC) {
 		goto out_release_age;
-	ret = zx279133_fast_stats_read(offload->eth, entry->stat,
-				       &entry->packets, &entry->bytes);
-	if (ret)
-		goto out_release_stat;
+	}
 	if (snat) {
 		ret = zx279133_flow_snat_get(offload, xlate.src_addr);
 		if (ret)
 			goto out_release_stat;
 	}
 	zx279133_fast_response_build(fast, &data, &xlate, ingress, lan_vid,
-				     entry->ikey, entry->stat);
+				     entry->ikey, entry->stat,
+				     entry->has_stat);
 	memcpy(ikey, fast, sizeof(ikey));
 	zx279133_fast_table_build(table, fast, entry->key, entry->age);
 	ret = zx279133_fast_ikey_write(offload->eth, entry->ikey, ikey);
@@ -616,7 +623,8 @@ out_put_snat:
 	if (snat)
 		zx279133_flow_snat_put(offload);
 out_release_stat:
-	__clear_bit(entry->stat, offload->stat_used);
+	if (entry->has_stat)
+		__clear_bit(entry->stat, offload->stat_used);
 out_release_age:
 	__clear_bit(entry->age, offload->age_used);
 out_release_ikey:
@@ -656,7 +664,8 @@ static int zx279133_flow_destroy(struct zx279133_flow_offload *offload,
 				     entry->zaddr), offload->zcam_used);
 	__clear_bit(entry->ikey, offload->ikey_used);
 	__clear_bit(entry->age, offload->age_used);
-	__clear_bit(entry->stat, offload->stat_used);
+	if (entry->has_stat)
+		__clear_bit(entry->stat, offload->stat_used);
 	if (entry->snat)
 		zx279133_flow_snat_put(offload);
 	kfree(entry);
@@ -671,6 +680,7 @@ static int zx279133_flow_stats(struct zx279133_flow_offload *offload,
 {
 	struct zx279133_flow_entry *entry;
 	unsigned long lastused;
+	bool used;
 	u64 packets, bytes;
 	int ret;
 
@@ -680,12 +690,19 @@ static int zx279133_flow_stats(struct zx279133_flow_offload *offload,
 		ret = -ENOENT;
 		goto out_unlock;
 	}
-	ret = zx279133_fast_stats_read(offload->eth, entry->stat,
-				       &packets, &bytes);
+	ret = zx279133_fast_age_read_clear(offload->eth, entry->age, &used);
 	if (ret)
 		goto out_unlock;
-	if (packets != entry->packets || bytes != entry->bytes)
+	if (used)
 		entry->lastused = jiffies;
+	packets = entry->packets;
+	bytes = entry->bytes;
+	if (entry->has_stat) {
+		ret = zx279133_fast_stats_read(offload->eth, entry->stat,
+					       &packets, &bytes);
+		if (ret)
+			goto out_unlock;
+	}
 	lastused = entry->lastused;
 	flow_stats_update(&f->stats, bytes - entry->bytes,
 			  packets - entry->packets, 0, lastused,
