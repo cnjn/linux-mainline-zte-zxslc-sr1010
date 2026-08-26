@@ -2,11 +2,13 @@
 
 #include <linux/dma-mapping.h>
 #include <linux/etherdevice.h>
+#include <linux/if_arp.h>
 #include <linux/if_vlan.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/prefetch.h>
 #include <linux/slab.h>
+#include <linux/unaligned.h>
 
 #include <net/page_pool/helpers.h>
 
@@ -167,15 +169,38 @@ static struct page *zx279133_idm_rx_take_page(struct zx279133_eth *eth,
 
 unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth);
 
-static struct sk_buff *
-zx279133_idm_rx_insert_vlan(struct sk_buff *skb, u16 vid)
-{
-	return vlan_insert_tag_set_proto(skb, htons(ETH_P_8021Q), vid);
-}
-
 static void zx279133_idm_rx_put_vlan(struct sk_buff *skb, u16 vid)
 {
 	__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), vid);
+}
+
+static u16 zx279133_idm_rx_restore_lan_l2(struct sk_buff *skb, u32 metadata0)
+{
+	u16 l3_prefix = metadata0 >> 16;
+	u16 protocol;
+
+	if ((l3_prefix & 0xf000) == 0x4000) {
+		protocol = ETH_P_IP;
+	} else if ((l3_prefix & 0xf000) == 0x6000) {
+		protocol = ETH_P_IPV6;
+	} else if (l3_prefix == ARPHRD_ETHER &&
+		   get_unaligned_be16(skb->data + 2 * ETH_ALEN) == ETH_P_IP &&
+		   skb->data[2 * ETH_ALEN + 2] == ETH_ALEN &&
+		   skb->data[2 * ETH_ALEN + 3] == 4) {
+		protocol = ETH_P_ARP;
+	} else {
+		return 0;
+	}
+
+	skb_put(skb, VLAN_HLEN);
+	memmove(skb->data + 2 * ETH_ALEN + VLAN_HLEN,
+		skb->data + 2 * ETH_ALEN,
+		skb->len - 2 * ETH_ALEN - VLAN_HLEN);
+	put_unaligned_be16(protocol, skb->data + 2 * ETH_ALEN);
+	put_unaligned_be16(l3_prefix,
+			   skb->data + 2 * ETH_ALEN + sizeof(protocol));
+
+	return VLAN_HLEN;
 }
 
 static bool zx279133_idm_rx_normalize_vlan(struct vlan_ethhdr *vhdr)
@@ -308,7 +333,7 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 			u64_stats_inc(&eth->rx_copy_fallbacks);
 			page_pool_dma_sync_for_cpu(eth->rx_page_pool, page, 0, len);
 			zx279133_idm_rx_prefetch_payload(page);
-			skb = napi_alloc_skb(napi, len + NET_IP_ALIGN);
+			skb = napi_alloc_skb(napi, len + VLAN_HLEN + NET_IP_ALIGN);
 			if (skb) {
 				skb_reserve(skb, NET_IP_ALIGN);
 				memcpy(skb_put(skb, len),
@@ -330,23 +355,21 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 
 		if (skb) {
 			struct net_device *rx_ndev = ndev;
-			u8 src_port = (word1 >> 16) & 0x3f;
 			bool lan_vlan_active;
 			bool lan_dsa_active;
 			bool lan_source;
 
-			/* LAN-only cold start exposes the native XMAC0 source as
-			 * logical port 5. That value is ambiguous once WAN owns its
-			 * port state too. Concurrent operation uses the SR1010 LAN
-			 * logical-port range 59..62; source 62 is board-validated.
-			 */
-			lan_source = (src_port >= ZX279133_LAN_SOURCE_PORT_MIN &&
-				      src_port <= ZX279133_LAN_SOURCE_PORT_MAX) ||
-				     (src_port == ZX279133_LAN_SOURCE_PORT_NATIVE &&
-				      !(READ_ONCE(eth->datapath_users) &
-					ZX279133_DATAPATH_USER_WAN));
 			lan_dsa_active = READ_ONCE(eth->lan_dsa_active);
 			lan_vlan_active = READ_ONCE(eth->lan_vlan62_active);
+			/* Factory CPU RX queues 0..7 belong to the external switch;
+			 * queues 8..15 belong to the other CPU datapath group. Unlike the
+			 * parsed descriptor fields, that split remains stable when CPU8
+			 * strips the LAN transport VLAN before PPU.
+			 */
+			lan_source = queue < ZX279133_LAN_RX_QUEUE_COUNT;
+			if (lan_source)
+				len += zx279133_idm_rx_restore_lan_l2(
+					skb, le32_to_cpu(READ_ONCE(desc->metadata[0])));
 			if (lan_source && !lan_dsa_active && !lan_vlan_active) {
 				if (eth->lan_ndev)
 					zx279133_stats_rx_dropped(eth, eth->lan_ndev);
@@ -356,9 +379,7 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 
 			if (lan_dsa_active && lan_source && eth->lan_ndev) {
 				bool vlan_header = false;
-				u16 transport_vid =
-					src_port == ZX279133_LAN_SOURCE_PORT_NATIVE ?
-					ZX279133_LAN_VID : src_port;
+				u16 transport_vid = ZX279133_LAN_VID;
 
 				rx_ndev = eth->lan_ndev;
 				if (len >= sizeof(struct vlan_ethhdr)) {
@@ -367,15 +388,19 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 					u16 tci = ntohs(vhdr->h_vlan_TCI);
 					u16 ingress_vid = tci & VLAN_VID_MASK;
 
-					if (vhdr->h_vlan_proto == htons(ETH_P_8021Q) &&
+					if (eth_type_vlan(vhdr->h_vlan_proto) &&
 					    (ingress_vid == ZX279133_LAN_INGRESS_VID ||
-					     (ingress_vid >= ZX279133_LAN_SOURCE_PORT_MIN &&
-					      ingress_vid <= ZX279133_LAN_SOURCE_PORT_MAX))) {
+					     (ingress_vid >= ZX279133_LAN_TRANSPORT_VID_MIN &&
+					      ingress_vid <= ZX279133_LAN_TRANSPORT_VID_MAX))) {
 						/* The switch's private transport VID may arrive
 						 * as VID 1 or another transport VID. Normalize
-						 * that sideband to the descriptor-selected port.
+						 * VID 1 to the active fast-path port; preserve a
+						 * tagged transport VID for the other DSA ports.
 						 */
 						vlan_header = true;
+						if (ingress_vid >=
+						    ZX279133_LAN_TRANSPORT_VID_MIN)
+							transport_vid = ingress_vid;
 						tci = (tci & ~VLAN_VID_MASK) |
 						      transport_vid;
 						vhdr->h_vlan_TCI = htons(tci);
@@ -385,13 +410,8 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 				 * stacking the private transport VID outside it. The DSA
 				 * tagger removes only this outer sideband tag.
 				 */
-				if (!vlan_header) {
-					skb = zx279133_idm_rx_insert_vlan(skb, transport_vid);
-					if (!skb) {
-						zx279133_stats_rx_dropped(eth, rx_ndev);
-						goto release_desc;
-					}
-				}
+				if (!vlan_header)
+					zx279133_idm_rx_put_vlan(skb, transport_vid);
 			} else if (lan_vlan_active && lan_source) {
 				bool vlan_header = false;
 

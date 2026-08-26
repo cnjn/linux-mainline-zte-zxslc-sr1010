@@ -421,24 +421,35 @@ static void zx279133_red_np1_restore(struct zx279133_eth *eth)
 		       eth->base + zx279133_red_np1_offsets[i]);
 }
 
-/*
- * tm_red_buffer_initial(): 401-queue RED buffer configuration through the
- * indirect port. inside_qbuf_133/outside_qbuf_133 hold guard 32 with max
- * 0x834/0xc00 for queues 0-399 and 0x400/0x80 for queue 400; the four-word
- * buffer configuration is identical for every queue.
- */
+/* tm_red_buffer_initial(): 401-queue RED buffer configuration. */
 static void zx279133_red_buffer_prepare(struct zx279133_eth *eth)
 {
 	static const u32 buffer_cfg[4] = {
-		0x80ff3fff, 0x0100ff80, 0x00010200, 0x00000020,
+		0xff803fff, 0x0100ff80, 0x00100200, 0x00000020,
 	};
+	u32 in_guard;
+	u32 in_max;
+	u32 out_max;
 	u32 word;
 	unsigned int q;
 
 	for (q = 0; q < ZX279133_RED_QUEUE_COUNT - 1; q++) {
-		word = 0x20 | (0x0c00 << 12);
+		in_guard = 0x20;
+		in_max = 0x0834;
+		out_max = 0x0c00;
+		if (q >= 320 && q < 360) {
+			in_guard = 0x40;
+			in_max = 0x0200;
+			out_max = 0x0e00;
+		} else if (q >= 360 && q < 376) {
+			in_guard = 0x80;
+			in_max = 0x0400;
+			out_max = 0x0e00;
+		}
+
+		word = 0x20 | (out_max << 12);
 		zx279133_red_ind_write(eth, 0, q, &word, 1);
-		word = 0x20 | (0x0834 << 14);
+		word = in_guard | (in_max << 14);
 		zx279133_red_ind_write(eth, 2, q, &word, 1);
 		zx279133_red_ind_write(eth, 4, q, buffer_cfg, 4);
 	}

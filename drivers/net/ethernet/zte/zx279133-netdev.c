@@ -898,6 +898,13 @@ const struct ethtool_ops zx279133_ethtool_ops = {
  * traffic is admitted. Deliberately omit ndo_set_rx_mode and IFF_UNICAST_FLT
  * until the vendor multicast/filter programming contract is recovered.
  */
+static int zx279133_setup_tc(struct net_device *ndev,
+			    enum tc_setup_type type, void *type_data)
+{
+	return zx279133_flow_offload_setup_tc(netdev_priv(ndev), ndev, type,
+					     type_data);
+}
+
 const struct net_device_ops zx279133_netdev_ops = {
 	.ndo_open		= zx279133_open,
 	.ndo_stop		= zx279133_stop,
@@ -907,6 +914,7 @@ const struct net_device_ops zx279133_netdev_ops = {
 	.ndo_validate_addr	= eth_validate_addr,
 	.ndo_change_mtu		= zx279133_change_mtu,
 	.ndo_get_stats64	= zx279133_get_stats64,
+	.ndo_setup_tc		= zx279133_setup_tc,
 };
 
 static struct zx279133_eth *
@@ -1006,6 +1014,16 @@ zx279133_lan_netdev_change_mtu(struct zx279133_lan_service *service,
 
 	WRITE_ONCE(ndev->mtu, new_mtu);
 	return 0;
+}
+
+static int
+zx279133_lan_netdev_setup_tc(struct zx279133_lan_service *service,
+			     struct net_device *ndev,
+			     enum tc_setup_type type, void *type_data)
+{
+	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
+
+	return zx279133_flow_offload_setup_tc(eth, ndev, type, type_data);
 }
 
 static netdev_tx_t
@@ -1241,4 +1259,5 @@ const struct zx279133_lan_service_ops zx279133_lan_service_ops = {
 	.netdev_tx_timeout = zx279133_lan_netdev_tx_timeout,
 	.netdev_get_stats64 = zx279133_lan_netdev_get_stats64,
 	.netdev_change_mtu = zx279133_lan_netdev_change_mtu,
+	.netdev_setup_tc = zx279133_lan_netdev_setup_tc,
 };

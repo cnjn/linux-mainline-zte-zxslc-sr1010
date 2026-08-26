@@ -64,6 +64,16 @@ static int zx279133_lan_conduit_change_mtu(struct net_device *ndev,
 						      new_mtu);
 }
 
+static int zx279133_lan_conduit_setup_tc(struct net_device *ndev,
+					 enum tc_setup_type type,
+					 void *type_data)
+{
+	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
+
+	return zx279133_lan_service_netdev_setup_tc(priv->service, ndev, type,
+						   type_data);
+}
+
 static const struct net_device_ops zx279133_lan_conduit_netdev_ops = {
 	.ndo_open = zx279133_lan_conduit_open,
 	.ndo_stop = zx279133_lan_conduit_stop,
@@ -71,6 +81,7 @@ static const struct net_device_ops zx279133_lan_conduit_netdev_ops = {
 	.ndo_tx_timeout = zx279133_lan_conduit_tx_timeout,
 	.ndo_get_stats64 = zx279133_lan_conduit_get_stats64,
 	.ndo_change_mtu = zx279133_lan_conduit_change_mtu,
+	.ndo_setup_tc = zx279133_lan_conduit_setup_tc,
 	.ndo_set_mac_address = eth_mac_addr,
 	.ndo_validate_addr = eth_validate_addr,
 };

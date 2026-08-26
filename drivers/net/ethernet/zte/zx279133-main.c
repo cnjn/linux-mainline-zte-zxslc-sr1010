@@ -132,6 +132,9 @@ int zx279133_hardware_prepare(struct zx279133_eth *eth)
 	if (ret)
 		goto err_tm_restore;
 	zx279133_route_set(eth, true);
+	ret = zx279133_vlan_runtime_prepare(eth);
+	if (ret)
+		goto err_route_off;
 	zx279133_xmac_set_enabled(eth, false);
 
 	/* A failed stop may leave the generic PHY power reference held. Retry
@@ -180,6 +183,7 @@ void zx279133_hardware_unprepare(struct zx279133_eth *eth)
 		return;
 
 	zx279133_xmac_set_enabled(eth, false);
+	zx279133_flow_offload_flush(eth);
 	if (eth->xpcs_runtime_held)
 		zx279133_xpcs_set_bypass(eth, false);
 	ret = phy_power_off(eth->serdes);
@@ -441,10 +445,13 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 
 	eth->phylink_config.dev = &ndev->dev;
 	eth->phylink_config.type = PHYLINK_NETDEV;
+	/*
+	 * The factory XMAC1 path leaves 802.3x pause disabled. Advertising it
+	 * enables RX_FLOW, which throttles WAN transmit under forwarding load.
+	 */
 	eth->phylink_config.mac_capabilities =
 		MAC_2500FD | MAC_1000FD |
-		MAC_100 | MAC_10 |
-		MAC_SYM_PAUSE | MAC_ASYM_PAUSE;
+		MAC_100 | MAC_10;
 	__set_bit(PHY_INTERFACE_MODE_2500BASEX,
 		  eth->phylink_config.supported_interfaces);
 	__set_bit(PHY_INTERFACE_MODE_SGMII,
@@ -461,6 +468,9 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 				       eth->phylink);
 	if (ret)
 		return ret;
+	ret = zx279133_flow_offload_init(eth);
+	if (ret)
+		return ret;
 
 	ndev->netdev_ops = &zx279133_netdev_ops;
 	ndev->ethtool_ops = &zx279133_ethtool_ops;
@@ -470,6 +480,8 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 		ndev->hw_features |= NETIF_F_HW_CSUM;
 		ndev->features |= NETIF_F_HW_CSUM;
 	}
+	ndev->hw_features |= NETIF_F_HW_TC;
+	ndev->features |= NETIF_F_HW_TC;
 	ndev->min_mtu = ETH_MIN_MTU;
 	ndev->max_mtu = ZX279133_MAX_MTU;
 	if (of_get_ethdev_address(dev->of_node, ndev))

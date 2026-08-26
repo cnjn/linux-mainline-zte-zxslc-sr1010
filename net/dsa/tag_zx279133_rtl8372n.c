@@ -16,8 +16,6 @@
 #include "tag_8021q.h"
 
 #define ZX279133_RTL8372N_TAG_NAME	"zx279133-rtl8372n"
-#define ZX279133_RTL8372N_VID_BASE	55
-
 static int zx279133_rtl8372n_connect(struct dsa_switch *ds)
 {
 	struct zx279133_rtl8372n_tagger_data *data;
@@ -41,9 +39,9 @@ static void zx279133_rtl8372n_disconnect(struct dsa_switch *ds)
 
 static bool zx279133_rtl8372n_transport_vid(u16 vid)
 {
-	return vid >= ZX279133_RTL8372N_VID_BASE +
+	return vid >= ZX279133_RTL8372N_TRANSPORT_VID_BASE +
 		      ZX279133_RTL8372N_USER_PORT_MIN &&
-	       vid <= ZX279133_RTL8372N_VID_BASE +
+	       vid <= ZX279133_RTL8372N_TRANSPORT_VID_BASE +
 		      ZX279133_RTL8372N_USER_PORT_MAX;
 }
 
@@ -60,7 +58,9 @@ zx279133_rtl8372n_xmit(struct sk_buff *skb, struct net_device *netdev)
 	    dp->index > ZX279133_RTL8372N_USER_PORT_MAX)
 		return NULL;
 
-	vid = ZX279133_RTL8372N_VID_BASE + dp->index;
+	vid = ZX279133_RTL8372N_TRANSPORT_VID_BASE + dp->index;
+	if (dp->index == ZX279133_RTL8372N_USER_PORT_MAX)
+		vid = ZX279133_RTL8372N_LAN1_TX_VID;
 	access = zx279133_tagger_get_access_vlan(dp->ds, dp->index);
 	if (access & ZX279133_RTL8372N_ACCESS_UNTAGGED) {
 		u16 access_pvid = access & VLAN_VID_MASK;
@@ -83,7 +83,6 @@ zx279133_rtl8372n_xmit(struct sk_buff *skb, struct net_device *netdev)
 		if (skb_vlan_tag_present(skb) || eth_type_vlan(skb->protocol))
 			return NULL;
 	}
-
 	return dsa_8021q_xmit(skb, netdev, ETH_P_8021Q, vid);
 }
 
@@ -123,7 +122,7 @@ zx279133_rtl8372n_rcv(struct sk_buff *skb, struct net_device *netdev)
 	vid = skb_vlan_tag_get_id(skb);
 	if (!zx279133_rtl8372n_transport_vid(vid))
 		return NULL;
-	port = vid - ZX279133_RTL8372N_VID_BASE;
+	port = vid - ZX279133_RTL8372N_TRANSPORT_VID_BASE;
 	user = dsa_conduit_find_user(netdev, 0, port);
 	if (!user)
 		return NULL;

@@ -369,6 +369,11 @@ out:
  * to accept CPU-originated frames for a port.
  */
 #define ZX279133_MF_ERAM_BASE_BLOCK	17106
+#define ZX279133_VLAN_ERAM_BASE_BLOCK	12288
+
+static const u32 zx279133_vlan0_entry[ZX279133_SMMU0_WORDS] = {
+	0xffc00000, 0x0000ffff, 0xffffffff, 0x00003003,
+};
 
 /*
  * np_ppu_init() tail recovered from np.ko: the i-key response FIFO almost
@@ -420,6 +425,46 @@ int zx279133_program_wanid_cpu_mac(struct zx279133_eth *eth, const u8 *addr)
 	return 0;
 }
 
+int zx279133_program_wanid_sip(struct zx279133_eth *eth, u32 wanid,
+			       u32 sip, u32 *old_sip)
+{
+	u32 data[ZX279133_SMMU0_WORDS];
+	int ret;
+
+	if (wanid >= ZX279133_WANID_COUNT)
+		return -EINVAL;
+	ret = zx279133_smmu0_read(eth, (16386 + wanid) << 7, data,
+				  ARRAY_SIZE(data), ZX279133_SMMU0_CMD_READ);
+	if (ret)
+		return ret;
+	if (old_sip)
+		*old_sip = data[1];
+	data[1] = sip;
+	return zx279133_smmu0_write(eth, (16386 + wanid) << 7, data,
+				    ARRAY_SIZE(data), ZX279133_SMMU0_CMD_WRITE);
+}
+
+#define ZX279133_FAST_IKEY_BASE_BLOCK	23186
+
+int zx279133_fast_ikey_write(struct zx279133_eth *eth, u32 index,
+			     const u32 *data)
+{
+	return zx279133_smmu0_write(eth,
+				    (ZX279133_FAST_IKEY_BASE_BLOCK + index) << 7,
+				    data, ZX279133_SMMU0_WORDS,
+				    ZX279133_SMMU0_CMD_WRITE);
+}
+
+int zx279133_vlan_runtime_prepare(struct zx279133_eth *eth)
+{
+	/* Factory VLAN action template for untagged traffic (VID 0). */
+	return zx279133_smmu0_write(eth,
+				   ZX279133_VLAN_ERAM_BASE_BLOCK << 7,
+				   zx279133_vlan0_entry,
+				   ARRAY_SIZE(zx279133_vlan0_entry),
+				   ZX279133_SMMU0_CMD_WRITE);
+}
+
 static int zx279133_np_ppu_init_tail(struct zx279133_eth *eth)
 {
 	/*
@@ -445,6 +490,7 @@ static int zx279133_np_ppu_init_tail(struct zx279133_eth *eth)
 				   ZX279133_SMMU0_CMD_WRITE);
 	if (ret)
 		return ret;
+
 	/*
 	 * The vendor cspd runtime WANID image uses a 1996-byte L3 limit.
 	 * Keep that vendor-compatible CPU-WAN limit; it is not a 9K datapath
@@ -472,10 +518,9 @@ static int zx279133_np_ppu_init_tail(struct zx279133_eth *eth)
 	return 0;
 }
 
-static int zx279133_mf_eram_entry_set(struct zx279133_eth *eth, u32 mem_id,
-				      u32 attr)
+static int zx279133_mf_eram_entry_write(struct zx279133_eth *eth, u32 mem_id,
+					const u32 *data)
 {
-	u32 data[ZX279133_SMMU0_WORDS] = { 0, 0, 0, attr };
 	u32 addr_ind = (mem_id + ZX279133_MF_ERAM_BASE_BLOCK) << 7;
 	u32 rd[ZX279133_SMMU0_WORDS];
 	int ret;
@@ -494,10 +539,26 @@ static int zx279133_mf_eram_entry_set(struct zx279133_eth *eth, u32 mem_id,
 		return ret;
 	}
 	dev_dbg(eth->dev,
-		"MF ERAM mem %u ind 0x%x wrote %08x read %08x %08x %08x %08x\n",
-		mem_id, addr_ind, attr, rd[0], rd[1], rd[2], rd[3]);
+		"MF ERAM mem %u ind 0x%x read %08x %08x %08x %08x\n",
+		mem_id, addr_ind, rd[0], rd[1], rd[2], rd[3]);
 
 	return 0;
+}
+
+static int zx279133_mf_eram_attr_set(struct zx279133_eth *eth, u32 mem_id,
+				     u32 attr)
+{
+	u32 data[ZX279133_SMMU0_WORDS];
+	u32 addr_ind = (mem_id + ZX279133_MF_ERAM_BASE_BLOCK) << 7;
+	int ret;
+
+	ret = zx279133_smmu0_read(eth, addr_ind, data, ARRAY_SIZE(data),
+				  ZX279133_SMMU0_CMD_READ);
+	if (ret)
+		return ret;
+	data[3] = attr;
+
+	return zx279133_mf_eram_entry_write(eth, mem_id, data);
 }
 
 static int zx279133_mf_port_attr_set(struct zx279133_eth *eth, u32 mem_id,
@@ -516,7 +577,7 @@ static int zx279133_mf_port_attr_set(struct zx279133_eth *eth, u32 mem_id,
 	ret = zx279133_spa_indirect_write(eth, companion, 19, attr);
 	if (ret)
 		return ret;
-	return zx279133_mf_eram_entry_set(eth, mem_id, attr);
+	return zx279133_mf_eram_attr_set(eth, mem_id, attr);
 }
 
 static int zx279133_mf_port_ppuinit(struct zx279133_eth *eth)
@@ -572,9 +633,12 @@ static int zx279133_mf_port_startpc_copy(struct zx279133_eth *eth,
 
 #define ZX279133_PRO_ERAM_BASE_BLOCK	21266
 #define ZX279133_PRO_BLOCKS_PER_PORT	16
+#define ZX279133_LAN_INGRESS_PPU_PORT	0
+#define ZX279133_LAN_PPU_PORT		5
 #define ZX279133_WAN_PPU_PORT		6
+#define ZX279133_LAN_COMPANION_PORT	10
 
-static const u32 zx279133_wan_pro_table[ZX279133_PRO_BLOCKS_PER_PORT]
+static const u32 zx279133_wan_proto_table[ZX279133_PRO_BLOCKS_PER_PORT]
 					     [ZX279133_SMMU0_WORDS] = {
 	{ 0x7c3c7c3c, 0x30307c3c, 0x70303030, 0x70307030 },
 	{ 0x70307030, 0x70307030, 0x70307030, 0x70307030 },
@@ -594,16 +658,38 @@ static const u32 zx279133_wan_pro_table[ZX279133_PRO_BLOCKS_PER_PORT]
 	{ 0x70307030, 0x70307030, 0x70307030, 0x70307030 },
 };
 
-static int zx279133_wan_pro_table_write(struct zx279133_eth *eth)
+static const u32 zx279133_lan_proto_table[ZX279133_PRO_BLOCKS_PER_PORT]
+					     [ZX279133_SMMU0_WORDS] = {
+	{ 0x40024002, 0x14144002, 0x58181818, 0x58185818 },
+	{ 0x58185818, 0x58185818, 0x58185818, 0x58185818 },
+	{ 0x58185818, 0x58185818, 0x58185818, 0x58185818 },
+	{ 0x58185818, 0x58185818, 0x58185818, 0x58185010 },
+	{ 0x50105818, 0x58185818, 0x58185818, 0x58185818 },
+	{ 0x58185818, 0x58185818, 0x58181818, 0x18181818 },
+	{ 0x18185818, 0x58185818, 0x58185818, 0x58185818 },
+	{ 0x58185818, 0x58185818, 0x58185818, 0x58185818 },
+	{ 0x58185818, 0x58185818, 0x58185818, 0x18185818 },
+	{ 0x08085818, 0x48084002, 0x58180808, 0x48084808 },
+	{ 0x54145414, 0x58185414, 0x58184014, 0x58185818 },
+	{ 0x58185818, 0x58185818, 0x58185818, 0x58185818 },
+	{ 0x48084808, 0x58185818, 0x58185818, 0x58185818 },
+	{ 0x58185818, 0x58185818, 0x58185818, 0x58185818 },
+	{ 0x58185818, 0x58185818, 0x58185818, 0x58185818 },
+	{ 0x58185818, 0x58185818, 0x58185818, 0x58185818 },
+};
+
+static int
+zx279133_proto_table_write(struct zx279133_eth *eth, u32 port,
+			   const u32 table[][ZX279133_SMMU0_WORDS])
 {
 	u32 block = ZX279133_PRO_ERAM_BASE_BLOCK +
-		    ZX279133_WAN_PPU_PORT * ZX279133_PRO_BLOCKS_PER_PORT;
+		    port * ZX279133_PRO_BLOCKS_PER_PORT;
 	int i;
 	int ret;
 
-	for (i = 0; i < ARRAY_SIZE(zx279133_wan_pro_table); i++) {
+	for (i = 0; i < ZX279133_PRO_BLOCKS_PER_PORT; i++) {
 		ret = zx279133_smmu0_write(eth, (block + i) << 7,
-					   zx279133_wan_pro_table[i],
+					   table[i],
 					   ZX279133_SMMU0_WORDS,
 					   ZX279133_SMMU0_CMD_WRITE);
 		if (ret)
@@ -652,39 +738,80 @@ int zx279133_wan_port_bringup(struct zx279133_eth *eth)
 	ret = zx279133_spa_indirect_write(eth, 0, 0, reg);
 	if (ret)
 		return ret;
+	ret = zx279133_spa_indirect_write(eth, 0, 10, 0x01f4000c);
+	if (ret)
+		return ret;
 
 	ret = zx279133_mf_port_startpc_copy(eth, 6, 0);
 	if (ret)
 		return ret;
-	/* Keep PPU memory 5 on the factory LAN profile. */
+	/*
+	 * RTL8372N strips the private transport VLAN before XMAC0.  Its real
+	 * ingress path is SPA memory 5, so use the ordinary-Ethernet entry PC;
+	 * the factory LAN PC expects the four-byte private header to remain.
+	 */
 	ret = zx279133_spa_indirect_read(eth, 5, 0, &reg);
 	if (ret)
 		return ret;
-	reg = (reg & ~GENMASK(23, 0)) | 0x8015;
+	reg = (reg & ~GENMASK(23, 0)) | 0x463;
 	ret = zx279133_spa_indirect_write(eth, 5, 0, reg);
 	if (ret)
 		return ret;
 	/*
-	 * The factory user stack initializes the CPU PRO table before copying it
-	 * to port 6. Mainline has no such policy owner, so copying port 0 would
-	 * propagate an all-zero table. Program the final factory WAN image
-	 * directly. Vendor proto_table reports entries 30 and 33 as 0x7434.
+	 * RTL8372N ingress reaches the PPU through port 0; ports 5 and 10 cover
+	 * the CPU-facing and companion LAN paths. Retain the WAN image on port 6.
 	 */
-	ret = zx279133_wan_pro_table_write(eth);
+	ret = zx279133_proto_table_write(eth, ZX279133_LAN_INGRESS_PPU_PORT,
+					 zx279133_lan_proto_table);
+	if (ret)
+		return ret;
+	ret = zx279133_proto_table_write(eth, ZX279133_LAN_PPU_PORT,
+					 zx279133_lan_proto_table);
+	if (ret)
+		return ret;
+	ret = zx279133_proto_table_write(eth, ZX279133_WAN_PPU_PORT,
+					 zx279133_wan_proto_table);
+	if (ret)
+		return ret;
+	ret = zx279133_proto_table_write(eth, ZX279133_LAN_COMPANION_PORT,
+					 zx279133_lan_proto_table);
 	if (ret)
 		return ret;
 
-	ret = zx279133_spa_indirect_read(eth, 5, 10, &reg);
+	ret = zx279133_spa_indirect_write(eth, 10, 0, 0x00c0800b);
 	if (ret)
 		return ret;
-	reg = (reg & ~GENMASK(27, 0)) | 0x01f4000c;
-	ret = zx279133_spa_indirect_write(eth, 5, 10, reg);
+	ret = zx279133_spa_indirect_write(eth, 10, 1, 0x0000088e);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 10, 10, 0x01f4000c);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 10, 13, 0x00008008);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 10, 19, 0x00042000);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 15, 10, 0x01f4000c);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 5, 1, 0x0000088f);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 5, 10, 0x01f4000c);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 5, 13, 0x00650650);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 5, 14, 0x00650650);
 	if (ret)
 		return ret;
 	ret = zx279133_spa_indirect_write(eth, 5, 19, 0x00042000);
 	if (ret)
 		return ret;
-	ret = zx279133_mf_eram_entry_set(eth, 5, 0x00042000);
+	ret = zx279133_mf_eram_attr_set(eth, 5, 0x00042000);
 	if (ret)
 		return ret;
 
@@ -693,10 +820,31 @@ int zx279133_wan_port_bringup(struct zx279133_eth *eth)
 	 * 0x148e0000 = iswanport | ppuinit | onumode | isolate |
 	 * smac_learn | bit 26 (observed live on the factory system).
 	 */
+	ret = zx279133_spa_indirect_write(eth, 6, 1, 0x0000088f);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 6, 10, 0x01f4000c);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 6, 13, 0x00008008);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 6, 17, 0x0e014400);
+	if (ret)
+		return ret;
+	ret = zx279133_spa_indirect_write(eth, 6, 18, 0x000001f1);
+	if (ret)
+		return ret;
 	ret = zx279133_spa_indirect_write(eth, 6, 19, 0x148e0000);
 	if (ret)
 		return ret;
-	ret = zx279133_mf_eram_entry_set(eth, 6, 0x148e0000);
+	{
+		const u32 mf6[ZX279133_SMMU0_WORDS] = {
+			0, 0x0e014400, 0x000001f1, 0x148e0000,
+		};
+
+		ret = zx279133_mf_eram_entry_write(eth, 6, mf6);
+	}
 	if (ret)
 		return ret;
 
@@ -916,6 +1064,27 @@ static int zx279133_se_hash_sdt_create(struct zx279133_eth *eth, u32 sdt_no,
 	return 0;
 }
 
+static int zx279133_se_fast_multi_prepare(struct zx279133_eth *eth)
+{
+	static const u32 config[] = {
+		0xff000000, 0xffffffff, 0xffffffff, 0xffffffff,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0x01000344,
+	};
+	u32 index = 0x8000;
+	int ret;
+
+	/* SDT 43 starts at multi-hash index 48.  Config table 0 extracts the
+	 * 16-byte IPv4 fast-flow key and selects 256-bit hash table ID 1.
+	 */
+	ret = zx279133_se_parser_write(eth, 0x8800, config,
+				       ARRAY_SIZE(config));
+	if (ret)
+		return ret;
+
+	return zx279133_se_parser_write(eth, 0x8630, &index, 1);
+}
+
 static int zx279133_se_plcr_write(struct zx279133_eth *eth, u32 addr,
 				  u32 value)
 {
@@ -1070,6 +1239,11 @@ static int zx279133_se_sdt_create(struct zx279133_eth *eth)
 			break;
 		}
 	}
+
+	ret = zx279133_se_fast_multi_prepare(eth);
+	if (ret)
+		return dev_err_probe(eth->dev, ret,
+				     "SE fast multi-hash setup failed\n");
 
 	/*
 	 * The factory's runtime SE table contents captured live: sdt 6 (the

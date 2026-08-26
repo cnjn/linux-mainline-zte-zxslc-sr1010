@@ -51,6 +51,9 @@ struct zx279133_lan_service_ops {
 				   struct rtnl_link_stats64 *stats);
 	int (*netdev_change_mtu)(struct zx279133_lan_service *service,
 				 struct net_device *ndev, int new_mtu);
+	int (*netdev_setup_tc)(struct zx279133_lan_service *service,
+			       struct net_device *ndev,
+			       enum tc_setup_type type, void *type_data);
 };
 
 struct zx279133_lan_service {
@@ -70,7 +73,7 @@ zx279133_lan_service_valid(const struct zx279133_lan_service *service)
 	       service->ops->netdev_open && service->ops->netdev_stop &&
 	       service->ops->netdev_xmit && service->ops->netdev_tx_timeout &&
 	       service->ops->netdev_get_stats64 &&
-	       service->ops->netdev_change_mtu;
+	       service->ops->netdev_change_mtu && service->ops->netdev_setup_tc;
 }
 
 static inline u32
@@ -195,6 +198,15 @@ zx279133_lan_service_netdev_change_mtu(struct zx279133_lan_service *service,
 				       int new_mtu)
 {
 	return service->ops->netdev_change_mtu(service, ndev, new_mtu);
+}
+
+static inline int
+zx279133_lan_service_netdev_setup_tc(struct zx279133_lan_service *service,
+				     struct net_device *ndev,
+				     enum tc_setup_type type,
+				     void *type_data)
+{
+	return service->ops->netdev_setup_tc(service, ndev, type, type_data);
 }
 
 static inline void

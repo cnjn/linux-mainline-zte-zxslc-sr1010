@@ -143,7 +143,7 @@
 #define RTL8372N_USER_PORT_MAX		7
 #define RTL8372N_USER_PORT_MASK		GENMASK(7, 4)
 #define RTL8372N_CPU_PORT		8
-#define RTL8372N_TRANSPORT_VID_BASE	55
+#define RTL8372N_TRANSPORT_VID_BASE	ZX279133_RTL8372N_TRANSPORT_VID_BASE
 #define RTL8372N_VLAN_MBR_MASK		GENMASK(9, 0)
 #define RTL8372N_VLAN_UNTAG_SHIFT	10
 #define RTL8372N_VLAN_UNTAG_MASK	GENMASK(19, 10)
@@ -446,8 +446,9 @@ static int rtl8372n_vlan_read(struct mdio_device *mdiodev, u16 vid,
 
 static bool rtl8372n_is_transport_vid(u16 vid)
 {
-	return vid >= RTL8372N_TRANSPORT_VID_BASE + RTL8372N_USER_PORT_MIN &&
-	       vid <= RTL8372N_TRANSPORT_VID_BASE + RTL8372N_USER_PORT_MAX;
+	return (vid >= RTL8372N_TRANSPORT_VID_BASE + RTL8372N_USER_PORT_MIN &&
+		vid <= RTL8372N_TRANSPORT_VID_BASE + RTL8372N_USER_PORT_MAX) ||
+	       vid == ZX279133_RTL8372N_LAN1_TX_VID;
 }
 
 static int rtl8372n_port_pvid_field(int port, u16 *reg, u32 *mask,
@@ -1064,12 +1065,12 @@ static int rtl8372n_port7_vlan_init(struct device *dev,
 	mutex_lock(&mdiodev->bus->mdio_lock);
 	priv->switch_touched = true;
 
-	/*
-	 * Mainline tag_8021q bring-up contract: keep 0x8100 as an ordinary
-	 * C-tag, assign untagged port7 traffic to VID 62, and strip VID 62
-	 * again on egress to port7.  CPU port8 therefore carries tagged VID 62.
+	/* Strip RX VID62 toward both Port7 and CPU8 so the active LAN1 fast path
+	 * reaches PPU as an ordinary Ethernet frame. Use a separate TX-only VID
+	 * because RTL8372N cannot ingress a tagged CPU8 frame through an entry
+	 * that also marks CPU8 untagged.
 	 */
-	ret = rtl8372n_write_reg(mdiodev, RTL8372N_SVLAN_TPID, 0x88a8);
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_SVLAN_TPID, 0x8100);
 	if (ret)
 		goto out_unlock;
 	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SVLAN_SERVICE_PORT,
@@ -1077,10 +1078,14 @@ static int rtl8372n_port7_vlan_init(struct device *dev,
 	if (ret)
 		goto out_unlock;
 	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT7_ACCEPT,
-				  GENMASK(15, 14), 0);
+				  GENMASK(17, 14), 0);
 	if (ret)
 		goto out_unlock;
-	ret = rtl8372n_vlan_write(mdiodev, 62, 0x00020180);
+	ret = rtl8372n_vlan_write(mdiodev, 62, 0x00060180);
+	if (ret)
+		goto out_unlock;
+	ret = rtl8372n_vlan_write(mdiodev,
+				 ZX279133_RTL8372N_LAN1_TX_VID, 0x00020180);
 	if (ret)
 		goto out_unlock;
 	ret = rtl8372n_write_reg(mdiodev, RTL8372N_PORT7_ISOLATION, 0x180);
@@ -1119,8 +1124,17 @@ static int rtl8372n_port7_vlan_init(struct device *dev,
 	ret = rtl8372n_vlan_read(mdiodev, 62, &value);
 	if (ret)
 		goto out_unlock;
-	if (value != 0x00020180) {
+	if (value != 0x00060180) {
 		dev_err(dev, "RTL8372N VLAN62 readback mismatch: %#x\n", value);
+		ret = -EIO;
+		goto out_unlock;
+	}
+	ret = rtl8372n_vlan_read(mdiodev,
+				ZX279133_RTL8372N_LAN1_TX_VID, &value);
+	if (ret)
+		goto out_unlock;
+	if (value != 0x00020180) {
+		dev_err(dev, "RTL8372N VLAN63 readback mismatch: %#x\n", value);
 		ret = -EIO;
 		goto out_unlock;
 	}
@@ -1255,7 +1269,7 @@ static int rtl8372n_port7_vlan_init(struct device *dev,
 	}
 
 	dev_info(dev,
-		 "RTL8372N C-VLAN59..62 ports4..7-to-CPU8 image configured after validated port7 sequence\n");
+		 "RTL8372N C-VLAN59..62 RX and LAN1 VID63 TX transport configured\n");
 	return 0;
 }
 

@@ -21,9 +21,9 @@
 #define zx279133_tx_queue		1
 #define zx279133_tx_port		6
 #define ZX279133_LAN_TX_PORT		5
-#define ZX279133_LAN_SOURCE_PORT_MIN	59
-#define ZX279133_LAN_SOURCE_PORT_MAX	62
-#define ZX279133_LAN_SOURCE_PORT_NATIVE	5
+#define ZX279133_LAN_RX_QUEUE_COUNT	8
+#define ZX279133_LAN_TRANSPORT_VID_MIN	59
+#define ZX279133_LAN_TRANSPORT_VID_MAX	62
 #define ZX279133_LAN_INGRESS_VID	1
 #define ZX279133_LAN_VID		62
 #define ZX279133_TX_RECLAIM_DELAY_MS	10
@@ -493,11 +493,13 @@ static_assert(ZX279133_BMU_BPPE_SIZE +
 	      ZX279133_BMU_DESC_SIZE == ZX279133_BMU_REQUIRED_SIZE);
 
 struct zx279133_eth;
+struct zx279133_flow_offload;
 
 struct zx279133_eth {
 	struct device *dev;
 	struct net_device *ndev;
 	struct net_device *lan_ndev;
+	struct zx279133_flow_offload *flow_offload;
 	struct zx279133_lan_service lan_service;
 	struct zx279133_netdev_stats stats;
 	void __iomem *base;
@@ -699,11 +701,21 @@ void zx279133_tm_restore(struct zx279133_eth *eth);
 int zx279133_np_prepare(struct zx279133_eth *eth);
 void zx279133_np_restore(struct zx279133_eth *eth);
 void zx279133_route_set(struct zx279133_eth *eth, bool enabled);
+int zx279133_vlan_runtime_prepare(struct zx279133_eth *eth);
 int zx279133_wan_port_bringup(struct zx279133_eth *eth);
 void zx279133_program_spa_cpu_mac(struct zx279133_eth *eth,
 				  const unsigned char *addr);
 int zx279133_program_wanid_cpu_mac(struct zx279133_eth *eth,
 				   const unsigned char *addr);
+int zx279133_program_wanid_sip(struct zx279133_eth *eth, u32 wanid,
+			       u32 sip, u32 *old_sip);
+int zx279133_fast_ikey_write(struct zx279133_eth *eth, u32 index,
+			     const u32 *data);
+int zx279133_flow_offload_init(struct zx279133_eth *eth);
+void zx279133_flow_offload_flush(struct zx279133_eth *eth);
+int zx279133_flow_offload_setup_tc(struct zx279133_eth *eth,
+				   struct net_device *ndev,
+				   enum tc_setup_type type, void *type_data);
 
 void zx279133_idm_set_masked(struct zx279133_eth *eth, u32 mask, bool masked);
 unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth);
