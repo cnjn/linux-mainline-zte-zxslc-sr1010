@@ -67,7 +67,6 @@ struct zx279133_flow_entry {
 	u16 ikey;
 	u16 age;
 	bool snat;
-	u64 lastused;
 };
 
 struct zx279133_flow_offload {
@@ -553,7 +552,6 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	zx279133_fast_key_build(entry->key, &data.tuple, ip_proto);
 	snat = xlate.src_addr != data.tuple.src_addr;
 	entry->snat = snat;
-	entry->lastused = jiffies;
 
 	mutex_lock(&offload->lock);
 	if (!READ_ONCE(offload->eth->hardware_prepared)) {
@@ -655,23 +653,6 @@ out_unlock:
 	return ret;
 }
 
-static int zx279133_flow_stats(struct zx279133_flow_offload *offload,
-			       struct flow_cls_offload *f)
-{
-	struct zx279133_flow_entry *entry;
-	int ret = 0;
-
-	mutex_lock(&offload->lock);
-	entry = xa_load(&offload->flows, f->cookie);
-	if (!entry)
-		ret = -ENOENT;
-	else
-		flow_stats_update(&f->stats, 0, 0, 0, entry->lastused,
-				  FLOW_ACTION_HW_STATS_DELAYED);
-	mutex_unlock(&offload->lock);
-	return ret;
-}
-
 static int zx279133_flow_command(struct zx279133_flow_offload *offload,
 				 struct net_device *bind_dev,
 				 struct flow_cls_offload *f)
@@ -681,8 +662,6 @@ static int zx279133_flow_command(struct zx279133_flow_offload *offload,
 		return zx279133_flow_replace(offload, bind_dev, f);
 	case FLOW_CLS_DESTROY:
 		return zx279133_flow_destroy(offload, f);
-	case FLOW_CLS_STATS:
-		return zx279133_flow_stats(offload, f);
 	default:
 		return -EOPNOTSUPP;
 	}
