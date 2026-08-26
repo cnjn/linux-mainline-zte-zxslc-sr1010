@@ -121,6 +121,21 @@ clang -O3 -pthread udp-pacer.c -o /tmp/udp-pacer
 Compare Mac transmit bytes with Windows `ReceivedBytes` and compare the
 sender's packet count with Windows `ReceivedUnicastPackets`.
 
+## Single-flow TCP NAT
+
+Load `TcpStream.cs` on Windows. Windows always opens one connection through
+the router, while the direction selects which endpoint writes payload data:
+
+```powershell
+Add-Type -Path C:\Users\cnjn\AppData\Local\Temp\TcpStream.cs
+[TcpStream]::Send(15000, 5205)
+[TcpStream]::Receive(15000, 5206)
+```
+
+For `Send`, run a TCP sink on Mac port 5205. For `Receive`, run a TCP source on
+Mac port 5206. During each transfer, the matching conntrack entry must contain
+`[HW_OFFLOAD]`; after the connection closes, the entry must disappear.
+
 ## Cleanup
 
 ```sh

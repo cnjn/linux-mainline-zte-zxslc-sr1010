@@ -536,3 +536,14 @@ An unreplied UDP connection still uses the short conntrack timeout and may
 leave and later re-enter the hardware path. This is normal for a one-way UDP
 probe and is not representative of an established NAT exchange. Real hardware
 packet, byte, and last-used reporting remains outside this acceptance.
+
+## Single-flow TCP NAT Acceptance
+
+The same nftables ruleset was accepted with one established TCP connection in
+each direction. LAN-to-WAN transferred 4,445,372,416 payload bytes in
+15.002875 seconds (2.370411 Gbit/s); WAN-to-LAN transferred 4,443,627,792
+payload bytes in 15.004102 seconds (2.369287 Gbit/s). Both connections showed
+`[HW_OFFLOAD]` while active and disappeared from conntrack after close. The
+SPA TCP-control mask remains at the vendor value `7`, so FIN and RST packets
+leave the fast path for normal conntrack teardown. `TcpStream.cs` preserves
+the single-connection Windows harness.
