@@ -358,16 +358,33 @@ match, rewrite, and redirect information.
 `drivers/net/ethernet/zte/zx279133-offload.c` now implements that direct path
 for exact-match IPv4 TCP/UDP forwarding between the LAN conduit and WAN:
 
-- the original five-tuple becomes the 16-byte SDT 14 key;
+- the original five-tuple becomes the 16-byte SDT 43 multi-hash key;
 - Ethernet, route, source/destination NAT, and port-NAT rewrites become the
   32-byte fast response;
 - source NAT updates WANID 0's source-IPv4 word while the translated address
   is in use;
-- entries use the vendor SDT 14 fallback representation, a 64-byte ZCAM row
-  with footer `0xe0`;
+- the recovered SDT 43 configuration extracts that key into 256-bit table ID 1,
+  and entries use a 32-byte ZCAM row with footer `0xc1`;
 - placement uses the four vendor ZCAM blocks, five cells per block, and the
-  alternating CRC16 polynomials `0x1021`/`0x8005`;
+  alternating CRC16 polynomials `0x1021`/`0x8005`, providing 20 candidate
+  locations per key and 5,120 physical slots;
 - add and delete use the SE algorithm indirect window at PPS `0x50000`.
+
+SDT 43 selects hash ID 0, exactly as the factory `0xb8` descriptor does, so
+fast IPv4 entries do not use the 16 MiB DDR window reserved for hash ID 1. The
+effective table limit is instead 4,096 independent IKEY/age entries, or 2,048
+bidirectional connections. The first 1,024 hardware directions additionally
+own exact SDT29 packet/byte counters; later directions leave the response's
+statistics-enable bit clear and use the independent SE age bit for truthful
+`lastused` refresh.
+
+Capacity acceptance on 2026-08-26 installed 2,048 bidirectional UDP NAT
+connections: all 4,096 flower directions reported `in_hw_count 1`, and the
+2,049th connection failed with `-ENOSPC` without leaving a partial rule. All
+4,096 entries then deleted cleanly. A focused collision set installed 32
+bidirectional connections whose LAN keys share ZCAM block 0/cell 0/address
+`0x42` and whose reverse keys share block 0/cell 0/address `0x0e`; all 64
+directions reached hardware through the remaining cell/block candidates.
 
 The WAN and LAN conduit netdevs advertise `NETIF_F_HW_TC`. Each bound flow
 block retains its actual netdev, so ordinary clsact rules use the bind device

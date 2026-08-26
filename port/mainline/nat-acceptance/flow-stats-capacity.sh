@@ -20,6 +20,7 @@ add)
 			added=$((added + 1))
 		else
 			failed=$((failed + 1))
+			echo "add_failed index=$i port=$port pref=$pref"
 			TC="$tc" "$helper" del "$port" "$pref" >/dev/null 2>&1
 		fi
 		i=$((i + 1))

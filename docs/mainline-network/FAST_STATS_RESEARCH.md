@@ -2,16 +2,19 @@
 
 ## Status
 
-Hardware fast-entry packet, byte, and counter-derived last-used statistics are
-implemented and board-validated. Each hardware direction owns an independent
-10-bit statistics ID, reads its two 64-bit SDT29 counters, and returns deltas
-through `FLOW_CLS_STATS` with `FLOW_ACTION_HW_STATS_DELAYED`. `lastused` moves
-to the current `jiffies` only when a hardware packet or byte counter advances;
-rule insertion and a stats read without traffic cannot manufacture activity.
+Hardware fast-entry packet, byte, and age-derived last-used statistics are
+implemented and board-validated. The first 1,024 hardware directions own an
+independent 10-bit statistics ID, read their two 64-bit SDT29 counters, and
+return exact deltas through `FLOW_CLS_STATS` with
+`FLOW_ACTION_HW_STATS_DELAYED`. The hardware has 4,096 independent IKEY and
+age entries, so later directions remain offloaded with the response's
+statistics-enable bit clear: packet and byte deltas stay zero, while the real
+SE age bit refreshes `lastused`.
 
-The SE age read-clear bitmap is not used. Linux flowtable lifetime remains the
-owner of expiration, and its standard hardware-stats worker extends the flow
-timeout from the hardware-derived `lastused` value.
+The age bit is read and cleared twice, matching `np.ko`; activity observed in
+either read moves `lastused` to the current `jiffies`. Rule insertion and a
+stats read without traffic cannot manufacture activity. Linux flowtable
+lifetime remains the owner of expiration.
 
 This note preserves the useful evidence from Pi session
 `01a039cf-767f-7157-ab4c-1c9563470913` without retaining its experimental
@@ -134,10 +137,17 @@ Both links remained up and the kernel log stayed free of BUG, Oops, WARNING,
 WANID, and SMMU failures. `udp-echo.c`, `flow-stats-reuse.sh`, and
 `flow-stats-capacity.sh` preserve the repeatable harnesses.
 
-The accepted FIT is `/Volumes/code/zx279133/out/sr1010-zxdbg.itb`, 5,975,860
+The accepted FIT is `/Volumes/code/zx279133/out/sr1010-zxdbg.itb`, 5,975,852
 bytes, SHA256
-`522733e904edde206a3fb09325f4f794f1a84788f731c01c5ca5b24a6d0636f5`.
+`8c8eeb65b8cb059eddb594f8369d990fa8178d9edcb434aaa322ec753dc49aa7`.
 
-Explicit SE age-bit consumption and age-driven rule deletion remain outside
-the implementation. They are unnecessary for Linux flowtable timeout
-maintenance now that real hardware activity supplies `lastused`.
+The large-table acceptance then installed 2,048 concurrent NAT connections,
+or all 4,096 IKEY/age entries. Every direction reported `in_hw_count 1`; the
+2,049th connection failed cleanly with `-ENOSPC`. A direction beyond the
+1,024-counter pool forwarded exactly 100 packets while retaining zero
+packet/byte totals, and its TC `last_used` value refreshed from the SE age bit
+in both directions. Deleting all 2,048 connections left no rule behind.
+
+`flow-zcam-collision.sh` separately installed 32 bidirectional connections
+whose primary CRC16 locations deliberately collide. All 64 directions reached
+hardware through the remaining ZCAM candidates.

@@ -199,8 +199,31 @@ clang -O2 -Wall -Wextra -Werror udp-echo.c -o /tmp/udp-echo
 
 `flow-stats-reuse.sh` runs repeated add, zero-stats, delete, and counter-ID
 reuse cycles. `flow-stats-capacity.sh` has `add`, `check`, and `del` commands for
-a concurrent rule set; copy both scripts and `tc-udp-flow.sh` to the board and
-set `TC`/`HELPER` only when they are not under `/tmp`.
+a concurrent rule set. `flow-zcam-collision.sh` uses 32 port pairs whose
+forward and reverse keys each share one primary ZCAM location, forcing the
+allocator through alternate cells and blocks. Copy the scripts and
+`tc-udp-flow.sh` to the board and set `TC`/`HELPER` when they are not under
+`/tmp`.
+
+The complete capacity and collision checks are:
+
+```sh
+TC=/tmp/tc HELPER=/tmp/tc-udp-flow.sh \
+	/tmp/flow-stats-capacity.sh add 2048 1000 6000
+TC=/tmp/tc /tmp/flow-stats-capacity.sh check 2048 1000 6000
+TC=/tmp/tc HELPER=/tmp/tc-udp-flow.sh \
+	/tmp/flow-stats-capacity.sh del 2048 1000 6000
+
+TC=/tmp/tc HELPER=/tmp/tc-udp-flow.sh \
+	/tmp/flow-zcam-collision.sh add 4000
+TC=/tmp/tc /tmp/flow-zcam-collision.sh check 4000
+TC=/tmp/tc HELPER=/tmp/tc-udp-flow.sh \
+	/tmp/flow-zcam-collision.sh del 4000
+```
+
+The 2,048-connection test consumes all 4,096 IKEY/age entries. The first 1,024
+directions have exact packet/byte counters; later directions intentionally
+report zero packet/byte deltas and use hardware age for `lastused`.
 
 The accepted statistics lifecycle used 100 reuse cycles and 256 concurrent NAT
 connections. Eight distributed connections each counted 825 packets and
