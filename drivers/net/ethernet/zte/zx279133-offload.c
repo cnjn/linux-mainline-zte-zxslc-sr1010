@@ -5,6 +5,7 @@
 #include <linux/etherdevice.h>
 #include <linux/iopoll.h>
 #include <linux/ip.h>
+#include <linux/jiffies.h>
 #include <linux/slab.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
@@ -38,8 +39,6 @@
 #define ZX279133_SE_HASH_AGCLK		BIT(2)
 #define ZX279133_FAST_SDT_SELECTOR	0x01
 #define ZX279133_FAST_SDT_FOOTER	0xc1
-#define ZX279133_FAST_FLOWID_WAN		2
-#define ZX279133_FAST_FLOWID_LAN		302
 
 enum zx279133_flow_port {
 	ZX279133_FLOW_PORT_NONE,
@@ -66,6 +65,10 @@ struct zx279133_flow_entry {
 	u8 zaddr;
 	u16 ikey;
 	u16 age;
+	u16 stat;
+	u64 packets;
+	u64 bytes;
+	unsigned long lastused;
 	bool snat;
 };
 
@@ -78,6 +81,7 @@ struct zx279133_flow_offload {
 	DECLARE_BITMAP(zcam_used, ZX279133_ZCAM_SLOTS);
 	DECLARE_BITMAP(ikey_used, ZX279133_FAST_IKEY_DEPTH);
 	DECLARE_BITMAP(age_used, ZX279133_FAST_AGE_DEPTH);
+	DECLARE_BITMAP(stat_used, ZX279133_FAST_STAT_DEPTH);
 	__be32 snat_addr;
 	u32 snat_users;
 	u32 saved_wanid_sip;
@@ -204,7 +208,7 @@ static void zx279133_fast_response_build(u8 *fast,
 					 const struct zx279133_flow_data *data,
 					 const struct zx279133_flow_tuple *xlate,
 					 enum zx279133_flow_port ingress,
-					 u16 lan_vid, u16 ikey)
+					 u16 lan_vid, u16 ikey, u16 stat)
 {
 	int i;
 
@@ -212,9 +216,7 @@ static void zx279133_fast_response_build(u8 *fast,
 	 * byte first, exactly as np.ko's fast_hashinfo_set() emits them.
 	 */
 	memset(fast, 0, ZX279133_FAST_DATA_SIZE);
-	put_unaligned(ingress == ZX279133_FLOW_PORT_LAN ?
-		      ZX279133_FAST_FLOWID_WAN : ZX279133_FAST_FLOWID_LAN,
-		      (u16 *)(fast + 2));
+	put_unaligned(stat, (u16 *)(fast + 2));
 	for (i = 0; i < ETH_ALEN; i++)
 		fast[8 + i] = data->eth.h_dest[ETH_ALEN - 1 - i];
 
@@ -575,13 +577,21 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 					ZX279133_FAST_AGE_DEPTH, &entry->age);
 	if (ret)
 		goto out_release_ikey;
+	ret = zx279133_fast_index_alloc(offload->stat_used,
+					ZX279133_FAST_STAT_DEPTH, &entry->stat);
+	if (ret)
+		goto out_release_age;
+	ret = zx279133_fast_stats_read(offload->eth, entry->stat,
+				       &entry->packets, &entry->bytes);
+	if (ret)
+		goto out_release_stat;
 	if (snat) {
 		ret = zx279133_flow_snat_get(offload, xlate.src_addr);
 		if (ret)
-			goto out_release_age;
+			goto out_release_stat;
 	}
 	zx279133_fast_response_build(fast, &data, &xlate, ingress, lan_vid,
-				     entry->ikey);
+				     entry->ikey, entry->stat);
 	memcpy(ikey, fast, sizeof(ikey));
 	zx279133_fast_table_build(table, fast, entry->key, entry->age);
 	ret = zx279133_fast_ikey_write(offload->eth, entry->ikey, ikey);
@@ -605,6 +615,8 @@ out_clear_ikey:
 out_put_snat:
 	if (snat)
 		zx279133_flow_snat_put(offload);
+out_release_stat:
+	__clear_bit(entry->stat, offload->stat_used);
 out_release_age:
 	__clear_bit(entry->age, offload->age_used);
 out_release_ikey:
@@ -644,9 +656,42 @@ static int zx279133_flow_destroy(struct zx279133_flow_offload *offload,
 				     entry->zaddr), offload->zcam_used);
 	__clear_bit(entry->ikey, offload->ikey_used);
 	__clear_bit(entry->age, offload->age_used);
+	__clear_bit(entry->stat, offload->stat_used);
 	if (entry->snat)
 		zx279133_flow_snat_put(offload);
 	kfree(entry);
+
+out_unlock:
+	mutex_unlock(&offload->lock);
+	return ret;
+}
+
+static int zx279133_flow_stats(struct zx279133_flow_offload *offload,
+			       struct flow_cls_offload *f)
+{
+	struct zx279133_flow_entry *entry;
+	unsigned long lastused;
+	u64 packets, bytes;
+	int ret;
+
+	mutex_lock(&offload->lock);
+	entry = xa_load(&offload->flows, f->cookie);
+	if (!entry) {
+		ret = -ENOENT;
+		goto out_unlock;
+	}
+	ret = zx279133_fast_stats_read(offload->eth, entry->stat,
+				       &packets, &bytes);
+	if (ret)
+		goto out_unlock;
+	if (packets != entry->packets || bytes != entry->bytes)
+		entry->lastused = jiffies;
+	lastused = entry->lastused;
+	flow_stats_update(&f->stats, bytes - entry->bytes,
+			  packets - entry->packets, 0, lastused,
+			  FLOW_ACTION_HW_STATS_DELAYED);
+	entry->packets = packets;
+	entry->bytes = bytes;
 
 out_unlock:
 	mutex_unlock(&offload->lock);
@@ -662,6 +707,8 @@ static int zx279133_flow_command(struct zx279133_flow_offload *offload,
 		return zx279133_flow_replace(offload, bind_dev, f);
 	case FLOW_CLS_DESTROY:
 		return zx279133_flow_destroy(offload, f);
+	case FLOW_CLS_STATS:
+		return zx279133_flow_stats(offload, f);
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -755,6 +802,7 @@ void zx279133_flow_offload_flush(struct zx279133_eth *eth)
 	bitmap_zero(offload->zcam_used, ZX279133_ZCAM_SLOTS);
 	bitmap_zero(offload->ikey_used, ZX279133_FAST_IKEY_DEPTH);
 	bitmap_zero(offload->age_used, ZX279133_FAST_AGE_DEPTH);
+	bitmap_zero(offload->stat_used, ZX279133_FAST_STAT_DEPTH);
 	offload->snat_addr = 0;
 	offload->snat_users = 0;
 	mutex_unlock(&offload->lock);

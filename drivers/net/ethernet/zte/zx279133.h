@@ -337,6 +337,7 @@
 #define ZX279133_SMMU0_ADDR_MASK	GENMASK(27, 0)
 #define ZX279133_SMMU0_RAM_MASK	GENMASK(1, 0)
 #define ZX279133_SMMU0_WORDS		4
+#define ZX279133_FAST_STAT_DEPTH	1024
 #define ZX279133_AGCLK_VALUE_MASK	GENMASK(12, 0)
 #define ZX279133_SPA_AUTO_GATE		0xb8
 #define ZX279133_SPA_AUTO_GATE_BIT	BIT(12)
@@ -711,6 +712,8 @@ int zx279133_program_wanid_sip(struct zx279133_eth *eth, u32 wanid,
 			       u32 sip, u32 *old_sip);
 int zx279133_fast_ikey_write(struct zx279133_eth *eth, u32 index,
 			     const u32 *data);
+int zx279133_fast_stats_read(struct zx279133_eth *eth, u16 flow_id,
+			     u64 *packets, u64 *bytes);
 int zx279133_flow_offload_init(struct zx279133_eth *eth);
 void zx279133_flow_offload_flush(struct zx279133_eth *eth);
 int zx279133_flow_offload_setup_tc(struct zx279133_eth *eth,

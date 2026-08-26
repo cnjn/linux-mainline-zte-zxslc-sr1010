@@ -445,6 +445,9 @@ int zx279133_program_wanid_sip(struct zx279133_eth *eth, u32 wanid,
 }
 
 #define ZX279133_FAST_IKEY_BASE_BLOCK	23186
+#define ZX279133_FAST_STAT_BASE_BLOCK	0x9081
+#define ZX279133_FAST_STAT_ENTRY_STRIDE	64
+#define ZX279133_SMMU0_CMD_READ64	0x08000000
 
 int zx279133_fast_ikey_write(struct zx279133_eth *eth, u32 index,
 			     const u32 *data)
@@ -453,6 +456,39 @@ int zx279133_fast_ikey_write(struct zx279133_eth *eth, u32 index,
 				    (ZX279133_FAST_IKEY_BASE_BLOCK + index) << 7,
 				    data, ZX279133_SMMU0_WORDS,
 				    ZX279133_SMMU0_CMD_WRITE);
+}
+
+static int zx279133_fast_stat_counter_read(struct zx279133_eth *eth,
+					   u32 index, u64 *counter)
+{
+	u32 data[ZX279133_SMMU0_WORDS];
+	int ret;
+
+	/* A 64-bit SDT read returns the selected entry in words 2 and 3. */
+	ret = zx279133_smmu0_read(eth,
+				  (ZX279133_FAST_STAT_BASE_BLOCK << 7) +
+				  index * ZX279133_FAST_STAT_ENTRY_STRIDE,
+				  data, ARRAY_SIZE(data),
+				  ZX279133_SMMU0_CMD_READ64);
+	if (ret)
+		return ret;
+	*counter = (u64)data[3] << 32 | data[2];
+
+	return 0;
+}
+
+int zx279133_fast_stats_read(struct zx279133_eth *eth, u16 flow_id,
+			     u64 *packets, u64 *bytes)
+{
+	int ret;
+
+	if (flow_id >= ZX279133_FAST_STAT_DEPTH)
+		return -EINVAL;
+	ret = zx279133_fast_stat_counter_read(eth, 2 * flow_id, packets);
+	if (ret)
+		return ret;
+
+	return zx279133_fast_stat_counter_read(eth, 2 * flow_id + 1, bytes);
 }
 
 int zx279133_vlan_runtime_prepare(struct zx279133_eth *eth)
