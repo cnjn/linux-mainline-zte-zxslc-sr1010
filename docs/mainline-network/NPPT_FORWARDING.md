@@ -591,12 +591,13 @@ small-packet tests.
 
 ## Multi-Flow and Lifecycle Acceptance
 
-The driver no longer implements `FLOW_CLS_STATS` with the flow insertion time.
-That value was neither a packet hit nor a last-used update and could make
-netfilter treat synthetic data as hardware activity. Until the vendor
-parser/statistics path is reproduced, stats requests correctly return
-`-EOPNOTSUPP`; the age index in the ZCAM response remains allocated because it
-is part of the validated response format, but no age-table state is claimed.
+The synthetic `FLOW_CLS_STATS` implementation based on flow insertion time was
+removed before real statistics were available. The later accepted
+implementation assigns an independent SDT29 counter pair to each hardware
+direction and refreshes `lastused` only when those hardware packet or byte
+counters advance. The age index in the ZCAM response remains allocated as part
+of the validated response format; the driver does not consume the SE age
+read-clear bitmap.
 
 Four established UDP connections on dedicated ports ran concurrently at
 10 Mbit/s each. Once startup completed, all four conntrack entries showed
@@ -606,6 +607,19 @@ test retained one hardware entry through second 27 and removed it at second 28,
 while its conntrack entry remained present; this matches the configured
 30-second `nf_flowtable_udp_timeout` after accounting for the delay between the
 last packet and the first sample.
+
+The real-statistics lifecycle was then repeated on the final FIT. A bidirectional
+UDP connection remained `[HW_OFFLOAD]` at 5, 30, and 60 seconds while 115,587
+packets crossed each direction. A separately timed idle connection remained in
+hardware through second 28, lost the marker by second 34, and kept its
+conntrack entry. One hundred add/stats/delete/reuse cycles completed without a
+failure or stale counter.
+
+A 256-connection flower test programmed 512 hardware directions. Eight
+connections distributed across the allocation each reported exactly 825
+packets and 1,252,350 hardware bytes in both directions; eight untouched
+connections remained at zero. Deleting all 256 connections left no LAN or WAN
+rule, and dmesg remained clean.
 
 With four other flows active, `nft flush ruleset` changed the dedicated-port
 count from four hardware entries to zero without removing the four conntrack

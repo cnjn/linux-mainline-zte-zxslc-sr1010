@@ -189,6 +189,24 @@ offload connections owned by the destroyed table, so use a new connection for
 the post-flush allocation check; it must reach `[HW_OFFLOAD]` without rebooting
 or reloading the network driver.
 
+Build `udp-echo.c` on macOS and use it with `UdpPaced.cs` when the test needs a
+real reply rather than an `[UNREPLIED]` UDP connection:
+
+```sh
+clang -O2 -Wall -Wextra -Werror udp-echo.c -o /tmp/udp-echo
+/tmp/udp-echo PORT
+```
+
+`flow-stats-reuse.sh` runs repeated add, zero-stats, delete, and counter-ID
+reuse cycles. `flow-stats-capacity.sh` has `add`, `check`, and `del` commands for
+a concurrent rule set; copy both scripts and `tc-udp-flow.sh` to the board and
+set `TC`/`HELPER` only when they are not under `/tmp`.
+
+The accepted statistics lifecycle used 100 reuse cycles and 256 concurrent NAT
+connections. Eight distributed connections each counted 825 packets and
+1,252,350 hardware bytes in both directions; untouched sample connections
+remained at zero, and deleting all 256 connections left no rule behind.
+
 ## Bridge and access VLAN
 
 For a bridge test, remove the LAN address from `lan1`, enslave it to `br0`, and

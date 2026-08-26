@@ -114,6 +114,26 @@ also reached `[HW_OFFLOAD]` and transferred 1,477,378,048 payload bytes in
 5.000235 seconds. The kernel log remained free of BUG, Oops, WARNING, WANID,
 and SMMU failures.
 
+The completed lifecycle acceptance used the same FIT and real SDT29 stats:
+
+- one established UDP flow remained `[HW_OFFLOAD]` at 5, 30, and 60 seconds
+  while 115,587 request/reply packets crossed each direction, proving that
+  counter-driven `lastused` refresh survives two 30-second flowtable timeout
+  periods;
+- a separately timed flow remained in hardware at idle seconds 0, 20, and 28,
+  lost only the hardware marker by second 34, and retained its conntrack entry;
+- 100 consecutive add, zero-stats read, delete, and counter-ID reuse cycles
+  completed with no programming, stats, deletion, or residual-rule failure;
+- 256 concurrent NAT connections installed 512 independent hardware
+  directions. Eight distributed connections each counted exactly 825 packets
+  and 1,252,350 hardware bytes in both directions, while eight untouched
+  connections remained at zero. All 256 connections then deleted without a
+  residual rule.
+
+Both links remained up and the kernel log stayed free of BUG, Oops, WARNING,
+WANID, and SMMU failures. `udp-echo.c`, `flow-stats-reuse.sh`, and
+`flow-stats-capacity.sh` preserve the repeatable harnesses.
+
 The accepted FIT is `/Volumes/code/zx279133/out/sr1010-zxdbg.itb`, 5,975,860
 bytes, SHA256
 `522733e904edde206a3fb09325f4f794f1a84788f731c01c5ca5b24a6d0636f5`.
