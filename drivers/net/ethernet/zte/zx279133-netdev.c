@@ -902,7 +902,7 @@ zx279133_lan_netdev_setup(struct zx279133_lan_service *service,
 	eth->lan_ndev = ndev;
 	ndev->watchdog_timeo = eth->ndev->watchdog_timeo;
 	ndev->min_mtu = eth->ndev->min_mtu;
-	ndev->max_mtu = eth->ndev->max_mtu;
+	ndev->max_mtu = ZX279133_LAN_MAX_MTU;
 	ndev->features = eth->ndev->features;
 	ndev->hw_features = eth->ndev->hw_features;
 	ndev->vlan_features = eth->ndev->vlan_features;
@@ -976,7 +976,7 @@ zx279133_lan_netdev_change_mtu(struct zx279133_lan_service *service,
 {
 	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
 
-	if (new_mtu < ETH_MIN_MTU || new_mtu > eth->ndev->max_mtu)
+	if (new_mtu < ETH_MIN_MTU || new_mtu > ZX279133_LAN_MAX_MTU)
 		return -EINVAL;
 
 	WRITE_ONCE(ndev->mtu, new_mtu);

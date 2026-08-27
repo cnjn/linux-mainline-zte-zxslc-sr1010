@@ -7,6 +7,8 @@
 
 #include "zx279133-stats.h"
 
+#define ZX279133_LAN_USER_MAX_MTU	1970
+
 /*
  * Service boundary between the NPPT parent and the LAN switch child.
  *

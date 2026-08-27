@@ -64,7 +64,6 @@
 #define ZX279133_XMAC0_SOPC_SEND	0x342c0
 #define ZX279133_XMAC_SOPC_DUPLEX	0x343f0
 #define ZX279133_XMAC0_SOPC_DUPLEX_MASK BIT(4)
-
 #define RTL8372N_SMI_CTRL		0x15
 #define RTL8372N_SMI_BUSY		BIT(2)
 #define RTL8372N_SMI_ADDR		0x16
@@ -2403,6 +2402,18 @@ static void zx279133_rtl8372n_get_ethtool_stats(struct dsa_switch *ds,
 				     port, first_error);
 }
 
+static int zx279133_rtl8372n_port_change_mtu(struct dsa_switch *ds, int port,
+					      int new_mtu)
+{
+	/* The fixed switch image uses the NPPT-wide 1996-byte L2 limit. */
+	return new_mtu <= ZX279133_LAN_USER_MAX_MTU ? 0 : -EINVAL;
+}
+
+static int zx279133_rtl8372n_port_max_mtu(struct dsa_switch *ds, int port)
+{
+	return ZX279133_LAN_USER_MAX_MTU;
+}
+
 static const struct dsa_switch_ops zx279133_rtl8372n_dsa_ops = {
 	.get_tag_protocol = zx279133_rtl8372n_get_tag_protocol,
 	.setup = zx279133_rtl8372n_setup,
@@ -2415,6 +2426,8 @@ static const struct dsa_switch_ops zx279133_rtl8372n_dsa_ops = {
 	.port_fdb_add = zx279133_rtl8372n_port_fdb_add,
 	.port_fdb_del = zx279133_rtl8372n_port_fdb_del,
 	.port_fdb_dump = zx279133_rtl8372n_port_fdb_dump,
+	.port_change_mtu = zx279133_rtl8372n_port_change_mtu,
+	.port_max_mtu = zx279133_rtl8372n_port_max_mtu,
 	.phylink_get_caps = zx279133_rtl8372n_phylink_get_caps,
 	.phylink_fixed_state = zx279133_rtl8372n_phylink_fixed_state,
 	.get_sset_count = zx279133_rtl8372n_get_sset_count,
