@@ -238,7 +238,7 @@ static int zx279133_stop(struct net_device *ndev)
 	return 0;
 }
 
-static bool zx279133_tx_hw_csum_tcp(struct sk_buff *skb)
+static bool zx279133_tx_csum_supported(struct sk_buff *skb)
 {
 	const struct iphdr *iph;
 	unsigned int network = skb_network_offset(skb);
@@ -304,6 +304,7 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 	u8 tx_port;
 	bool arm_reclaim;
 	bool hw_csum = false;
+	bool sw_csum = false;
 
 	spin_lock_bh(&eth->tx_lock);
 	if (unlikely(eth->tx_pending >= ZX279133_IDM_TX_DEPTH - 1))
@@ -323,9 +324,12 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 	if (skb->ip_summed == CHECKSUM_PARTIAL) {
 		hw_csum = zx279133_tx_hw_csum &&
 			skb->len >= ETH_ZLEN &&
-			zx279133_tx_hw_csum_tcp(skb);
-		if (!hw_csum && skb_checksum_help(skb))
-			goto drop;
+			zx279133_tx_csum_supported(skb);
+		if (!hw_csum) {
+			if (skb_checksum_help(skb))
+				goto drop;
+			sw_csum = true;
+		}
 	}
 	if (skb_put_padto(skb, ETH_ZLEN)) {
 		spin_lock_bh(&eth->tx_lock);
@@ -423,6 +427,10 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 	slot->dma = dma;
 	slot->len = skb->len;
 	slot->dma_mapped = !zx279133_tx_in_window;
+	if (hw_csum)
+		eth->tx_hw_csum_packets++;
+	else if (sw_csum)
+		eth->tx_sw_csum_packets++;
 	arm_reclaim = !eth->tx_pending;
 	eth->tx_producer = (eth->tx_producer + 1) &
 				   (ZX279133_IDM_TX_DEPTH - 1);
@@ -660,6 +668,8 @@ enum zx279133_ethtool_stat {
 	ZX279133_STAT_TX_TIMEOUTS,
 	ZX279133_STAT_TX_TIMEOUT_RECOVERIES,
 	ZX279133_STAT_TX_TIMEOUT_STALLS,
+	ZX279133_STAT_TX_HW_CSUM_PACKETS,
+	ZX279133_STAT_TX_SW_CSUM_PACKETS,
 	ZX279133_STAT_RX_IRQ_COUNT,
 	ZX279133_STAT_IDM_LOCAL_IRQ_COUNT,
 	ZX279133_STAT_RX_NAPI_POLLS,
@@ -718,6 +728,8 @@ static const char zx279133_gstrings_stats[ZX279133_STAT_COUNT][ETH_GSTRING_LEN] 
 	"tx_timeouts",
 	"tx_timeout_recoveries",
 	"tx_timeout_stalls",
+	"tx_hw_csum_packets",
+	"tx_sw_csum_packets",
 	"rx_irq_count",
 	"idm_local_irq_count",
 	"rx_napi_polls",
@@ -820,6 +832,8 @@ static void zx279133_get_ethtool_stats(struct net_device *ndev,
 	data[ZX279133_STAT_TX_TIMEOUT_RECOVERIES] =
 		eth->tx_timeout_recoveries;
 	data[ZX279133_STAT_TX_TIMEOUT_STALLS] = eth->tx_timeout_stalls;
+	data[ZX279133_STAT_TX_HW_CSUM_PACKETS] = eth->tx_hw_csum_packets;
+	data[ZX279133_STAT_TX_SW_CSUM_PACKETS] = eth->tx_sw_csum_packets;
 	spin_unlock_bh(&eth->tx_lock);
 	data[ZX279133_STAT_RX_IRQ_COUNT] = atomic64_read(&eth->rx_irq_count);
 	data[ZX279133_STAT_IDM_LOCAL_IRQ_COUNT] =

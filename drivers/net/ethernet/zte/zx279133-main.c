@@ -476,9 +476,10 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 	ndev->ethtool_ops = &zx279133_ethtool_ops;
 	ndev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
 	if (zx279133_tx_hw_csum) {
-		/* Non-IPv4-TCP partial checksums use skb_checksum_help(). */
+		/* IDM checksum generation is IPv4/TCP-only. */
 		ndev->hw_features |= NETIF_F_HW_CSUM;
 		ndev->features |= NETIF_F_HW_CSUM;
+		ndev->vlan_features |= NETIF_F_HW_CSUM;
 	}
 	ndev->hw_features |= NETIF_F_HW_TC;
 	ndev->features |= NETIF_F_HW_TC;

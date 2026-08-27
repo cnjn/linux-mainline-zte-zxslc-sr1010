@@ -583,6 +583,8 @@ struct zx279133_eth {
 	u64 tx_timeouts;
 	u64 tx_timeout_recoveries;
 	u64 tx_timeout_stalls;
+	u64 tx_hw_csum_packets;
+	u64 tx_sw_csum_packets;
 	atomic64_t rx_irq_count;
 	atomic64_t idm_local_irq_count;
 	struct u64_stats_sync rx_stats_sync;
