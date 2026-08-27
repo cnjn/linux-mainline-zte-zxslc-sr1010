@@ -80,6 +80,7 @@ struct zx279133_flow_entry {
 	bool has_age;
 	bool snat;
 	bool pppoe;
+	bool full;
 };
 
 struct zx279133_flow_offload {
@@ -279,7 +280,6 @@ static void zx279133_fast_response_build(u8 *fast,
 		      lan_vid, (u16 *)(fast + 20));
 	fast[23] = ingress == ZX279133_FLOW_PORT_WAN ? 16 : 0;
 	put_unaligned(ikey, (u16 *)(fast + 26));
-	fast[29] = ingress == ZX279133_FLOW_PORT_LAN ? BIT(1) : 0;
 	if (has_stat)
 		fast[29] |= BIT(4);
 	fast[30] = BIT(5) | BIT(4) | BIT(3);
@@ -329,14 +329,17 @@ static void zx279133_fast_multi_table_build(u32 *table, const u8 *fast,
 static void zx279133_fast_full_table_build(u32 *table, const u8 *fast,
 					   const u8 *key)
 {
+	u32 response[ZX279133_FAST_DATA_SIZE / sizeof(u32)];
 	u8 *bytes = (u8 *)table;
+	u8 *response_bytes = (u8 *)response;
 
-	/* SDT14 is a 512-bit single-hash table.  With age/AS disabled its
-	 * 32-byte response is stored intact ahead of the key, retaining the
-	 * len_changed field that SDT43's compact response omits.
-	 */
+	/* fast_table_write() applies this conversion before its SDT14 fallback. */
+	memcpy(response, fast, sizeof(response));
+	swap(response[0], response[4]);
+	response_bytes[26] = 0;
+	response_bytes[27] &= 0xe0;
 	memset(table, 0, ZX279133_ZCAM_ENTRY_SIZE);
-	memcpy(bytes + 15, fast, ZX279133_FAST_DATA_SIZE);
+	memcpy(bytes + 15, response, sizeof(response));
 	memcpy(bytes + 47, key, ZX279133_FAST_KEY_SIZE);
 	bytes[63] = ZX279133_FAST_FULL_FOOTER;
 }
@@ -700,7 +703,7 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	u8 fast[ZX279133_FAST_DATA_SIZE];
 	u32 ikey[ZX279133_FAST_IKEY_SIZE / sizeof(u32)];
 	u32 table[ZX279133_ZCAM_ENTRY_SIZE / sizeof(u32)];
-	bool ipv6, pppoe, snat;
+	bool ipv6, pppoe, full, snat;
 	u16 lan_vid, pppoe_sid = 0;
 	u8 ip_proto;
 	int ret;
@@ -726,8 +729,11 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 		ret = -ENETDOWN;
 		goto out_free;
 	}
-	if (xa_load(&offload->flows, f->cookie) ||
-	    zx279133_flow_key_exists(offload, entry->key)) {
+	if (xa_load(&offload->flows, f->cookie)) {
+		ret = 0;
+		goto out_free;
+	}
+	if (zx279133_flow_key_exists(offload, entry->key)) {
 		ret = -EEXIST;
 		goto out_free;
 	}
@@ -738,10 +744,13 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	}
 	pppoe = pppoe_sid || (ingress == ZX279133_FLOW_PORT_WAN &&
 				      offload->pppoe_users);
+	/* Compact responses cannot carry the PPPoE push length change. */
+	full = pppoe_sid;
 	entry->pppoe = pppoe;
-	entry->has_age = !pppoe;
+	entry->full = full;
+	entry->has_age = !full;
 	ret = zx279133_zcam_alloc(offload, entry->key,
-				  pppoe ? ZX279133_FAST_FULL_SELECTOR :
+				  full ? ZX279133_FAST_FULL_SELECTOR :
 					   ZX279133_FAST_MULTI_SELECTOR,
 				  &entry->zblock, &entry->zcell,
 				  &entry->zaddr);
@@ -781,7 +790,7 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	zx279133_fast_response_build(fast, &data, &xlate, ingress, lan_vid,
 				     entry->ikey, entry->stat,
 				     entry->has_stat, pppoe);
-	if (pppoe) {
+	if (full) {
 		zx279133_fast_full_table_build(table, fast, entry->key);
 	} else {
 		memcpy(ikey, fast, sizeof(ikey));
@@ -795,7 +804,7 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 		goto out_clear_ikey;
 	ret = zx279133_zcam_write(offload, entry->zblock, entry->zcell,
 				  entry->zaddr, table,
-				  pppoe ? ARRAY_SIZE(table) : ARRAY_SIZE(ikey) * 2);
+				  full ? ARRAY_SIZE(table) : ARRAY_SIZE(ikey) * 2);
 	if (ret) {
 		xa_erase(&offload->flows, f->cookie);
 		goto out_clear_ikey;
@@ -804,7 +813,7 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	return 0;
 
 out_clear_ikey:
-	if (!pppoe) {
+	if (!full) {
 		memset(ikey, 0, sizeof(ikey));
 		zx279133_fast_ikey_write(offload->eth, entry->ikey, ikey);
 	}
@@ -840,11 +849,11 @@ zx279133_flow_entry_hw_clear(struct zx279133_flow_offload *offload,
 
 	ret = zx279133_zcam_write(offload, entry->zblock, entry->zcell,
 				  entry->zaddr, table,
-				  entry->pppoe ? ARRAY_SIZE(table) :
+				  entry->full ? ARRAY_SIZE(table) :
 						 ARRAY_SIZE(ikey) * 2);
 	if (ret)
 		return ret;
-	if (!entry->pppoe) {
+	if (!entry->full) {
 		ret = zx279133_fast_ikey_write(offload->eth, entry->ikey, ikey);
 		if (ret)
 			return ret;
@@ -932,8 +941,8 @@ out_unlock:
 }
 
 static int zx279133_flow_command(struct zx279133_flow_offload *offload,
-				 struct net_device *bind_dev,
-				 struct flow_cls_offload *f)
+				  struct net_device *bind_dev,
+				  struct flow_cls_offload *f)
 {
 	switch (f->command) {
 	case FLOW_CLS_REPLACE:

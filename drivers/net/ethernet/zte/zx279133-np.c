@@ -401,28 +401,38 @@ void zx279133_program_spa_cpu_mac(struct zx279133_eth *eth, const u8 *addr)
 	}
 }
 
+static int zx279133_program_one_wanid_cpu_mac(struct zx279133_eth *eth,
+					      unsigned int wanid,
+					      const u8 *addr)
+{
+	u32 data[4];
+	int ret;
+
+	ret = zx279133_smmu0_read(eth, (16386 + wanid) << 7, data, 4,
+				  ZX279133_SMMU0_CMD_READ);
+	if (ret)
+		return ret;
+	data[2] = get_unaligned_be32(addr + 2);
+	data[3] = (data[3] & ~GENMASK(15, 0)) | get_unaligned_be16(addr);
+	return zx279133_smmu0_write(eth, (16386 + wanid) << 7, data, 4,
+				    ZX279133_SMMU0_CMD_WRITE);
+}
+
 int zx279133_program_wanid_cpu_mac(struct zx279133_eth *eth, const u8 *addr)
 {
 	u8 cpu_mac[ETH_ALEN];
-	u32 data[4];
 	int i, ret;
 
 	ether_addr_copy(cpu_mac, addr);
 	for (i = 0; i < ZX279133_WANID_CPU_MAC_COUNT; i++) {
-		ret = zx279133_smmu0_read(eth, (16386 + i) << 7, data, 4,
-					  ZX279133_SMMU0_CMD_READ);
-		if (ret)
-			return ret;
-		data[2] = get_unaligned_be32(cpu_mac + 2);
-		data[3] = (data[3] & ~GENMASK(15, 0)) |
-			  get_unaligned_be16(cpu_mac);
-		ret = zx279133_smmu0_write(eth, (16386 + i) << 7, data, 4,
-					   ZX279133_SMMU0_CMD_WRITE);
+		ret = zx279133_program_one_wanid_cpu_mac(eth, i, cpu_mac);
 		if (ret)
 			return ret;
 		eth_addr_inc(cpu_mac);
 	}
-	return 0;
+
+	/* WAN-to-LAN routes select WANID16. */
+	return zx279133_program_one_wanid_cpu_mac(eth, 16, addr);
 }
 
 int zx279133_program_wanid_sip(struct zx279133_eth *eth, u32 wanid,
