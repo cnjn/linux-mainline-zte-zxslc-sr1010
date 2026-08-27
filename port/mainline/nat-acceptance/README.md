@@ -290,20 +290,34 @@ Mac port 5206. During each transfer, the matching conntrack entry must contain
 
 ## PPPoE hardware offload
 
-Use an Alpine arm64 peer on the WAN link. Its Ethernet interface needs no IP
-address; the PPP endpoint owns `192.168.1.100` and assigns
-`192.168.1.1` to the router:
+Use an Alpine arm64 HVF VM with a virtio-net WAN attached to the physical Mac
+interface through QEMU `vmnet-bridged`:
+
+```text
+-device virtio-net-pci,netdev=wan \
+-netdev vmnet-bridged,id=wan,ifname=en8
+```
+
+Remove every IPv4 address from the Mac interface while it is acting as this
+layer-2 bridge. The VM Ethernet interface needs no IP address; the PPP endpoint
+owns `192.168.1.100` and assigns `192.168.1.1` to the router. Replace `eth1`
+below if the virtio-net WAN has another name:
 
 ```sh
 apk add ppp rp-pppoe iperf3 tcpdump
-modprobe ppp_generic
-modprobe ppp_async
+modprobe pppoe
 ip link set eth1 up
-pppoe-server -q /usr/sbin/pppd -Q /usr/sbin/pppoe \
+pppoe-server -k -g /usr/lib/pppd/2.5.3/pppoe.so -q /usr/sbin/pppd \
 	-I eth1 -L 192.168.1.100 -R 192.168.1.1 -N 1 \
 	-O pppoe-server-options -C zx279133-test
 iperf3 -s -D
 ```
+
+Do not use QEMU `usb-host` passthrough of a Realtek RTL8156 for performance
+acceptance. Its virtual xHCI/r8152 receive path reported `rx_missed` for every
+missing packet and reduced single-flow TCP to a few hundred Mbit/s. With
+vmnet-bridged, identify the virtio WAN input and output IRQs in
+`/proc/interrupts` and pin them to separate vCPUs before measuring throughput.
 
 On the router, remove the diagnostic IPv4 address from the physical WAN,
 bring up the LAN DSA port, establish PPPoE, and load the physical-device
@@ -320,18 +334,27 @@ nft -f /etc/nft-pppoe-flowtable.nft
 ```
 
 Require `ppp0` to show local `192.168.1.1`, peer `192.168.1.100`, and session
-ID 1. A live TCP or UDP NAT connection from Windows must show
-`[HW_OFFLOAD]` in `/proc/net/nf_conntrack`. Capture the WAN peer with:
+ID 1. Capture the WAN peer with:
 
 ```sh
-tcpdump -i eth1 -ne 'ether proto 0x8864'
+tcpdump -i eth1 -ne
 ```
 
-Both directions must remain PPPoE session frames with SID 1; no hardware
-forwarded `0x0800` frame is allowed on the physical WAN. Test bulk TCP in both
-directions and UDP with `iperf3`. The QEMU/vmnet peer used during acceptance
-limited TCP to roughly 0.4--0.5 Gbit/s, so this setup proves encapsulation,
-decapsulation, NAT, and hardware ownership rather than PPPoE line rate.
+Both directions must remain PPPoE session frames with SID 1; no forwarded
+`0x0800` frame is allowed on the physical WAN. Test bulk TCP in both directions
+and UDP with `iperf3`. Both directions use hardware flow entries and the
+aggregate conntrack must report `[HW_OFFLOAD]`. PPPoE pop uses compact SDT43;
+PPPoE push uses the complete SDT14 response after applying the response-word
+conversion used by the factory driver's full-table fallback. A WAN capture of
+an offloaded upload must show the translated source `192.168.1.1` inside a
+PPPoE session frame.
+
+The accepted vmnet-bridged fixture sustained 2.31 Gbit/s single-flow TCP from
+the PPPoE peer to Windows with zero retransmissions. The matching conntrack
+entry remained `[HW_OFFLOAD]`. In the opposite direction, the VM's single
+virtio RX queue and software PPPoE receive path levelled off near 0.94 Gbit/s;
+even four TCP flows did not raise the aggregate. Treat that direction as
+functional and hardware-hit acceptance, not as a line-rate limit of the router.
 
 For lifecycle acceptance, flush nftables while a hardware connection is
 active. WANID 0 must return from push mode to its saved session/mode and WANID
