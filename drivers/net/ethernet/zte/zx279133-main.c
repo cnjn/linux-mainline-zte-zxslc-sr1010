@@ -376,19 +376,6 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 			return dev_err_probe(dev, -ERANGE,
 					     "TX coherent descriptor ring is above 4GiB\n");
 	}
-	if (zx279133_tx_in_window) {
-		size_t tx_payload_size = ZX279133_IDM_TX_DEPTH *
-			ZX279133_IDM_TX_PAYLOAD_STRIDE;
-
-		eth->tx_payload = dmam_alloc_coherent(dev, tx_payload_size,
-						      &eth->tx_payload_dma,
-						      GFP_KERNEL);
-		if (!eth->tx_payload)
-			return -ENOMEM;
-		if (upper_32_bits(eth->tx_payload_dma + tx_payload_size - 1))
-			return dev_err_probe(dev, -ERANGE,
-					     "TX coherent payload is above 4GiB\n");
-	}
 	for (i = 0; i < ARRAY_SIZE(eth->clocks); i++)
 		eth->clocks[i].id = zx279133_clock_names[i];
 

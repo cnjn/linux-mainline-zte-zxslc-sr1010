@@ -745,10 +745,8 @@ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth)
 		if (slot->skb) {
 			struct net_device *ndev = slot->ndev ?: eth->ndev;
 
-			if (slot->dma_mapped)
-				dma_unmap_single(eth->dev, slot->dma, slot->len,
-						 DMA_TO_DEVICE);
-			kfree(slot->bounce);
+			dma_unmap_single(eth->dev, slot->dma, slot->len,
+					 DMA_TO_DEVICE);
 			dev_sw_netstats_tx_add(ndev, 1, slot->len);
 			bytes += slot->len;
 			packets++;
@@ -1008,10 +1006,8 @@ void zx279133_idm_tx_release(struct zx279133_eth *eth, bool hardware_alive)
 		if (owner.skb) {
 			struct net_device *ndev = owner.ndev ?: eth->ndev;
 
-			if (owner.dma_mapped)
-				dma_unmap_single(eth->dev, owner.dma, owner.len,
-						 DMA_TO_DEVICE);
-			kfree(owner.bounce);
+			dma_unmap_single(eth->dev, owner.dma, owner.len,
+					 DMA_TO_DEVICE);
 			zx279133_stats_tx_dropped(eth, ndev);
 			completed_packets++;
 			completed_bytes += owner.len;

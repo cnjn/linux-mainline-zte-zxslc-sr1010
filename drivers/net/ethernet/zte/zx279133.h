@@ -33,9 +33,6 @@
 #define zx279133_tx_pon_control		0x08000000
 #define zx279133_tx_word4_bit23		0
 #define zx279133_tx_hw_csum		1
-#define zx279133_tx_in_window		1
-#define zx279133_tx_window_offset	0
-#define zx279133_tx_bounce_offset	0
 #define zx279133_idm_cfg_bit24		0
 
 #define ZX279133_BMU_REQUIRED_SIZE	0x00ecc000
@@ -364,9 +361,6 @@
  * allocations owned by the DMA API. Unused hardware free rings retain the
  * vendor reserved-memory layout.
  */
-#define ZX279133_IDM_TX_WINDOW_STRIDE	0x00000800
-#define ZX279133_IDM_TX_PAYLOAD_STRIDE	ZX279133_IDM_TX_WINDOW_STRIDE
-
 #define ZX279133_IDM_INT_MASK		0x0040
 #define ZX279133_IDM_INT_CPU		0x0044
 #define ZX279133_IDM_RX_RELEASE		0x0088
@@ -477,10 +471,8 @@ struct zx279133_idm_desc {
 struct zx279133_tx_slot {
 	struct sk_buff *skb;
 	struct net_device *ndev;
-	void *bounce;
 	dma_addr_t dma;
 	u32 len;
-	bool dma_mapped;
 };
 
 struct zx279133_rx_page_entry {
@@ -567,8 +559,6 @@ struct zx279133_eth {
 	u16 rx_bp_prod;
 	u8 rx_poll_cursor;
 	struct zx279133_tx_slot *tx_slots;
-	void *tx_payload;
-	dma_addr_t tx_payload_dma;
 	u32 idm_tx_base_saved;
 	u16 tx_done;
 	u16 tx_producer;

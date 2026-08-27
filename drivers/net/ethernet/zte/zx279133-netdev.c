@@ -296,10 +296,7 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 	struct netdev_queue *txq = netdev_get_tx_queue(hw_ndev, 0);
 	struct zx279133_idm_desc *desc;
 	struct zx279133_tx_slot *slot;
-	void *bounce = NULL;
-	void *tx_data;
 	dma_addr_t dma;
-	size_t window_offset = 0;
 	u16 producer;
 	u8 tx_port;
 	bool arm_reclaim;
@@ -316,7 +313,6 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 		spin_unlock_bh(&eth->tx_lock);
 		return NETDEV_TX_BUSY;
 	}
-	producer = eth->tx_producer;
 	spin_unlock_bh(&eth->tx_lock);
 
 	if (skb_linearize(skb))
@@ -340,39 +336,9 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 	}
 	tx_port = zx279133_tx_destination_port(eth, skb, ndev != hw_ndev);
 
-	if (zx279133_tx_bounce_offset > 63)
+	dma = dma_map_single(eth->dev, skb->data, skb->len, DMA_TO_DEVICE);
+	if (dma_mapping_error(eth->dev, dma))
 		goto drop;
-	tx_data = skb->data;
-	if (zx279133_tx_bounce_offset && !zx279133_tx_in_window) {
-		bounce = kmalloc(skb->len + zx279133_tx_bounce_offset,
-				 GFP_ATOMIC);
-		if (!bounce)
-			goto drop;
-		tx_data = (u8 *)bounce + zx279133_tx_bounce_offset;
-		memcpy(tx_data, skb->data, skb->len);
-	}
-
-	if (zx279133_tx_in_window) {
-		window_offset = producer * ZX279133_IDM_TX_PAYLOAD_STRIDE +
-				zx279133_tx_window_offset;
-		if (zx279133_tx_window_offset > 63 ||
-		    skb->len > ZX279133_IDM_TX_PAYLOAD_STRIDE -
-			       zx279133_tx_window_offset) {
-			kfree(bounce);
-			goto drop;
-		}
-	}
-
-	if (zx279133_tx_in_window) {
-		dma = 0;
-	} else {
-		dma = dma_map_single(eth->dev, tx_data, skb->len,
-				     DMA_TO_DEVICE);
-		if (dma_mapping_error(eth->dev, dma)) {
-			kfree(bounce);
-			goto drop;
-		}
-	}
 
 	spin_lock_bh(&eth->tx_lock);
 	if (unlikely(eth->tx_pending >= ZX279133_IDM_TX_DEPTH - 1))
@@ -382,10 +348,7 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 		netif_trans_update(ndev);
 		zx279133_idm_tx_flush_locked(eth);
 		spin_unlock_bh(&eth->tx_lock);
-		if (!zx279133_tx_in_window)
-			dma_unmap_single(eth->dev, dma, skb->len,
-					 DMA_TO_DEVICE);
-		kfree(bounce);
+		dma_unmap_single(eth->dev, dma, skb->len, DMA_TO_DEVICE);
 		zx279133_stats_tx_dropped(eth, ndev);
 		dev_kfree_skb_any(skb);
 		return NETDEV_TX_OK;
@@ -396,15 +359,7 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 		ZX279133_IDM_TX_DEPTH + producer;
 	slot = &eth->tx_slots[producer];
 	memset(desc, 0, sizeof(*desc));
-	if (zx279133_tx_in_window) {
-		window_offset = producer * ZX279133_IDM_TX_PAYLOAD_STRIDE +
-				zx279133_tx_window_offset;
-		memcpy(eth->tx_payload + window_offset, skb->data, skb->len);
-		desc->address = cpu_to_le32(lower_32_bits(eth->tx_payload_dma +
-							window_offset));
-	} else {
-		desc->address = cpu_to_le32(lower_32_bits(dma));
-	}
+	desc->address = cpu_to_le32(lower_32_bits(dma));
 	{
 		u32 length_flags = (skb->len << 1) |
 				   (zx279133_tx_selector & 0xff) << 24 |
@@ -423,10 +378,8 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 	desc->metadata[4] = cpu_to_le32(zx279133_tx_pon_control);
 	slot->skb = skb;
 	slot->ndev = ndev;
-	slot->bounce = bounce;
 	slot->dma = dma;
 	slot->len = skb->len;
-	slot->dma_mapped = !zx279133_tx_in_window;
 	if (hw_csum)
 		eth->tx_hw_csum_packets++;
 	else if (sw_csum)
