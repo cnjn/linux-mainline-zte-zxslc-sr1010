@@ -856,14 +856,10 @@ const struct ethtool_ops zx279133_ethtool_ops = {
 };
 
 /*
- * RX admission is currently owned by the fixed NPPT/PPU port-flow image, not
- * by an XMAC hash filter. Board tests show that it delivers all unicast and
- * broadcast frames to IDM, so Linux can observe foreign unicast in promiscuous
- * mode without programming hardware. Arbitrary multicast remains blocked
- * before IDM even with IFF_PROMISC, IFF_ALLMULTI, or a matching dev_mc entry;
- * only protocol-table-selected multicast such as the validated IPv6 control
- * traffic is admitted. Deliberately omit ndo_set_rx_mode and IFF_UNICAST_FLT
- * until the vendor multicast/filter programming contract is recovered.
+ * RX admission is owned by the fixed NPPT/PPU port-flow image, not an XMAC
+ * address filter. It delivers broadcast, foreign unicast, and arbitrary
+ * multicast frames to IDM, so there is no hardware filter for ndo_set_rx_mode
+ * to update and IFF_UNICAST_FLT must remain clear.
  */
 static int zx279133_setup_tc(struct net_device *ndev,
 			    enum tc_setup_type type, void *type_data)
