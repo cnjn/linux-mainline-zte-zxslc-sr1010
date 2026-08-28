@@ -78,6 +78,7 @@ static void zx279133_xdp_rxq_unreg(void *data)
 {
 	struct zx279133_eth *eth = data;
 
+	xdp_rxq_info_unreg(&eth->xsk_rxq);
 	xdp_rxq_info_unreg(&eth->xdp_rxq);
 }
 
@@ -493,7 +494,8 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 	ndev->hw_features |= NETIF_F_HW_TC;
 	ndev->features |= NETIF_F_HW_TC;
 	ndev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
-			     NETDEV_XDP_ACT_NDO_XMIT;
+			     NETDEV_XDP_ACT_NDO_XMIT |
+			     NETDEV_XDP_ACT_XSK_ZEROCOPY;
 	ndev->min_mtu = ETH_MIN_MTU;
 	ndev->max_mtu = ZX279133_MAX_MTU;
 	if (of_get_ethdev_address(dev->of_node, ndev))
@@ -546,6 +548,20 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 		xdp_rxq_info_unreg(&eth->xdp_rxq);
 		return dev_err_probe(dev, ret,
 				     "failed to register XDP page pool\n");
+	}
+	ret = xdp_rxq_info_reg(&eth->xsk_rxq, ndev, 0, eth->napi.napi_id);
+	if (ret) {
+		xdp_rxq_info_unreg(&eth->xdp_rxq);
+		return dev_err_probe(dev, ret,
+				     "failed to register AF_XDP RX queue\n");
+	}
+	ret = xdp_rxq_info_reg_mem_model(&eth->xsk_rxq,
+					 MEM_TYPE_XSK_BUFF_POOL, NULL);
+	if (ret) {
+		xdp_rxq_info_unreg(&eth->xsk_rxq);
+		xdp_rxq_info_unreg(&eth->xdp_rxq);
+		return dev_err_probe(dev, ret,
+				     "failed to register AF_XDP buffer pool\n");
 	}
 	ret = devm_add_action_or_reset(dev, zx279133_xdp_rxq_unreg, eth);
 	if (ret)

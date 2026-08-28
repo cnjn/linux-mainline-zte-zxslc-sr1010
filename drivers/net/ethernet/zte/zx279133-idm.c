@@ -14,6 +14,7 @@
 
 #include <net/page_pool/helpers.h>
 #include <net/xdp.h>
+#include <net/xdp_sock_drv.h>
 
 #include "zx279133.h"
 
@@ -44,7 +45,7 @@ static u32 zx279133_idm_rx_count(struct zx279133_eth *eth,
 
 static u32 zx279133_idm_rx_page_key(dma_addr_t dma)
 {
-	return (dma - ZX279133_IDM_RX_PAYLOAD_OFFSET) >> PAGE_SHIFT;
+	return lower_32_bits(dma);
 }
 
 static unsigned int zx279133_idm_rx_page_slot(u32 key)
@@ -83,6 +84,7 @@ static int zx279133_idm_rx_track_page(struct zx279133_eth *eth,
 		if (!entry->page) {
 			entry->key = key;
 			entry->page = page;
+			entry->xsk = false;
 			eth->rx_page_map_count++;
 			if (eth->rx_page_map_count > eth->rx_page_map_high_water)
 				eth->rx_page_map_high_water = eth->rx_page_map_count;
@@ -114,7 +116,43 @@ static void zx279133_idm_rx_remove_page(struct zx279133_eth *eth,
 	}
 	eth->rx_page_map[hole].page = NULL;
 	eth->rx_page_map[hole].key = 0;
+	eth->rx_page_map[hole].xsk = false;
 	eth->rx_page_map_count--;
+}
+
+static int zx279133_idm_rx_track_xsk(struct zx279133_eth *eth,
+				     struct xdp_buff *xdp)
+{
+	dma_addr_t dma = xsk_buff_xdp_get_dma(xdp);
+	u32 key;
+	unsigned int slot;
+	unsigned int i;
+
+	if (upper_32_bits(dma))
+		return -ERANGE;
+	if (WARN_ON(eth->rx_page_map_count >= ZX279133_IDM_RX_BUFFER_COUNT))
+		return -ENOSPC;
+
+	key = zx279133_idm_rx_page_key(dma);
+	slot = zx279133_idm_rx_page_slot(key);
+	for (i = 0; i < ZX279133_IDM_RX_PAGE_MAP_SIZE; i++) {
+		struct zx279133_rx_page_entry *entry = &eth->rx_page_map[slot];
+
+		if (!entry->page) {
+			entry->key = key;
+			entry->xdp = xdp;
+			entry->xsk = true;
+			eth->rx_page_map_count++;
+			if (eth->rx_page_map_count > eth->rx_page_map_high_water)
+				eth->rx_page_map_high_water = eth->rx_page_map_count;
+			return 0;
+		}
+		if (WARN_ON(entry->key == key))
+			return -EBUSY;
+		slot = (slot + 1) & (ZX279133_IDM_RX_PAGE_MAP_SIZE - 1);
+	}
+
+	return -ENOSPC;
 }
 
 static int zx279133_idm_rx_post_page(struct zx279133_eth *eth,
@@ -134,17 +172,39 @@ static int zx279133_idm_rx_post_page(struct zx279133_eth *eth,
 	return 0;
 }
 
-static struct page *zx279133_idm_rx_take_page(struct zx279133_eth *eth,
-					      dma_addr_t dma)
+static int zx279133_idm_rx_post_xsk(struct zx279133_eth *eth,
+				    struct xdp_buff *xdp)
+{
+	dma_addr_t dma = xsk_buff_xdp_get_dma(xdp);
+	int ret;
+
+	ret = zx279133_idm_rx_track_xsk(eth, xdp);
+	if (ret)
+		return ret;
+	WRITE_ONCE(eth->rx_normal_bp[eth->rx_bp_prod],
+		   cpu_to_be32(lower_32_bits(dma)));
+	eth->rx_bp_prod = (eth->rx_bp_prod + 1) &
+			  (ZX279133_IDM_BP_RING_SIZE - 1);
+	return 0;
+}
+
+static void
+zx279133_idm_rx_sync_xsk_for_device(struct zx279133_eth *eth, struct xdp_buff *xdp)
+{
+	struct xsk_buff_pool *pool = eth->xsk_pool;
+	dma_addr_t dma = xsk_buff_xdp_get_dma(xdp);
+	u32 size = xsk_pool_get_rx_frame_size(pool);
+
+	xsk_buff_raw_dma_sync_for_device(pool, dma, size);
+}
+
+static bool
+zx279133_idm_rx_take_buffer(struct zx279133_eth *eth, dma_addr_t dma,
+			    struct zx279133_rx_page_entry *buffer)
 {
 	u32 key;
 	unsigned int slot;
 	unsigned int i;
-	struct page *page;
-
-	if (dma < ZX279133_IDM_RX_PAYLOAD_OFFSET ||
-	    !IS_ALIGNED(dma - ZX279133_IDM_RX_PAYLOAD_OFFSET, PAGE_SIZE))
-		return NULL;
 
 	key = zx279133_idm_rx_page_key(dma);
 	slot = zx279133_idm_rx_page_slot(key);
@@ -152,22 +212,27 @@ static struct page *zx279133_idm_rx_take_page(struct zx279133_eth *eth,
 		struct zx279133_rx_page_entry *entry = &eth->rx_page_map[slot];
 
 		if (!entry->page)
-			return NULL;
+			return false;
 		if (entry->key == key) {
-			page = entry->page;
+			*buffer = *entry;
 			zx279133_idm_rx_remove_page(eth, slot);
-			if (dma != page_pool_get_dma_addr(page) +
-			    ZX279133_IDM_RX_PAYLOAD_OFFSET) {
-				WARN_ON_ONCE(1);
-				page_pool_recycle_direct(eth->rx_page_pool, page);
-				return NULL;
+			if (buffer->xsk) {
+				if (dma == xsk_buff_xdp_get_dma(buffer->xdp))
+					return true;
+				xsk_buff_free(buffer->xdp);
 			}
-			return page;
+			if (dma == page_pool_get_dma_addr(buffer->page) +
+				   ZX279133_IDM_RX_PAYLOAD_OFFSET)
+				return true;
+			page_pool_recycle_direct(eth->rx_page_pool,
+						 buffer->page);
+			WARN_ON_ONCE(1);
+			return false;
 		}
 		slot = (slot + 1) & (ZX279133_IDM_RX_PAGE_MAP_SIZE - 1);
 	}
 
-	return NULL;
+	return false;
 }
 
 unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth);
@@ -244,8 +309,9 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 
 	while (rx_work < count) {
 		struct zx279133_idm_desc *desc;
+		struct zx279133_rx_page_entry buffer = {};
 		struct page *replacement = NULL;
-		struct page *page;
+		struct page *page = NULL;
 		struct sk_buff *skb = NULL;
 		void *data;
 		dma_addr_t dma;
@@ -266,9 +332,10 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 		eth->rx_cons[queue] = (eth->rx_cons[queue] + 1) &
 					      (ZX279133_IDM_RX_RING_SIZE - 1);
 		dma_rmb();
-		valid_dma = dma >= ZX279133_IDM_RX_PAYLOAD_OFFSET &&
-			    IS_ALIGNED(dma - ZX279133_IDM_RX_PAYLOAD_OFFSET,
-				       PAGE_SIZE);
+		valid_dma = eth->xsk_pool ||
+			    (dma >= ZX279133_IDM_RX_PAYLOAD_OFFSET &&
+			     IS_ALIGNED(dma - ZX279133_IDM_RX_PAYLOAD_OFFSET,
+					PAGE_SIZE));
 		if (likely(valid_dma)) {
 			u32 key = zx279133_idm_rx_page_key(dma);
 
@@ -278,14 +345,11 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 		len = word1 & GENMASK(13, 0);
 		if (unlikely(!valid_dma)) {
 			u64_stats_inc(&eth->rx_invalid_dma);
-			page = NULL;
-		} else {
-			page = zx279133_idm_rx_take_page(eth, dma);
-			if (unlikely(!page))
-				u64_stats_inc(&eth->rx_page_lookup_misses);
+		} else if (!zx279133_idm_rx_take_buffer(eth, dma, &buffer)) {
+			u64_stats_inc(&eth->rx_page_lookup_misses);
 		}
 
-		if (!page) {
+		if (!buffer.page) {
 			zx279133_stats_rx_error(eth, ndev);
 			if (net_ratelimit())
 				netdev_warn(ndev,
@@ -294,24 +358,117 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 					    eth->rx_page_map_count);
 			goto release_desc;
 		}
+		if (!buffer.xsk)
+			page = buffer.page;
 
 		if (word1 & BIT(14)) {
 			u64_stats_inc(&eth->rx_jumbo_drops);
 			zx279133_stats_rx_dropped(eth, ndev);
 			zx279133_stats_rx_error(eth, ndev);
-			goto reuse_page;
+			goto reuse_buffer;
 		}
 		if (word1 & BIT(15)) {
 			u64_stats_inc(&eth->rx_descriptor_flag_drops);
 			zx279133_stats_rx_dropped(eth, ndev);
-			goto reuse_page;
+			goto reuse_buffer;
 		}
 		if (len < ETH_HLEN || len > ZX279133_IDM_RX_FRAME_LIMIT) {
 			zx279133_stats_rx_error(eth, ndev);
 			zx279133_stats_rx_length_error(eth, ndev);
-			goto reuse_page;
+			goto reuse_buffer;
 		}
 		lan_source = queue < ZX279133_LAN_RX_QUEUE_COUNT;
+
+		if (buffer.xsk) {
+			struct xdp_buff *replacement_xsk;
+			struct xdp_buff *xdp = buffer.xdp;
+			struct bpf_prog *xdp_prog = NULL;
+			u32 act = XDP_PASS;
+
+			replacement_xsk = xsk_buff_alloc(eth->xsk_pool);
+			if (replacement_xsk) {
+				if (zx279133_idm_rx_post_xsk(eth, replacement_xsk)) {
+					u64_stats_inc(&eth->rx_refill_post_failures);
+					xsk_buff_free(replacement_xsk);
+					replacement_xsk = NULL;
+				} else {
+					refill++;
+				}
+			} else {
+				u64_stats_inc(&eth->rx_page_alloc_failures);
+			}
+
+			xsk_buff_set_size(xdp, len);
+			xsk_buff_dma_sync_for_cpu(xdp);
+			data = xdp->data;
+			if (!lan_source)
+				xdp_prog = rcu_dereference_bh(eth->xdp_prog);
+			if (xdp_prog)
+				act = bpf_prog_run_xdp(xdp_prog, xdp);
+
+			switch (act) {
+			case XDP_PASS:
+				if (xdp_prog)
+					u64_stats_inc(&eth->xdp_pass);
+				data = xdp->data;
+				len = xdp->data_end - xdp->data;
+				break;
+			case XDP_TX:
+				if (!zx279133_xsk_rx_enqueue(eth, xdp)) {
+					u64_stats_inc(&eth->xdp_tx);
+					*xdp_tx = true;
+					goto release_desc;
+				}
+				u64_stats_inc(&eth->xdp_aborted);
+				trace_xdp_exception(ndev, xdp_prog, act);
+				goto xsk_recycle;
+			case XDP_REDIRECT:
+				if (!xdp_do_redirect(ndev, xdp, xdp_prog)) {
+					u64_stats_inc(&eth->xdp_redirect);
+					*xdp_redirect = true;
+					goto release_desc;
+				}
+				u64_stats_inc(&eth->xdp_aborted);
+				trace_xdp_exception(ndev, xdp_prog, act);
+				goto xsk_recycle;
+			case XDP_ABORTED:
+				u64_stats_inc(&eth->xdp_aborted);
+				trace_xdp_exception(ndev, xdp_prog, act);
+				goto xsk_recycle;
+			case XDP_DROP:
+				u64_stats_inc(&eth->xdp_drop);
+				goto xsk_recycle;
+			default:
+				u64_stats_inc(&eth->xdp_aborted);
+				bpf_warn_invalid_xdp_action(ndev, xdp_prog, act);
+				trace_xdp_exception(ndev, xdp_prog, act);
+				goto xsk_recycle;
+			}
+
+			skb = napi_alloc_skb(napi, len + VLAN_HLEN + NET_IP_ALIGN);
+			if (skb) {
+				skb_reserve(skb, NET_IP_ALIGN);
+				memcpy(skb_put(skb, len), data, len);
+			} else {
+				u64_stats_inc(&eth->rx_skb_alloc_failures);
+				zx279133_stats_rx_dropped(eth, ndev);
+			}
+
+xsk_recycle:
+			if (replacement_xsk) {
+				xsk_buff_free(xdp);
+			} else {
+				zx279133_idm_rx_sync_xsk_for_device(eth, xdp);
+				if (zx279133_idm_rx_post_xsk(eth, xdp)) {
+					u64_stats_inc(&eth->rx_refill_post_failures);
+					xsk_buff_free(xdp);
+					zx279133_stats_rx_error(eth, ndev);
+				} else {
+					refill++;
+				}
+			}
+			goto deliver_skb;
+		}
 
 		replacement = page_pool_dev_alloc_pages(eth->rx_page_pool);
 		if (!replacement) {
@@ -423,6 +580,7 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 			}
 		}
 
+deliver_skb:
 		if (skb) {
 			struct net_device *rx_ndev = ndev;
 			bool lan_vlan_active;
@@ -505,7 +663,18 @@ xdp_recycle:
 		}
 		zx279133_idm_rx_sync_for_device(eth, page, len);
 
-reuse_page:
+reuse_buffer:
+		if (buffer.xsk) {
+			if (zx279133_idm_rx_post_xsk(eth, buffer.xdp)) {
+				u64_stats_inc(&eth->rx_refill_post_failures);
+				xsk_buff_free(buffer.xdp);
+				zx279133_stats_rx_error(eth, ndev);
+			} else {
+				refill++;
+			}
+			goto release_desc;
+		}
+
 		if (zx279133_idm_rx_post_page(eth, page)) {
 			u64_stats_inc(&eth->rx_refill_post_failures);
 			page_pool_recycle_direct(eth->rx_page_pool, page);
@@ -546,6 +715,31 @@ release_desc:
 	return rx_work;
 }
 
+static int zx279133_idm_rx_alloc_post(struct zx279133_eth *eth)
+{
+	struct xdp_buff *xdp;
+	struct page *page;
+	int ret;
+
+	if (eth->xsk_pool) {
+		xdp = xsk_buff_alloc(eth->xsk_pool);
+		if (!xdp)
+			return -ENOMEM;
+		ret = zx279133_idm_rx_post_xsk(eth, xdp);
+		if (ret)
+			xsk_buff_free(xdp);
+		return ret;
+	}
+
+	page = page_pool_dev_alloc_pages(eth->rx_page_pool);
+	if (!page)
+		return -ENOMEM;
+	ret = zx279133_idm_rx_post_page(eth, page);
+	if (ret)
+		page_pool_recycle_direct(eth->rx_page_pool, page);
+	return ret;
+}
+
 static unsigned int zx279133_idm_rx_recover_refill(struct zx279133_eth *eth)
 {
 	void __iomem *idm = eth->base + ZX279133_IDM_BASE;
@@ -557,8 +751,6 @@ static unsigned int zx279133_idm_rx_recover_refill(struct zx279133_eth *eth)
 	u64_stats_inc(&eth->rx_refill_recovery_attempts);
 	while (eth->rx_refill_deficit &&
 	       recovered < ZX279133_RX_REFILL_RECOVERY_BATCH) {
-		struct page *page;
-
 		/* An unknown descriptor DMA can leave its original page tracked.
 		 * Without evidence identifying that stale entry, fail closed rather
 		 * than overfilling hardware ownership or repeatedly warning.
@@ -567,16 +759,9 @@ static unsigned int zx279133_idm_rx_recover_refill(struct zx279133_eth *eth)
 			u64_stats_inc(&eth->rx_refill_recovery_failures);
 			break;
 		}
-		page = page_pool_dev_alloc_pages(eth->rx_page_pool);
-		if (!page) {
+		if (zx279133_idm_rx_alloc_post(eth)) {
 			u64_stats_inc(&eth->rx_page_alloc_failures);
 			u64_stats_inc(&eth->rx_refill_recovery_failures);
-			break;
-		}
-		if (zx279133_idm_rx_post_page(eth, page)) {
-			u64_stats_inc(&eth->rx_refill_post_failures);
-			u64_stats_inc(&eth->rx_refill_recovery_failures);
-			page_pool_recycle_direct(eth->rx_page_pool, page);
 			break;
 		}
 		eth->rx_refill_deficit--;
@@ -588,6 +773,12 @@ static unsigned int zx279133_idm_rx_recover_refill(struct zx279133_eth *eth)
 		writel(recovered, idm + ZX279133_IDM_BP_REFILL);
 		u64_stats_add(&eth->rx_refill_published, recovered);
 		u64_stats_add(&eth->rx_refill_recovery_pages, recovered);
+	}
+	if (eth->xsk_pool && xsk_uses_need_wakeup(eth->xsk_pool)) {
+		if (eth->rx_refill_deficit)
+			xsk_set_rx_need_wakeup(eth->xsk_pool);
+		else
+			xsk_clear_rx_need_wakeup(eth->xsk_pool);
 	}
 
 	return recovered;
@@ -626,6 +817,7 @@ int zx279133_idm_rx_poll(struct napi_struct *napi, int budget)
 		spin_lock_bh(&eth->tx_lock);
 		zx279133_idm_tx_reclaim_locked(eth);
 		spin_unlock_bh(&eth->tx_lock);
+		zx279133_xsk_tx(eth);
 		return 0;
 	}
 
@@ -659,6 +851,7 @@ int zx279133_idm_rx_poll(struct napi_struct *napi, int budget)
 	spin_lock_bh(&eth->tx_lock);
 	zx279133_idm_tx_reclaim_locked(eth);
 	spin_unlock_bh(&eth->tx_lock);
+	zx279133_xsk_tx(eth);
 
 	zx279133_idm_rx_recover_refill(eth);
 	if (eth->rx_refill_deficit &&
@@ -730,9 +923,14 @@ static void zx279133_idm_rx_put_active_pages(struct zx279133_eth *eth)
 
 		if (!entry->page)
 			continue;
-		page_pool_put_full_page(eth->rx_page_pool, entry->page, false);
+		if (entry->xsk)
+			xsk_buff_free(entry->xdp);
+		else
+			page_pool_put_full_page(eth->rx_page_pool, entry->page,
+						false);
 		entry->page = NULL;
 		entry->key = 0;
+		entry->xsk = false;
 	}
 	eth->rx_page_map_count = 0;
 }
@@ -755,21 +953,26 @@ int zx279133_idm_rx_prepare(struct zx279133_eth *eth)
 	eth->rx_refill_deficit = 0;
 
 	for (i = 0; i < ZX279133_IDM_RX_BUFFER_COUNT; i++) {
-		struct page *page = page_pool_dev_alloc_pages(eth->rx_page_pool);
-
-		if (!page) {
-			ret = -ENOMEM;
+		ret = zx279133_idm_rx_alloc_post(eth);
+		if (!ret)
+			continue;
+		if (!eth->xsk_pool)
 			goto err_put_pages;
-		}
-		ret = zx279133_idm_rx_post_page(eth, page);
-		if (ret) {
-			page_pool_put_full_page(eth->rx_page_pool, page, false);
-			goto err_put_pages;
-		}
+		break;
 	}
 
 	dma_wmb();
-	writel(ZX279133_IDM_RX_BUFFER_COUNT, idm + ZX279133_IDM_BP_REFILL);
+	if (i)
+		writel(i, idm + ZX279133_IDM_BP_REFILL);
+	eth->rx_refill_deficit = ZX279133_IDM_RX_BUFFER_COUNT - i;
+	if (eth->rx_refill_deficit > eth->rx_refill_deficit_high_water)
+		eth->rx_refill_deficit_high_water = eth->rx_refill_deficit;
+	if (eth->xsk_pool && xsk_uses_need_wakeup(eth->xsk_pool)) {
+		if (eth->rx_refill_deficit)
+			xsk_set_rx_need_wakeup(eth->xsk_pool);
+		else
+			xsk_clear_rx_need_wakeup(eth->xsk_pool);
+	}
 	eth->rx_prepared = true;
 	return 0;
 
@@ -810,6 +1013,7 @@ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth)
 	u16 reclaimed;
 	u32 bytes = 0;
 	u16 packets = 0;
+	u16 xsk_completed = 0;
 
 	eth->tx_reclaim_polls++;
 	if (completed > eth->tx_pending) {
@@ -842,6 +1046,12 @@ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth)
 						 DMA_TO_DEVICE);
 			dev_sw_netstats_tx_add(eth->ndev, 1, slot->len);
 			xdp_return_frame(slot->xdpf);
+		} else if (slot->xsk_rx) {
+			dev_sw_netstats_tx_add(eth->ndev, 1, slot->len);
+			xsk_buff_free(slot->xsk_rx);
+		} else if (slot->xsk_tx) {
+			dev_sw_netstats_tx_add(eth->ndev, 1, slot->len);
+			xsk_completed++;
 		}
 		memset(slot, 0, sizeof(*slot));
 		eth->tx_consumer = (eth->tx_consumer + 1) &
@@ -852,6 +1062,8 @@ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth)
 	/* BQL requires one completion report per reclaim round, not per skb. */
 	if (packets)
 		netdev_tx_completed_queue(txq, packets, bytes);
+	if (xsk_completed)
+		xsk_tx_completed(eth->xsk_pool, xsk_completed);
 
 	if (!READ_ONCE(eth->tx_stopping) &&
 	    eth->tx_pending < ZX279133_IDM_TX_DEPTH - 1) {
@@ -886,6 +1098,7 @@ void zx279133_idm_tx_reclaim_work(struct work_struct *work)
 		rearm = eth->tx_pending;
 	}
 	spin_unlock_bh(&eth->tx_lock);
+	zx279133_xsk_tx(eth);
 
 	if (rearm && !READ_ONCE(eth->tx_stopping))
 		mod_delayed_work(system_wq, &eth->tx_reclaim_work,
@@ -1072,6 +1285,7 @@ void zx279133_idm_tx_release(struct zx279133_eth *eth, bool hardware_alive)
 	struct netdev_queue *txq = netdev_get_tx_queue(eth->ndev, 0);
 	u32 completed_bytes = 0;
 	u16 completed_packets = 0;
+	u16 xsk_completed = 0;
 
 	if (!eth->tx_prepared)
 		return;
@@ -1109,6 +1323,11 @@ void zx279133_idm_tx_release(struct zx279133_eth *eth, bool hardware_alive)
 				dma_unmap_single(eth->dev, owner.dma, owner.len,
 						 DMA_TO_DEVICE);
 			xdp_return_frame(owner.xdpf);
+		} else if (owner.xsk_rx) {
+			xsk_buff_free(owner.xsk_rx);
+		} else if (owner.xsk_tx) {
+			zx279133_stats_tx_dropped(eth, eth->ndev);
+			xsk_completed++;
 		}
 		spin_lock_bh(&eth->tx_lock);
 	}
@@ -1116,6 +1335,8 @@ void zx279133_idm_tx_release(struct zx279133_eth *eth, bool hardware_alive)
 	if (completed_packets)
 		netdev_tx_completed_queue(txq, completed_packets,
 					  completed_bytes);
+	if (xsk_completed)
+		xsk_tx_completed(eth->xsk_pool, xsk_completed);
 
 	if (hardware_alive)
 		zx279133_idm_tx_deactivate(eth);

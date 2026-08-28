@@ -498,15 +498,21 @@ struct zx279133_idm_desc {
 struct zx279133_tx_slot {
 	struct sk_buff *skb;
 	struct xdp_frame *xdpf;
+	struct xdp_buff *xsk_rx;
 	struct net_device *ndev;
 	dma_addr_t dma;
 	u32 len;
 	bool dma_mapped;
+	bool xsk_tx;
 };
 
 struct zx279133_rx_page_entry {
-	struct page *page;
+	union {
+		struct page *page;
+		struct xdp_buff *xdp;
+	};
 	u32 key;
+	bool xsk;
 };
 
 static_assert(sizeof(struct zx279133_idm_desc) == 32);
@@ -540,6 +546,8 @@ struct zx279133_eth {
 	void __iomem *idm_mem;
 	struct page_pool *rx_page_pool;
 	struct xdp_rxq_info xdp_rxq;
+	struct xdp_rxq_info xsk_rxq;
+	struct xsk_buff_pool *xsk_pool;
 	struct bpf_prog __rcu *xdp_prog;
 	struct zx279133_rx_page_entry *rx_page_map;
 	u16 rx_page_map_count;
@@ -765,7 +773,9 @@ int zx279133_flow_offload_setup_tc(struct zx279133_eth *eth,
 void zx279133_idm_set_masked(struct zx279133_eth *eth, u32 mask, bool masked);
 unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth);
 int zx279133_xdp_enqueue(struct zx279133_eth *eth, struct xdp_frame *xdpf);
+int zx279133_xsk_rx_enqueue(struct zx279133_eth *eth, struct xdp_buff *xdp);
 void zx279133_xdp_flush(struct zx279133_eth *eth);
+void zx279133_xsk_tx(struct zx279133_eth *eth);
 void zx279133_idm_rx_refill_work(struct work_struct *work);
 int zx279133_idm_rx_poll(struct napi_struct *napi, int budget);
 irqreturn_t zx279133_idm_rx_irq(int irq, void *data);

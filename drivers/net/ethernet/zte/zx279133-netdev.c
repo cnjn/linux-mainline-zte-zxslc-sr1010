@@ -18,6 +18,7 @@
 
 #include <net/page_pool/helpers.h>
 #include <net/xdp.h>
+#include <net/xdp_sock_drv.h>
 
 #include "zx279133.h"
 #include "zx279133-lan.h"
@@ -497,6 +498,153 @@ int zx279133_xdp_enqueue(struct zx279133_eth *eth, struct xdp_frame *xdpf)
 	return 0;
 }
 
+int zx279133_xsk_rx_enqueue(struct zx279133_eth *eth, struct xdp_buff *xdp)
+{
+	struct zx279133_idm_desc *desc;
+	struct zx279133_tx_slot *slot;
+	void *dma_data = xdp->data_hard_start + XDP_PACKET_HEADROOM;
+	dma_addr_t dma;
+	long dma_offset;
+	u32 len;
+	u16 producer;
+	bool arm_reclaim;
+
+	len = xdp->data_end - xdp->data;
+	if (unlikely(xdp_buff_has_frags(xdp) || len < ETH_HLEN ||
+		     len > ZX279133_IDM_RX_FRAME_LIMIT))
+		return -EOPNOTSUPP;
+	if (unlikely(!READ_ONCE(eth->tx_prepared) ||
+		     READ_ONCE(eth->tx_stopping)))
+		return -ENETDOWN;
+
+	dma_offset = xdp->data - dma_data;
+	dma = xsk_buff_xdp_get_dma(xdp) + dma_offset;
+	if (unlikely(upper_32_bits(dma)))
+		return -ERANGE;
+	xsk_buff_raw_dma_sync_for_device(eth->xsk_pool, dma, len);
+
+	spin_lock_bh(&eth->tx_lock);
+	if (unlikely(eth->tx_pending >= ZX279133_IDM_TX_DEPTH - 1))
+		zx279133_idm_tx_reclaim_locked(eth);
+	if (unlikely(eth->tx_pending >= ZX279133_IDM_TX_DEPTH - 1)) {
+		spin_unlock_bh(&eth->tx_lock);
+		return -ENOSPC;
+	}
+
+	producer = eth->tx_producer;
+	desc = eth->tx_descs + zx279133_tx_queue *
+		ZX279133_IDM_TX_DEPTH + producer;
+	slot = &eth->tx_slots[producer];
+	memset(desc, 0, sizeof(*desc));
+	desc->address = cpu_to_le32(lower_32_bits(dma));
+	desc->length_flags = cpu_to_le32((len << 1) |
+					 (zx279133_tx_selector & 0xff) << 24 |
+					 (zx279133_tx_word4_bit23 ? BIT(23) : 0));
+	desc->metadata[0] = cpu_to_le32(ZX279133_IDM_TX_CONTROL |
+					       (zx279133_tx_port & 0xff) << 16);
+	desc->metadata[4] = cpu_to_le32(zx279133_tx_pon_control);
+	slot->xsk_rx = xdp;
+	slot->ndev = eth->ndev;
+	slot->dma = dma;
+	slot->len = len;
+	arm_reclaim = !eth->tx_pending;
+	eth->tx_producer = (eth->tx_producer + 1) &
+				   (ZX279133_IDM_TX_DEPTH - 1);
+	eth->tx_pending++;
+	eth->tx_notify_pending++;
+	spin_unlock_bh(&eth->tx_lock);
+
+	if (arm_reclaim)
+		mod_delayed_work(system_wq, &eth->tx_reclaim_work,
+				 msecs_to_jiffies(ZX279133_TX_RECLAIM_DELAY_MS));
+
+	return 0;
+}
+
+void zx279133_xsk_tx(struct zx279133_eth *eth)
+{
+	struct xsk_buff_pool *pool = READ_ONCE(eth->xsk_pool);
+	unsigned int dropped = 0;
+	bool ring_full = false;
+	bool queued = false;
+
+	if (!pool || !READ_ONCE(eth->tx_prepared) ||
+	    READ_ONCE(eth->tx_stopping))
+		return;
+
+	spin_lock_bh(&eth->tx_lock);
+	zx279133_idm_tx_reclaim_locked(eth);
+	while (eth->tx_pending < ZX279133_IDM_TX_DEPTH - 1) {
+		struct zx279133_idm_desc *desc;
+		struct zx279133_tx_slot *slot;
+		struct xdp_desc xdp_desc;
+		dma_addr_t dma;
+		u16 producer;
+
+		if (!xsk_tx_peek_desc(pool, &xdp_desc))
+			break;
+		if (unlikely(!xsk_is_eop_desc(&xdp_desc) ||
+			     xdp_desc.len < ETH_HLEN ||
+			     xdp_desc.len > ZX279133_IDM_RX_FRAME_LIMIT)) {
+			xsk_tx_release(pool);
+			dropped++;
+			continue;
+		}
+
+		dma = xsk_buff_raw_get_dma(pool, xdp_desc.addr);
+		if (unlikely(upper_32_bits(dma))) {
+			xsk_tx_release(pool);
+			dropped++;
+			continue;
+		}
+		xsk_buff_raw_dma_sync_for_device(pool, dma, xdp_desc.len);
+
+		producer = eth->tx_producer;
+		desc = eth->tx_descs + zx279133_tx_queue *
+			ZX279133_IDM_TX_DEPTH + producer;
+		slot = &eth->tx_slots[producer];
+		memset(desc, 0, sizeof(*desc));
+		desc->address = cpu_to_le32(lower_32_bits(dma));
+		desc->length_flags =
+			cpu_to_le32((xdp_desc.len << 1) |
+				    (zx279133_tx_selector & 0xff) << 24 |
+				    (zx279133_tx_word4_bit23 ? BIT(23) : 0));
+		desc->metadata[0] =
+			cpu_to_le32(ZX279133_IDM_TX_CONTROL |
+				    (zx279133_tx_port & 0xff) << 16);
+		desc->metadata[4] = cpu_to_le32(zx279133_tx_pon_control);
+		slot->ndev = eth->ndev;
+		slot->dma = dma;
+		slot->len = xdp_desc.len;
+		slot->xsk_tx = true;
+		eth->tx_producer = (eth->tx_producer + 1) &
+					   (ZX279133_IDM_TX_DEPTH - 1);
+		eth->tx_pending++;
+		eth->tx_notify_pending++;
+		xsk_tx_release(pool);
+		queued = true;
+	}
+	ring_full = eth->tx_pending >= ZX279133_IDM_TX_DEPTH - 1;
+	if (queued)
+		zx279133_idm_tx_flush_locked(eth);
+	spin_unlock_bh(&eth->tx_lock);
+
+	if (dropped) {
+		xsk_tx_completed(pool, dropped);
+		while (dropped--)
+			zx279133_stats_tx_dropped(eth, eth->ndev);
+	}
+	if (xsk_uses_need_wakeup(pool)) {
+		if (ring_full)
+			xsk_clear_tx_need_wakeup(pool);
+		else
+			xsk_set_tx_need_wakeup(pool);
+	}
+	if (queued)
+		mod_delayed_work(system_wq, &eth->tx_reclaim_work,
+				 msecs_to_jiffies(ZX279133_TX_RECLAIM_DELAY_MS));
+}
+
 void zx279133_xdp_flush(struct zx279133_eth *eth)
 {
 	spin_lock_bh(&eth->tx_lock);
@@ -528,18 +676,123 @@ static int zx279133_xdp_xmit(struct net_device *ndev, int n,
 	return nxmit ?: ret;
 }
 
+static int zx279133_xsk_pool_cycle(struct zx279133_eth *eth,
+				   struct xsk_buff_pool *pool)
+{
+	struct xsk_buff_pool *old_pool = READ_ONCE(eth->xsk_pool);
+	bool idle = false;
+	bool tx_quiesced;
+	bool wan_active;
+	int restore;
+	int ret;
+
+	if (pool == old_pool)
+		return 0;
+	if (pool && xsk_pool_get_rx_frame_size(pool) <
+		    eth->ndev->mtu + ETH_HLEN + VLAN_HLEN)
+		return -EINVAL;
+	if (pool) {
+		xsk_pool_set_rxq_info(pool, &eth->xsk_rxq);
+		ret = xsk_pool_dma_map(pool, eth->dev, DMA_ATTR_SKIP_CPU_SYNC);
+		if (ret)
+			return ret;
+	}
+
+	mutex_lock(&eth->datapath_lock);
+	if (!eth->datapath_users) {
+		WRITE_ONCE(eth->xsk_pool, pool);
+		idle = true;
+		mutex_unlock(&eth->datapath_lock);
+		goto out_unmap_old;
+	}
+
+	wan_active = eth->datapath_users & ZX279133_DATAPATH_USER_WAN;
+	zx279133_shared_rx_stop(eth);
+	tx_quiesced = zx279133_shared_tx_pause(eth);
+	if (wan_active)
+		phylink_stop(eth->phylink);
+	zx279133_shared_idm_release(eth, eth->ndev, tx_quiesced);
+
+	WRITE_ONCE(eth->xsk_pool, pool);
+	ret = zx279133_hardware_prepare(eth);
+	if (!ret)
+		ret = zx279133_shared_idm_prepare(eth);
+	if (!ret) {
+		if (wan_active)
+			phylink_start(eth->phylink);
+		zx279133_shared_rx_start(eth);
+		zx279133_shared_tx_resume(eth);
+		mutex_unlock(&eth->datapath_lock);
+		goto out_unmap_old;
+	}
+
+	if (READ_ONCE(eth->hardware_prepared))
+		zx279133_hardware_unprepare(eth);
+	WRITE_ONCE(eth->xsk_pool, old_pool);
+	restore = zx279133_hardware_prepare(eth);
+	if (!restore)
+		restore = zx279133_shared_idm_prepare(eth);
+	if (!restore) {
+		if (wan_active)
+			phylink_start(eth->phylink);
+		zx279133_shared_rx_start(eth);
+		zx279133_shared_tx_resume(eth);
+	} else {
+		netdev_err(eth->ndev,
+			   "failed to restore datapath after XSK pool setup: %d\n",
+			   restore);
+	}
+	mutex_unlock(&eth->datapath_lock);
+	if (pool)
+		xsk_pool_dma_unmap(pool, DMA_ATTR_SKIP_CPU_SYNC);
+	return ret;
+
+out_unmap_old:
+	if (old_pool)
+		xsk_pool_dma_unmap(old_pool, DMA_ATTR_SKIP_CPU_SYNC);
+	if (pool && xsk_uses_need_wakeup(pool)) {
+		if (idle)
+			xsk_set_rx_need_wakeup(pool);
+		xsk_set_tx_need_wakeup(pool);
+	}
+	return 0;
+}
+
 static int zx279133_xdp(struct net_device *ndev, struct netdev_bpf *bpf)
 {
 	struct zx279133_eth *eth = netdev_priv(ndev);
 	struct bpf_prog *old_prog;
 
-	if (bpf->command != XDP_SETUP_PROG)
+	switch (bpf->command) {
+	case XDP_SETUP_PROG:
+		break;
+	case XDP_SETUP_XSK_POOL:
+		if (bpf->xsk.queue_id)
+			return -EINVAL;
+		return zx279133_xsk_pool_cycle(eth, bpf->xsk.pool);
+	default:
 		return -EOPNOTSUPP;
+	}
 
 	old_prog = rcu_replace_pointer(eth->xdp_prog, bpf->prog,
 				       lockdep_rtnl_is_held());
 	if (old_prog)
 		bpf_prog_put(old_prog);
+
+	return 0;
+}
+
+static int zx279133_xsk_wakeup(struct net_device *ndev, u32 queue_id,
+			       u32 flags)
+{
+	struct zx279133_eth *eth = netdev_priv(ndev);
+
+	if (queue_id || !READ_ONCE(eth->xsk_pool))
+		return -EINVAL;
+	if (!READ_ONCE(eth->rx_running) || !READ_ONCE(eth->napi_enabled))
+		return -ENETDOWN;
+	if (!napi_if_scheduled_mark_missed(&eth->napi))
+		napi_schedule(&eth->napi);
 
 	return 0;
 }
@@ -645,6 +898,12 @@ static int zx279133_set_mac_address(struct net_device *ndev, void *p)
 
 static int zx279133_change_mtu(struct net_device *ndev, int new_mtu)
 {
+	struct zx279133_eth *eth = netdev_priv(ndev);
+	struct xsk_buff_pool *pool = READ_ONCE(eth->xsk_pool);
+
+	if (pool && xsk_pool_get_rx_frame_size(pool) <
+		    new_mtu + ETH_HLEN + VLAN_HLEN)
+		return -EINVAL;
 	WRITE_ONCE(ndev->mtu, new_mtu);
 	return 0;
 }
@@ -1089,6 +1348,7 @@ const struct net_device_ops zx279133_netdev_ops = {
 	.ndo_setup_tc		= zx279133_setup_tc,
 	.ndo_bpf		= zx279133_xdp,
 	.ndo_xdp_xmit		= zx279133_xdp_xmit,
+	.ndo_xsk_wakeup		= zx279133_xsk_wakeup,
 };
 
 static struct zx279133_eth *
