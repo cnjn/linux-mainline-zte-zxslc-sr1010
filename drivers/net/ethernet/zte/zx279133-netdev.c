@@ -988,6 +988,19 @@ static void zx279133_get_ethtool_stats(struct net_device *ndev,
 		atomic64_read(&eth->rx_refill_retry_work_runs);
 }
 
+static void
+zx279133_get_ringparam(struct net_device *ndev,
+			struct ethtool_ringparam *ring,
+			struct kernel_ethtool_ringparam *kernel_ring,
+			struct netlink_ext_ack *extack)
+{
+	ring->rx_max_pending = ZX279133_IDM_RX_RING_SIZE;
+	ring->tx_max_pending = ZX279133_IDM_TX_DEPTH;
+	ring->rx_pending = ZX279133_IDM_RX_RING_SIZE;
+	ring->tx_pending = ZX279133_IDM_TX_DEPTH;
+	kernel_ring->rx_buf_len = ZX279133_RX_PAGE_SIZE;
+}
+
 const struct ethtool_ops zx279133_ethtool_ops = {
 	.get_drvinfo		= zx279133_get_drvinfo,
 	.get_link		= ethtool_op_get_link,
@@ -996,6 +1009,7 @@ const struct ethtool_ops zx279133_ethtool_ops = {
 	.nway_reset		= zx279133_nway_reset,
 	.get_pauseparam		= zx279133_get_pauseparam,
 	.set_pauseparam		= zx279133_set_pauseparam,
+	.get_ringparam		= zx279133_get_ringparam,
 	.get_sset_count		= zx279133_get_sset_count,
 	.get_strings		= zx279133_get_strings,
 	.get_ethtool_stats	= zx279133_get_ethtool_stats,
