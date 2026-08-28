@@ -24,6 +24,8 @@ BUSYBOX=${BUSYBOX:-"$ZXROOT/busybox"}
 IPERF3=${IPERF3:-"$ZXROOT/iperf3"}
 NFT=${NFT:-"$OUT/nft"}
 PPPD_ROOT=${PPPD_ROOT:-"$OUT/ppp-root"}
+XSK_ZC=${XSK_ZC:-"$OUT/xsk-zc"}
+PTP_TEST=${PTP_TEST:-"$OUT/ptp-test"}
 JOBS=${JOBS:-4}
 CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
 
@@ -66,6 +68,13 @@ done
 
 mkdir -p "$KERNEL_OUT" "$OUT"
 
+"${CROSS_COMPILE}gcc" -O2 -static -Wall -Wextra -Werror \
+	"$SCRIPT_DIR/xdp-acceptance/xsk-zc.c" -o "$XSK_ZC"
+"${CROSS_COMPILE}strip" -s "$XSK_ZC"
+"${CROSS_COMPILE}gcc" -O2 -static -Wall -Wextra -Werror \
+	"$SCRIPT_DIR/ptp-acceptance/ptp-test.c" -o "$PTP_TEST"
+"${CROSS_COMPILE}strip" -s "$PTP_TEST"
+
 # ---- Assemble the initramfs root ------------------------------------------
 rm -rf "$ROOTFS"
 mkdir -p "$ROOTFS/bin" "$ROOTFS/sbin" "$ROOTFS/usr/bin" "$ROOTFS/usr/sbin" \
@@ -91,6 +100,8 @@ install -m 0644 "$SCRIPT_DIR/initramfs/ppp-options" \
 	"$ROOTFS/etc/ppp/options"
 install -m 0644 "$SCRIPT_DIR/nat-acceptance/nft-pppoe-flowtable.nft" \
 	"$ROOTFS/etc/nft-pppoe-flowtable.nft"
+install -m 0644 "$SCRIPT_DIR/nat-acceptance/nft-ipv6-flowtable.nft" \
+	"$ROOTFS/etc/nft-ipv6-flowtable.nft"
 mkdir -p "$ROOTFS/lib/firmware/zte/zx279133"
 cp "$ZXROOT/out/mcode_intel.bin" \
 	"$ROOTFS/lib/firmware/zte/zx279133/mcode_intel.bin"
@@ -125,6 +136,8 @@ file /init $ROOTFS/init 0755 0 0
 file /bin/busybox $ROOTFS/bin/busybox 0755 0 0
 file /bin/iperf3 $ROOTFS/bin/iperf3 0755 0 0
 file /bin/nft $ROOTFS/bin/nft 0755 0 0
+file /bin/xsk-zc $XSK_ZC 0755 0 0
+file /bin/ptp-test $PTP_TEST 0755 0 0
 file /usr/sbin/pppd $ROOTFS/usr/sbin/pppd 0755 0 0
 file /usr/lib/pppd/2.5.3/pppoe.so \
 	$ROOTFS/usr/lib/pppd/2.5.3/pppoe.so 0755 0 0
@@ -137,6 +150,8 @@ file /usr/lib/ossl-modules/legacy.so \
 file /etc/ppp/options $ROOTFS/etc/ppp/options 0644 0 0
 file /etc/nft-pppoe-flowtable.nft \
 	$ROOTFS/etc/nft-pppoe-flowtable.nft 0644 0 0
+file /etc/nft-ipv6-flowtable.nft \
+	$ROOTFS/etc/nft-ipv6-flowtable.nft 0644 0 0
 file /lib/firmware/zte/zx279133/mcode_intel.bin \
 	$ROOTFS/lib/firmware/zte/zx279133/mcode_intel.bin 0644 0 0
 EOF

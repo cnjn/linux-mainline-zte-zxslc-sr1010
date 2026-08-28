@@ -126,7 +126,7 @@ cat <<'EOF'
  ping -c 1 192.168.1.100
  ifconfig eth0
  cat /proc/interrupts
- Raw IDM register peek (base 0x19280000):
+ Raw IDM register peek (eth0 must be UP; clock-gated MMIO hangs the bus):
    devmem 0x19280000 32       # IDM_GLOBAL_CFG
    devmem 0x192803fc 32       # IDM_DIAG
  reboot -f to restart.
