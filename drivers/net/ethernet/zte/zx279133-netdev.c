@@ -1068,6 +1068,14 @@ static int zx279133_setup_tc(struct net_device *ndev,
 					     type_data);
 }
 
+static int zx279133_eth_ioctl(struct net_device *ndev,
+			      struct ifreq *ifr, int cmd)
+{
+	struct zx279133_eth *eth = netdev_priv(ndev);
+
+	return phylink_mii_ioctl(eth->phylink, ifr, cmd);
+}
+
 const struct net_device_ops zx279133_netdev_ops = {
 	.ndo_open		= zx279133_open,
 	.ndo_stop		= zx279133_stop,
@@ -1077,6 +1085,7 @@ const struct net_device_ops zx279133_netdev_ops = {
 	.ndo_validate_addr	= eth_validate_addr,
 	.ndo_change_mtu		= zx279133_change_mtu,
 	.ndo_get_stats64	= zx279133_get_stats64,
+	.ndo_eth_ioctl		= zx279133_eth_ioctl,
 	.ndo_setup_tc		= zx279133_setup_tc,
 	.ndo_bpf		= zx279133_xdp,
 	.ndo_xdp_xmit		= zx279133_xdp_xmit,
