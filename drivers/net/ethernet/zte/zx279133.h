@@ -11,6 +11,8 @@
 #include <linux/phylink.h>
 #include <linux/workqueue.h>
 
+#include <net/xdp.h>
+
 #include "zx279133-stats.h"
 #include "zx279133-lan.h"
 
@@ -381,7 +383,7 @@
 #define ZX279133_IDM_RX_BUFFER_STRIDE	0x940
 #define ZX279133_IDM_RX_BUFFER_SIZE	(ZX279133_IDM_RX_BUFFER_COUNT * \
 					 ZX279133_IDM_RX_BUFFER_STRIDE)
-#define ZX279133_IDM_RX_PAYLOAD_OFFSET	0x40
+#define ZX279133_IDM_RX_PAYLOAD_OFFSET	XDP_PACKET_HEADROOM
 #define ZX279133_MAX_MTU		ZX279133_LAN_USER_MAX_MTU
 #define ZX279133_IDM_RX_FRAME_LIMIT	(ZX279133_MAX_MTU + ETH_HLEN + \
 					 VLAN_HLEN)
@@ -472,9 +474,11 @@ struct zx279133_idm_desc {
 
 struct zx279133_tx_slot {
 	struct sk_buff *skb;
+	struct xdp_frame *xdpf;
 	struct net_device *ndev;
 	dma_addr_t dma;
 	u32 len;
+	bool dma_mapped;
 };
 
 struct zx279133_rx_page_entry {
@@ -512,6 +516,8 @@ struct zx279133_eth {
 	phys_addr_t idm_size;
 	void __iomem *idm_mem;
 	struct page_pool *rx_page_pool;
+	struct xdp_rxq_info xdp_rxq;
+	struct bpf_prog __rcu *xdp_prog;
 	struct zx279133_rx_page_entry *rx_page_map;
 	u16 rx_page_map_count;
 	u32 idm_cci_saved[2];
@@ -598,6 +604,11 @@ struct zx279133_eth {
 	u64_stats_t rx_refill_recovery_attempts;
 	u64_stats_t rx_refill_recovery_pages;
 	u64_stats_t rx_refill_recovery_failures;
+	u64_stats_t xdp_pass;
+	u64_stats_t xdp_drop;
+	u64_stats_t xdp_tx;
+	u64_stats_t xdp_redirect;
+	u64_stats_t xdp_aborted;
 	atomic64_t rx_refill_retry_work_runs;
 	u16 rx_refill_deficit;
 	u16 rx_refill_deficit_high_water;
@@ -722,6 +733,8 @@ int zx279133_flow_offload_setup_tc(struct zx279133_eth *eth,
 
 void zx279133_idm_set_masked(struct zx279133_eth *eth, u32 mask, bool masked);
 unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth);
+int zx279133_xdp_enqueue(struct zx279133_eth *eth, struct xdp_frame *xdpf);
+void zx279133_xdp_flush(struct zx279133_eth *eth);
 void zx279133_idm_rx_refill_work(struct work_struct *work);
 int zx279133_idm_rx_poll(struct napi_struct *napi, int budget);
 irqreturn_t zx279133_idm_rx_irq(int irq, void *data);

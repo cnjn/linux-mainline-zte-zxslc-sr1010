@@ -74,6 +74,13 @@ static void zx279133_rx_page_pool_destroy(void *data)
 	page_pool_destroy(eth->rx_page_pool);
 }
 
+static void zx279133_xdp_rxq_unreg(void *data)
+{
+	struct zx279133_eth *eth = data;
+
+	xdp_rxq_info_unreg(&eth->xdp_rxq);
+}
+
 static void zx279133_mdio_device_put(void *data)
 {
 	mdio_device_put(data);
@@ -470,6 +477,8 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 	}
 	ndev->hw_features |= NETIF_F_HW_TC;
 	ndev->features |= NETIF_F_HW_TC;
+	ndev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
+			     NETDEV_XDP_ACT_NDO_XMIT;
 	ndev->min_mtu = ETH_MIN_MTU;
 	ndev->max_mtu = ZX279133_MAX_MTU;
 	if (of_get_ethdev_address(dev->of_node, ndev))
@@ -488,7 +497,7 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 			.nid = NUMA_NO_NODE,
 			.dev = dev,
 			.napi = &eth->napi,
-			.dma_dir = DMA_FROM_DEVICE,
+			.dma_dir = DMA_BIDIRECTIONAL,
 			.max_len = ZX279133_IDM_RX_FRAME_LIMIT,
 			.offset = ZX279133_IDM_RX_PAYLOAD_OFFSET,
 			.netdev = ndev,
@@ -513,6 +522,19 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 		if (ret)
 			return ret;
 	}
+	ret = xdp_rxq_info_reg(&eth->xdp_rxq, ndev, 0, eth->napi.napi_id);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to register XDP RX queue\n");
+	ret = xdp_rxq_info_reg_mem_model(&eth->xdp_rxq, MEM_TYPE_PAGE_POOL,
+					 eth->rx_page_pool);
+	if (ret) {
+		xdp_rxq_info_unreg(&eth->xdp_rxq);
+		return dev_err_probe(dev, ret,
+				     "failed to register XDP page pool\n");
+	}
+	ret = devm_add_action_or_reset(dev, zx279133_xdp_rxq_unreg, eth);
+	if (ret)
+		return ret;
 
 	/*
 	 * Source 0 (direct CPU RX) and source 2 (vendor "localtest") share

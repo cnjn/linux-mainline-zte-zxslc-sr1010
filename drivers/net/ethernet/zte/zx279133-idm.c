@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 #include <linux/dma-mapping.h>
+#include <linux/bpf_trace.h>
 #include <linux/etherdevice.h>
+#include <linux/filter.h>
 #include <linux/if_arp.h>
 #include <linux/if_vlan.h>
 #include <linux/io.h>
@@ -11,6 +13,7 @@
 #include <linux/unaligned.h>
 
 #include <net/page_pool/helpers.h>
+#include <net/xdp.h>
 
 #include "zx279133.h"
 
@@ -226,12 +229,13 @@ static void zx279133_idm_rx_sync_for_device(struct zx279133_eth *eth,
 
 	dma_sync_single_range_for_device(eth->dev, dma,
 					 ZX279133_IDM_RX_PAYLOAD_OFFSET, len,
-					 DMA_FROM_DEVICE);
+					 DMA_BIDIRECTIONAL);
 }
 
 static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 					 struct napi_struct *napi,
-					 unsigned int queue, u16 count)
+					 unsigned int queue, u16 count,
+					 bool *xdp_tx, bool *xdp_redirect)
 {
 	struct net_device *ndev = eth->ndev;
 	void __iomem *idm = eth->base + ZX279133_IDM_BASE;
@@ -243,11 +247,13 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 		struct page *replacement = NULL;
 		struct page *page;
 		struct sk_buff *skb = NULL;
+		void *data;
 		dma_addr_t dma;
 		u32 word1;
 		u16 desc_index = eth->rx_cons[queue];
 		u16 refill_before = refill;
 		u16 len;
+		bool lan_source;
 		bool valid_dma;
 
 		desc = eth->rx_descs + queue * ZX279133_IDM_RX_RING_SIZE +
@@ -305,6 +311,7 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 			zx279133_stats_rx_length_error(eth, ndev);
 			goto reuse_page;
 		}
+		lan_source = queue < ZX279133_LAN_RX_QUEUE_COUNT;
 
 		replacement = page_pool_dev_alloc_pages(eth->rx_page_pool);
 		if (!replacement) {
@@ -316,8 +323,75 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 		}
 		if (replacement) {
 			refill++;
-			page_pool_dma_sync_for_cpu(eth->rx_page_pool, page, 0, len);
-			zx279133_idm_rx_prefetch_payload(page);
+		}
+		page_pool_dma_sync_for_cpu(eth->rx_page_pool, page, 0, len);
+		zx279133_idm_rx_prefetch_payload(page);
+		data = page_address(page) + ZX279133_IDM_RX_PAYLOAD_OFFSET;
+
+		if (!lan_source) {
+			struct bpf_prog *xdp_prog =
+				rcu_dereference_bh(eth->xdp_prog);
+
+			if (xdp_prog) {
+				struct xdp_buff xdp;
+				u32 act;
+
+				xdp_init_buff(&xdp, ZX279133_RX_PAGE_SIZE,
+					      &eth->xdp_rxq);
+				xdp_prepare_buff(&xdp, page_address(page),
+						 ZX279133_IDM_RX_PAYLOAD_OFFSET,
+						 len, false);
+				act = bpf_prog_run_xdp(xdp_prog, &xdp);
+				switch (act) {
+				case XDP_PASS:
+					u64_stats_inc(&eth->xdp_pass);
+					data = xdp.data;
+					len = xdp.data_end - xdp.data;
+					break;
+				case XDP_TX: {
+					struct xdp_frame *xdpf;
+
+					xdpf = xdp_convert_buff_to_frame(&xdp);
+					if (xdpf && !zx279133_xdp_enqueue(eth, xdpf)) {
+						u64_stats_inc(&eth->xdp_tx);
+						*xdp_tx = true;
+						goto release_desc;
+					}
+					u64_stats_inc(&eth->xdp_aborted);
+					trace_xdp_exception(ndev, xdp_prog, act);
+					if (xdpf) {
+						xdp_return_frame_rx_napi(xdpf);
+						goto release_desc;
+					}
+					goto xdp_recycle;
+				}
+				case XDP_REDIRECT:
+					if (!xdp_do_redirect(ndev, &xdp, xdp_prog)) {
+						u64_stats_inc(&eth->xdp_redirect);
+						*xdp_redirect = true;
+						goto release_desc;
+					}
+					u64_stats_inc(&eth->xdp_aborted);
+					trace_xdp_exception(ndev, xdp_prog, act);
+					goto xdp_recycle;
+				case XDP_ABORTED:
+					u64_stats_inc(&eth->xdp_aborted);
+					trace_xdp_exception(ndev, xdp_prog, act);
+					goto xdp_recycle;
+				case XDP_DROP:
+					u64_stats_inc(&eth->xdp_drop);
+					goto xdp_recycle;
+				default:
+					u64_stats_inc(&eth->xdp_aborted);
+					bpf_warn_invalid_xdp_action(ndev, xdp_prog,
+								    act);
+					trace_xdp_exception(ndev, xdp_prog, act);
+					goto xdp_recycle;
+				}
+			}
+		}
+
+		if (replacement) {
 			skb = napi_build_skb(page_address(page),
 					     ZX279133_RX_PAGE_SIZE);
 			if (!skb) {
@@ -327,18 +401,14 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 				goto release_desc;
 			}
 			skb_mark_for_recycle(skb);
-			skb_reserve(skb, ZX279133_IDM_RX_PAYLOAD_OFFSET);
+			skb_reserve(skb, data - page_address(page));
 			skb_put(skb, len);
 		} else {
 			u64_stats_inc(&eth->rx_copy_fallbacks);
-			page_pool_dma_sync_for_cpu(eth->rx_page_pool, page, 0, len);
-			zx279133_idm_rx_prefetch_payload(page);
 			skb = napi_alloc_skb(napi, len + VLAN_HLEN + NET_IP_ALIGN);
 			if (skb) {
 				skb_reserve(skb, NET_IP_ALIGN);
-				memcpy(skb_put(skb, len),
-				       page_address(page) +
-				       ZX279133_IDM_RX_PAYLOAD_OFFSET, len);
+				memcpy(skb_put(skb, len), data, len);
 			} else {
 				u64_stats_inc(&eth->rx_skb_alloc_failures);
 				zx279133_stats_rx_dropped(eth, ndev);
@@ -357,7 +427,6 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 			struct net_device *rx_ndev = ndev;
 			bool lan_vlan_active;
 			bool lan_dsa_active;
-			bool lan_source;
 
 			lan_dsa_active = READ_ONCE(eth->lan_dsa_active);
 			lan_vlan_active = READ_ONCE(eth->lan_vlan62_active);
@@ -366,7 +435,6 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 			 * parsed descriptor fields, that split remains stable when CPU8
 			 * strips the LAN transport VLAN before PPU.
 			 */
-			lan_source = queue < ZX279133_LAN_RX_QUEUE_COUNT;
 			if (lan_source)
 				len += zx279133_idm_rx_restore_lan_l2(
 					skb, le32_to_cpu(READ_ONCE(desc->metadata[0])));
@@ -429,6 +497,13 @@ static int zx279133_idm_rx_process_queue(struct zx279133_eth *eth,
 			dev_sw_netstats_rx_add(rx_ndev, len);
 		}
 		goto release_desc;
+
+xdp_recycle:
+		if (replacement) {
+			page_pool_recycle_direct(eth->rx_page_pool, page);
+			goto release_desc;
+		}
+		zx279133_idm_rx_sync_for_device(eth, page, len);
 
 reuse_page:
 		if (zx279133_idm_rx_post_page(eth, page)) {
@@ -540,6 +615,8 @@ int zx279133_idm_rx_poll(struct napi_struct *napi, int budget)
 {
 	struct zx279133_eth *eth = container_of(napi, struct zx279133_eth,
 					       napi);
+	bool xdp_redirect = false;
+	bool xdp_tx = false;
 	u8 cursor = eth->rx_poll_cursor;
 	int work = 0;
 	int scanned;
@@ -568,11 +645,16 @@ int zx279133_idm_rx_poll(struct napi_struct *napi, int budget)
 		count = min_t(u16, count, budget - work);
 		if (count)
 			work += zx279133_idm_rx_process_queue(eth, napi, queue,
-							      count);
+							      count, &xdp_tx,
+							      &xdp_redirect);
 		cursor = (cursor + 1) &
 			 (ARRAY_SIZE(zx279133_idm_rx_poll_order) - 1);
 	}
 	eth->rx_poll_cursor = cursor;
+	if (xdp_tx)
+		zx279133_xdp_flush(eth);
+	if (xdp_redirect)
+		xdp_do_flush();
 
 	spin_lock_bh(&eth->tx_lock);
 	zx279133_idm_tx_reclaim_locked(eth);
@@ -725,6 +807,7 @@ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth)
 	u16 done = readl(eth->base + ZX279133_IDM_BASE +
 			 zx279133_idm_tx_done_reg(zx279133_tx_queue)) & 0xffff;
 	u16 completed = done - eth->tx_done;
+	u16 reclaimed;
 	u32 bytes = 0;
 	u16 packets = 0;
 
@@ -737,6 +820,7 @@ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth)
 		completed = eth->tx_pending;
 	}
 	eth->tx_done = done;
+	reclaimed = completed;
 
 	while (completed--) {
 		struct zx279133_tx_slot *slot =
@@ -745,14 +829,21 @@ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth)
 		if (slot->skb) {
 			struct net_device *ndev = slot->ndev ?: eth->ndev;
 
-			dma_unmap_single(eth->dev, slot->dma, slot->len,
-					 DMA_TO_DEVICE);
+			if (slot->dma_mapped)
+				dma_unmap_single(eth->dev, slot->dma, slot->len,
+						 DMA_TO_DEVICE);
 			dev_sw_netstats_tx_add(ndev, 1, slot->len);
 			bytes += slot->len;
 			packets++;
 			dev_consume_skb_any(slot->skb);
-			memset(slot, 0, sizeof(*slot));
+		} else if (slot->xdpf) {
+			if (slot->dma_mapped)
+				dma_unmap_single(eth->dev, slot->dma, slot->len,
+						 DMA_TO_DEVICE);
+			dev_sw_netstats_tx_add(eth->ndev, 1, slot->len);
+			xdp_return_frame(slot->xdpf);
 		}
+		memset(slot, 0, sizeof(*slot));
 		eth->tx_consumer = (eth->tx_consumer + 1) &
 					   (ZX279133_IDM_TX_DEPTH - 1);
 		eth->tx_pending--;
@@ -774,7 +865,7 @@ unsigned int zx279133_idm_tx_reclaim_locked(struct zx279133_eth *eth)
 			netif_wake_queue(eth->lan_ndev);
 	}
 
-	return packets;
+	return reclaimed;
 }
 
 void zx279133_idm_tx_reclaim_work(struct work_struct *work)
@@ -1006,12 +1097,18 @@ void zx279133_idm_tx_release(struct zx279133_eth *eth, bool hardware_alive)
 		if (owner.skb) {
 			struct net_device *ndev = owner.ndev ?: eth->ndev;
 
-			dma_unmap_single(eth->dev, owner.dma, owner.len,
-					 DMA_TO_DEVICE);
+			if (owner.dma_mapped)
+				dma_unmap_single(eth->dev, owner.dma, owner.len,
+						 DMA_TO_DEVICE);
 			zx279133_stats_tx_dropped(eth, ndev);
 			completed_packets++;
 			completed_bytes += owner.len;
 			dev_kfree_skb_any(owner.skb);
+		} else if (owner.xdpf) {
+			if (owner.dma_mapped)
+				dma_unmap_single(eth->dev, owner.dma, owner.len,
+						 DMA_TO_DEVICE);
+			xdp_return_frame(owner.xdpf);
 		}
 		spin_lock_bh(&eth->tx_lock);
 	}

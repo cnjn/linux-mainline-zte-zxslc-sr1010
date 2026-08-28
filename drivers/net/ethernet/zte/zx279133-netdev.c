@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 #include <linux/bitfield.h>
+#include <linux/filter.h>
 #include <linux/dma-mapping.h>
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
@@ -16,6 +17,7 @@
 #include <linux/tcp.h>
 
 #include <net/page_pool/helpers.h>
+#include <net/xdp.h>
 
 #include "zx279133.h"
 #include "zx279133-lan.h"
@@ -380,6 +382,7 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 	slot->ndev = ndev;
 	slot->dma = dma;
 	slot->len = skb->len;
+	slot->dma_mapped = true;
 	if (hw_csum)
 		eth->tx_hw_csum_packets++;
 	else if (sw_csum)
@@ -416,6 +419,129 @@ static netdev_tx_t zx279133_start_xmit(struct sk_buff *skb,
 				       struct net_device *ndev)
 {
 	return zx279133_start_xmit_common(skb, ndev, ndev);
+}
+
+int zx279133_xdp_enqueue(struct zx279133_eth *eth, struct xdp_frame *xdpf)
+{
+	struct zx279133_idm_desc *desc;
+	struct zx279133_tx_slot *slot;
+	dma_addr_t dma;
+	u16 producer;
+	bool arm_reclaim;
+	bool dma_mapped;
+
+	if (unlikely(xdp_frame_has_frags(xdpf) || xdpf->len < ETH_HLEN ||
+		     xdpf->len > ZX279133_IDM_RX_FRAME_LIMIT))
+		return -EOPNOTSUPP;
+	if (unlikely(!READ_ONCE(eth->tx_prepared) ||
+		     READ_ONCE(eth->tx_stopping)))
+		return -ENETDOWN;
+
+	if (xdpf->mem_type == MEM_TYPE_PAGE_POOL &&
+	    netmem_get_pp(virt_to_netmem(xdpf->data)) == eth->rx_page_pool) {
+		struct page *page = virt_to_page(xdpf->data);
+		dma_addr_t page_dma = page_pool_get_dma_addr(page);
+		unsigned int offset = offset_in_page(xdpf->data);
+
+		dma_sync_single_range_for_device(eth->dev, page_dma, offset,
+						 xdpf->len, DMA_BIDIRECTIONAL);
+		dma = page_dma + offset;
+		dma_mapped = false;
+	} else {
+		dma = dma_map_single(eth->dev, xdpf->data, xdpf->len,
+				     DMA_TO_DEVICE);
+		if (dma_mapping_error(eth->dev, dma))
+			return -ENOMEM;
+		dma_mapped = true;
+	}
+
+	spin_lock_bh(&eth->tx_lock);
+	if (unlikely(eth->tx_pending >= ZX279133_IDM_TX_DEPTH - 1))
+		zx279133_idm_tx_reclaim_locked(eth);
+	if (unlikely(eth->tx_pending >= ZX279133_IDM_TX_DEPTH - 1)) {
+		spin_unlock_bh(&eth->tx_lock);
+		if (dma_mapped)
+			dma_unmap_single(eth->dev, dma, xdpf->len,
+					 DMA_TO_DEVICE);
+		return -ENOSPC;
+	}
+
+	producer = eth->tx_producer;
+	desc = eth->tx_descs + zx279133_tx_queue *
+		ZX279133_IDM_TX_DEPTH + producer;
+	slot = &eth->tx_slots[producer];
+	memset(desc, 0, sizeof(*desc));
+	desc->address = cpu_to_le32(lower_32_bits(dma));
+	desc->length_flags = cpu_to_le32((xdpf->len << 1) |
+					 (zx279133_tx_selector & 0xff) << 24 |
+					 (zx279133_tx_word4_bit23 ? BIT(23) : 0));
+	desc->metadata[0] = cpu_to_le32(ZX279133_IDM_TX_CONTROL |
+					       (zx279133_tx_port & 0xff) << 16);
+	desc->metadata[4] = cpu_to_le32(zx279133_tx_pon_control);
+	slot->xdpf = xdpf;
+	slot->ndev = eth->ndev;
+	slot->dma = dma;
+	slot->len = xdpf->len;
+	slot->dma_mapped = dma_mapped;
+	arm_reclaim = !eth->tx_pending;
+	eth->tx_producer = (eth->tx_producer + 1) &
+				   (ZX279133_IDM_TX_DEPTH - 1);
+	eth->tx_pending++;
+	eth->tx_notify_pending++;
+	spin_unlock_bh(&eth->tx_lock);
+
+	if (arm_reclaim)
+		mod_delayed_work(system_wq, &eth->tx_reclaim_work,
+				 msecs_to_jiffies(ZX279133_TX_RECLAIM_DELAY_MS));
+
+	return 0;
+}
+
+void zx279133_xdp_flush(struct zx279133_eth *eth)
+{
+	spin_lock_bh(&eth->tx_lock);
+	zx279133_idm_tx_flush_locked(eth);
+	spin_unlock_bh(&eth->tx_lock);
+}
+
+static int zx279133_xdp_xmit(struct net_device *ndev, int n,
+			     struct xdp_frame **frames, u32 flags)
+{
+	struct zx279133_eth *eth = netdev_priv(ndev);
+	int nxmit = 0;
+	int ret = 0;
+
+	if (unlikely(flags & ~XDP_XMIT_FLAGS_MASK))
+		return -EINVAL;
+	if (unlikely(!netif_running(ndev)))
+		return -ENETDOWN;
+
+	while (nxmit < n) {
+		ret = zx279133_xdp_enqueue(eth, frames[nxmit]);
+		if (ret)
+			break;
+		nxmit++;
+	}
+	if (flags & XDP_XMIT_FLUSH)
+		zx279133_xdp_flush(eth);
+
+	return nxmit ?: ret;
+}
+
+static int zx279133_xdp(struct net_device *ndev, struct netdev_bpf *bpf)
+{
+	struct zx279133_eth *eth = netdev_priv(ndev);
+	struct bpf_prog *old_prog;
+
+	if (bpf->command != XDP_SETUP_PROG)
+		return -EOPNOTSUPP;
+
+	old_prog = rcu_replace_pointer(eth->xdp_prog, bpf->prog,
+				       lockdep_rtnl_is_held());
+	if (old_prog)
+		bpf_prog_put(old_prog);
+
+	return 0;
 }
 
 static void zx279133_tx_timeout_common(struct zx279133_eth *eth,
@@ -648,6 +774,11 @@ enum zx279133_ethtool_stat {
 	ZX279133_STAT_RX_REFILL_RECOVERY_PAGES,
 	ZX279133_STAT_RX_REFILL_RECOVERY_FAILURES,
 	ZX279133_STAT_RX_REFILL_RETRY_WORK_RUNS,
+	ZX279133_STAT_XDP_PASS,
+	ZX279133_STAT_XDP_DROP,
+	ZX279133_STAT_XDP_TX,
+	ZX279133_STAT_XDP_REDIRECT,
+	ZX279133_STAT_XDP_ABORTED,
 	ZX279133_STAT_COUNT,
 };
 
@@ -708,6 +839,11 @@ static const char zx279133_gstrings_stats[ZX279133_STAT_COUNT][ETH_GSTRING_LEN] 
 	"rx_refill_recovery_pages",
 	"rx_refill_recovery_failures",
 	"rx_refill_retry_work_runs",
+	"xdp_pass",
+	"xdp_drop",
+	"xdp_tx",
+	"xdp_redirect",
+	"xdp_aborted",
 };
 
 static u32 zx279133_hw_stat(struct zx279133_eth *eth, unsigned int offset)
@@ -829,6 +965,16 @@ static void zx279133_get_ethtool_stats(struct net_device *ndev,
 			u64_stats_read(&eth->rx_refill_recovery_pages);
 		data[ZX279133_STAT_RX_REFILL_RECOVERY_FAILURES] =
 			u64_stats_read(&eth->rx_refill_recovery_failures);
+		data[ZX279133_STAT_XDP_PASS] =
+			u64_stats_read(&eth->xdp_pass);
+		data[ZX279133_STAT_XDP_DROP] =
+			u64_stats_read(&eth->xdp_drop);
+		data[ZX279133_STAT_XDP_TX] =
+			u64_stats_read(&eth->xdp_tx);
+		data[ZX279133_STAT_XDP_REDIRECT] =
+			u64_stats_read(&eth->xdp_redirect);
+		data[ZX279133_STAT_XDP_ABORTED] =
+			u64_stats_read(&eth->xdp_aborted);
 	} while (u64_stats_fetch_retry(&eth->rx_stats_sync, start));
 	data[ZX279133_STAT_RX_PAGE_MAP_COUNT] =
 		READ_ONCE(eth->rx_page_map_count);
@@ -878,6 +1024,8 @@ const struct net_device_ops zx279133_netdev_ops = {
 	.ndo_change_mtu		= zx279133_change_mtu,
 	.ndo_get_stats64	= zx279133_get_stats64,
 	.ndo_setup_tc		= zx279133_setup_tc,
+	.ndo_bpf		= zx279133_xdp,
+	.ndo_xdp_xmit		= zx279133_xdp_xmit,
 };
 
 static struct zx279133_eth *
@@ -970,8 +1118,6 @@ static int
 zx279133_lan_netdev_change_mtu(struct zx279133_lan_service *service,
 			       struct net_device *ndev, int new_mtu)
 {
-	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
-
 	if (new_mtu < ETH_MIN_MTU || new_mtu > ZX279133_LAN_MAX_MTU)
 		return -EINVAL;
 
