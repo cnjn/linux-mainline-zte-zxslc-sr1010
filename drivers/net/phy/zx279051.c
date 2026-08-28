@@ -276,7 +276,7 @@ static int zx279051_get_features(struct phy_device *phydev)
 	linkmode_set_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT, phydev->supported);
 	linkmode_set_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT, phydev->supported);
 
-	return 0;
+	return genphy_c45_read_eee_abilities(phydev);
 }
 
 /*

@@ -450,6 +450,14 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 		  eth->phylink_config.supported_interfaces);
 	__set_bit(PHY_INTERFACE_MODE_SGMII,
 		  eth->phylink_config.supported_interfaces);
+	__set_bit(PHY_INTERFACE_MODE_2500BASEX,
+		  eth->phylink_config.lpi_interfaces);
+	__set_bit(PHY_INTERFACE_MODE_SGMII,
+		  eth->phylink_config.lpi_interfaces);
+	eth->phylink_config.lpi_capabilities =
+		MAC_2500FD | MAC_1000FD | MAC_100FD;
+	eth->phylink_config.lpi_timer_default = 1000;
+	xpcs_config_eee_mult_fact(eth->xpcs, 1);
 
 	eth->phylink = phylink_create(&eth->phylink_config, dev_fwnode(dev),
 				      eth->host_interface,

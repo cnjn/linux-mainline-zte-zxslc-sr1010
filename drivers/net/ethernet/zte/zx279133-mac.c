@@ -637,6 +637,44 @@ out_unlock:
 	mutex_unlock(&eth->xmac_lock);
 }
 
+static void zx279133_mac_disable_tx_lpi(struct phylink_config *config)
+{
+	struct zx279133_eth *eth = container_of(config, struct zx279133_eth,
+					       phylink_config);
+	u32 val;
+
+	/* XMAC1 programming recovered from factory xmac_eee_conf(1, enable). */
+	mutex_lock(&eth->xmac_lock);
+	val = readl(eth->base + ZX279133_XMAC1_EEE_CTRL);
+	writel(val & ~ZX279133_XMAC_EEE_ENABLE_MASK,
+	       eth->base + ZX279133_XMAC1_EEE_CTRL);
+	writel(readl(eth->base + ZX279133_XMAC1_EEE_TIMER) &
+	       ~ZX279133_XMAC_EEE_TIMER_ENABLE,
+	       eth->base + ZX279133_XMAC1_EEE_TIMER);
+	mutex_unlock(&eth->xmac_lock);
+}
+
+static int zx279133_mac_enable_tx_lpi(struct phylink_config *config, u32 timer,
+				      bool tx_clk_stop)
+{
+	struct zx279133_eth *eth = container_of(config, struct zx279133_eth,
+					       phylink_config);
+	u32 val;
+
+	if (timer > FIELD_MAX(ZX279133_XMAC_EEE_TIMER_MASK))
+		return -EINVAL;
+
+	mutex_lock(&eth->xmac_lock);
+	val = readl(eth->base + ZX279133_XMAC1_EEE_CTRL);
+	writel(val | ZX279133_XMAC_EEE_ENABLE_MASK,
+	       eth->base + ZX279133_XMAC1_EEE_CTRL);
+	writel(FIELD_PREP(ZX279133_XMAC_EEE_TIMER_MASK, timer) |
+	       ZX279133_XMAC_EEE_TIMER_ENABLE,
+	       eth->base + ZX279133_XMAC1_EEE_TIMER);
+	mutex_unlock(&eth->xmac_lock);
+	return 0;
+}
+
 const struct phylink_mac_ops zx279133_phylink_ops = {
 	.mac_select_pcs = zx279133_mac_select_pcs,
 	.mac_prepare = zx279133_mac_prepare,
@@ -644,4 +682,6 @@ const struct phylink_mac_ops zx279133_phylink_ops = {
 	.mac_finish = zx279133_mac_finish,
 	.mac_link_down = zx279133_mac_link_down,
 	.mac_link_up = zx279133_mac_link_up,
+	.mac_disable_tx_lpi = zx279133_mac_disable_tx_lpi,
+	.mac_enable_tx_lpi = zx279133_mac_enable_tx_lpi,
 };

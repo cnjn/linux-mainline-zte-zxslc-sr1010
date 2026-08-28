@@ -1001,6 +1001,43 @@ zx279133_get_ringparam(struct net_device *ndev,
 	kernel_ring->rx_buf_len = ZX279133_RX_PAGE_SIZE;
 }
 
+static int zx279133_get_eee(struct net_device *ndev, struct ethtool_keee *eee)
+{
+	struct zx279133_eth *eth = netdev_priv(ndev);
+
+	return phylink_ethtool_get_eee(eth->phylink, eee);
+}
+
+static int zx279133_set_eee(struct net_device *ndev, struct ethtool_keee *eee)
+{
+	struct zx279133_eth *eth = netdev_priv(ndev);
+	struct ethtool_keee old = { };
+	struct ethtool_keee updated = { };
+	int ret;
+
+	ret = phylink_ethtool_get_eee(eth->phylink, &old);
+	if (ret)
+		return ret;
+	ret = phylink_ethtool_set_eee(eth->phylink, eee);
+	if (ret)
+		return ret;
+	ret = phylink_ethtool_get_eee(eth->phylink, &updated);
+	if (ret)
+		return ret;
+
+	if (netif_running(ndev) &&
+	    (old.eee_enabled != updated.eee_enabled ||
+	     old.tx_lpi_enabled != updated.tx_lpi_enabled ||
+	     old.tx_lpi_timer != updated.tx_lpi_timer ||
+	     !linkmode_equal(old.advertised, updated.advertised))) {
+		/* ZX279051 keeps carrier asserted across an EEE AN restart. */
+		phylink_stop(eth->phylink);
+		phylink_start(eth->phylink);
+	}
+
+	return 0;
+}
+
 const struct ethtool_ops zx279133_ethtool_ops = {
 	.get_drvinfo		= zx279133_get_drvinfo,
 	.get_link		= ethtool_op_get_link,
@@ -1011,6 +1048,8 @@ const struct ethtool_ops zx279133_ethtool_ops = {
 	.get_pauseparam		= zx279133_get_pauseparam,
 	.set_pauseparam		= zx279133_set_pauseparam,
 	.get_ringparam		= zx279133_get_ringparam,
+	.get_eee		= zx279133_get_eee,
+	.set_eee		= zx279133_set_eee,
 	.get_sset_count		= zx279133_get_sset_count,
 	.get_strings		= zx279133_get_strings,
 	.get_ethtool_stats	= zx279133_get_ethtool_stats,
