@@ -167,6 +167,7 @@ int zx279133_hardware_prepare(struct zx279133_eth *eth)
 	eth->serdes_interface = eth->host_interface;
 	usleep_range(2000, 2500);
 	eth->hardware_prepared = true;
+	zx279133_ptp_start(eth);
 
 	return 0;
 
@@ -189,6 +190,7 @@ void zx279133_hardware_unprepare(struct zx279133_eth *eth)
 	if (!eth->hardware_prepared)
 		return;
 
+	zx279133_ptp_stop(eth);
 	zx279133_xmac_set_enabled(eth, false);
 	zx279133_flow_offload_flush(eth);
 	if (eth->xpcs_runtime_held)
@@ -246,6 +248,8 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 	u64_stats_init(&eth->rx_stats_sync);
 	spin_lock_init(&eth->tx_lock);
 	spin_lock_init(&eth->irq_lock);
+	spin_lock_init(&eth->ptp_lock);
+	mutex_init(&eth->ptp_cmd_lock);
 	INIT_DELAYED_WORK(&eth->tx_reclaim_work,
 			  zx279133_idm_tx_reclaim_work);
 	INIT_DELAYED_WORK(&eth->rx_refill_work,
@@ -473,6 +477,9 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 	ret = zx279133_flow_offload_init(eth);
 	if (ret)
 		return ret;
+	ret = zx279133_ptp_init(eth);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to register PHC\n");
 
 	ndev->netdev_ops = &zx279133_netdev_ops;
 	ndev->ethtool_ops = &zx279133_ethtool_ops;

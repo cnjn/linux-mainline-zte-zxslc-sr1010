@@ -9,6 +9,7 @@
 #include <linux/mdio.h>
 #include <linux/netdevice.h>
 #include <linux/phylink.h>
+#include <linux/ptp_clock_kernel.h>
 #include <linux/workqueue.h>
 
 #include <net/xdp.h>
@@ -457,6 +458,23 @@ static inline u32 zx279133_idm_tx_done_reg(unsigned int queue)
 #define ZX279133_XMAC_EEE_TIMER_ENABLE	BIT(5)
 #define ZX279133_XMAC_STAT_TX_FRAMES	0x2070
 #define ZX279133_XMAC_STAT_TX_GOOD	0x20b0
+/* PTP/TOD registers are word-addressed as 0x704c..0x706a by np.ko. */
+#define ZX279133_PTP_AGC_CFG		0x2c0000
+#define ZX279133_PTP_AGC_WORK_CLOCKS	GENMASK(1, 0)
+#define ZX279133_PTP_TOD_NS		0x1c130
+#define ZX279133_PTP_TOD_SEC		0x1c134
+#define ZX279133_PTP_CTRL		0x1c138
+#define ZX279133_PTP_COMPARE		0x1c13c
+#define ZX279133_PTP_UPDATE		0x1c148
+#define ZX279133_PTP_UPDATE_SEC		0x1c14c
+#define ZX279133_PTP_UPDATE_NS		0x1c150
+#define ZX279133_PTP_UPDATE_ENABLE	BIT(4)
+#define ZX279133_PTP_COMPARE_TIME	GENMASK(31, 2)
+#define ZX279133_PTP_COMPARE_MODE	GENMASK(1, 0)
+#define ZX279133_PTP_UPDATE_SIGN	BIT(2)
+#define ZX279133_PTP_UPDATE_PULSE	BIT(1)
+#define ZX279133_PTP_UPDATE_STATUS	BIT(0)
+#define ZX279133_PTP_NOMINAL_COMPARE	(NSEC_PER_SEC - 8)
 #define ZX279133_NPPT_XMAC_ERR		0x00fc
 #define ZX279133_SMCT_DONE		0xc0f0
 #define ZX279133_SSCH5			0x2c054
@@ -629,6 +647,13 @@ struct zx279133_eth {
 	struct napi_struct napi;
 	struct delayed_work tx_reclaim_work;
 	struct delayed_work rx_refill_work;
+	struct ptp_clock_info ptp_info;
+	struct ptp_clock *ptp_clock;
+	u32 ptp_agc_saved;
+	/* Serializes the split PPS/TOD seconds and nanoseconds registers. */
+	spinlock_t ptp_lock;
+	/* Serializes the PPS/TOD update command and its synchronized pulse. */
+	struct mutex ptp_cmd_lock;
 	unsigned long datapath_users;
 	bool hardware_prepared;
 	bool lan_datapath_ready;
@@ -666,6 +691,7 @@ struct zx279133_eth {
 	bool napi_enabled;
 	bool xpcs_runtime_held;
 	bool tx_stopping;
+	bool ptp_agc_prepared;
 	int irqs[ZX279133_NUM_IRQS];
 };
 
@@ -756,6 +782,12 @@ void zx279133_idm_tx_release(struct zx279133_eth *eth, bool hardware_alive);
 void zx279133_xmac_set_enabled(struct zx279133_eth *eth, bool enabled);
 int zx279133_xpcs_set_bypass(struct zx279133_eth *eth, bool enabled);
 extern const struct phylink_mac_ops zx279133_phylink_ops;
+
+int zx279133_ptp_init(struct zx279133_eth *eth);
+void zx279133_ptp_start(struct zx279133_eth *eth);
+void zx279133_ptp_stop(struct zx279133_eth *eth);
+int zx279133_get_ts_info(struct net_device *ndev,
+			 struct kernel_ethtool_ts_info *info);
 
 int zx279133_hardware_prepare(struct zx279133_eth *eth);
 void zx279133_hardware_unprepare(struct zx279133_eth *eth);
