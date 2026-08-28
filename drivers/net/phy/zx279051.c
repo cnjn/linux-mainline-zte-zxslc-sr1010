@@ -579,15 +579,15 @@ static int zx279051_host_bringup(struct phy_device *phydev)
 }
 
 /*
- * Vendor phy_zxic051_set_linkmode() programs line-side copper AN through
- * C45 MMD7 plus C22 MII_CTRL1000. 7.32 bit7 is 2.5GBASE-T advertise
- * (MDIO_AN_10GBT_CTRL_ADV2_5G). 7.16 uses the C22 advertisement bit
- * layout. C22 register 9 0x0300 advertises 1000 half+full. 7.0 0x3200 is
- * AN enable + restart; restart is self-clearing (live readback 0x3000).
+ * Vendor phy_zxic_051_set_linkmode() selects the highest line speed in
+ * PMA/PMD control 1, selects duplex in BMCR, then restarts AN through MMD7.
+ * The PHY also consumes the standard 10/100, 1000 and NBASE-T advertisement
+ * registers, so keep those synchronized with PHYLIB's advertising bitmap.
  */
 #define ZX279051_AN_ADV_VENDOR	0x1001
 #define ZX279051_AN_CTRL_RESTART	0x3200
 #define ZX279051_AN_10G_BASE	0x2001
+#define ZX279051_PMA_SPEED_MASK	GENMASK(13, 2)
 
 static int zx279051_c45_an_write(struct phy_device *phydev, u16 reg, u16 val)
 {
@@ -620,6 +620,65 @@ static u16 zx279051_an_adv_from_linkmode(const unsigned long *adv)
 	return reg;
 }
 
+static int zx279051_set_target_mode(struct phy_device *phydev)
+{
+	u16 speed;
+	bool full;
+	int reg;
+	int ret;
+
+	if (linkmode_test_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT,
+			      phydev->advertising)) {
+		speed = MDIO_CTRL1_SPEED2_5G;
+		full = true;
+	} else if (linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
+				     phydev->advertising) ||
+		   linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseT_Half_BIT,
+				     phydev->advertising)) {
+		speed = BMCR_SPEED1000;
+		full = linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
+					 phydev->advertising);
+	} else if (linkmode_test_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT,
+				     phydev->advertising) ||
+		   linkmode_test_bit(ETHTOOL_LINK_MODE_100baseT_Half_BIT,
+				     phydev->advertising)) {
+		speed = BMCR_SPEED100;
+		full = linkmode_test_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT,
+					 phydev->advertising);
+	} else if (linkmode_test_bit(ETHTOOL_LINK_MODE_10baseT_Full_BIT,
+				     phydev->advertising) ||
+		   linkmode_test_bit(ETHTOOL_LINK_MODE_10baseT_Half_BIT,
+				     phydev->advertising)) {
+		speed = 0;
+		full = linkmode_test_bit(ETHTOOL_LINK_MODE_10baseT_Full_BIT,
+					 phydev->advertising);
+	} else {
+		return -EINVAL;
+	}
+
+	reg = mdiobus_c45_read(phydev->mdio.bus, phydev->mdio.addr,
+			       MDIO_MMD_PMAPMD, MDIO_CTRL1);
+	if (reg < 0)
+		return reg;
+	reg &= ~ZX279051_PMA_SPEED_MASK;
+	reg |= speed;
+	ret = mdiobus_c45_write(phydev->mdio.bus, phydev->mdio.addr,
+				MDIO_MMD_PMAPMD, MDIO_CTRL1, reg);
+	if (ret)
+		return ret;
+
+	reg = mdiobus_read(phydev->mdio.bus, phydev->mdio.addr, MII_BMCR);
+	if (reg < 0)
+		return reg;
+	if (full)
+		reg |= BMCR_FULLDPLX;
+	else
+		reg &= ~BMCR_FULLDPLX;
+
+	return mdiobus_write(phydev->mdio.bus, phydev->mdio.addr, MII_BMCR,
+			     reg);
+}
+
 static int zx279051_set_linkmode(struct phy_device *phydev)
 {
 	u16 an_10g = ZX279051_AN_10G_BASE;
@@ -636,6 +695,9 @@ static int zx279051_set_linkmode(struct phy_device *phydev)
 			      phydev->advertising))
 		an_10g |= MDIO_AN_10GBT_CTRL_ADV2_5G;
 
+	ret = zx279051_set_target_mode(phydev);
+	if (ret)
+		return ret;
 	ret = zx279051_c45_an_write(phydev, MDIO_AN_10GBT_CTRL, an_10g);
 	if (ret)
 		return ret;
