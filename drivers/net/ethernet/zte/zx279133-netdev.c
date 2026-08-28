@@ -1004,6 +1004,7 @@ zx279133_get_ringparam(struct net_device *ndev,
 const struct ethtool_ops zx279133_ethtool_ops = {
 	.get_drvinfo		= zx279133_get_drvinfo,
 	.get_link		= ethtool_op_get_link,
+	.get_ts_info		= ethtool_op_get_ts_info,
 	.get_link_ksettings	= zx279133_get_link_ksettings,
 	.set_link_ksettings	= zx279133_set_link_ksettings,
 	.nway_reset		= zx279133_nway_reset,
