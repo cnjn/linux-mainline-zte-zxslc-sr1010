@@ -103,7 +103,7 @@ through the router WAN link-local address; the LAN peer uses
 ip -6 addr add fd00:1::1/64 dev eth0
 ip -6 addr add fd00:5::1/64 dev lan1
 sysctl -w net.ipv6.conf.all.forwarding=1
-nft -f /tmp/nft-ipv6-flowtable.nft
+nft -f /etc/nft-ipv6-flowtable.nft
 ```
 
 Start an established TCP or UDP exchange between the two peers and require
@@ -356,10 +356,77 @@ virtio RX queue and software PPPoE receive path levelled off near 0.94 Gbit/s;
 even four TCP flows did not raise the aggregate. Treat that direction as
 functional and hardware-hit acceptance, not as a line-rate limit of the router.
 
+### IPv6 over PPPoE
+
+The IPv6 flowtable composes with the PPPoE push/pop path without NAT66. After
+the PPPoE session is established, use point-to-point `/128` addresses and
+explicit peer routes:
+
+```sh
+# Router
+ip -6 addr add fd00:1::1/128 dev ppp0
+ip -6 route add fd00:1::100/128 dev ppp0
+ip -6 addr add fd00:5::1/64 dev lan1
+sysctl -w net.ipv6.conf.all.forwarding=1
+nft -f /etc/nft-ipv6-flowtable.nft
+
+# PPPoE peer
+ip -6 addr add fd00:1::100/128 dev ppp0
+ip -6 route add fd00:1::1/128 dev ppp0
+ip -6 route add fd00:5::/64 dev ppp0
+```
+
+The LAN endpoint uses `fd00:5::100/64` and routes `fd00:1::100/128` through
+`fd00:5::1`. Keep the IPv6 family guard and `flow add` expression in one nft
+rule; splitting them at a newline creates two independent rules and admits
+unrelated IPv4 TCP/UDP connections into the flowtable.
+
+During TCP and UDP traffic, conntrack must report `[HW_OFFLOAD]`. A raw WAN
+capture must remain EtherType `0x8864`, SID 1, with PPP protocol `0x0057`; no
+bare `0x86dd` forwarded frame is valid. The accepted HVF fixture sustained
+2.29 Gbit/s peer-to-Windows single-flow TCP with zero retransmissions. The
+Windows-to-peer direction sustained about 0.93 Gbit/s, matching the VM's
+virtio/PPPoE receive ceiling. Active TCP and UDP connections in both
+directions reported `[HW_OFFLOAD]`.
+
 For lifecycle acceptance, flush nftables while a hardware connection is
 active. WANID 0 must return from push mode to its saved session/mode and WANID
 16 from pop mode to its saved state immediately; a newly created flowtable
 must offload a new connection without rebooting.
+
+## SDT14 DDR overflow
+
+Both PPPoE directions now use full SDT14 entries, so fill 128 bidirectional
+connections before creating connection 129. The target must log
+`SDT14 fast-flow overflow entered DDR bulk 0`, return traffic without software
+loss, and increment the external-comparator match counter at PPS `0x5032c`.
+Deleting the nftables table must zero the logged 64-byte bucket; recreating the
+same keys in the same order must reuse it.
+
+For collision acceptance, the IPv4 UDP keys `18303 -> 6000` and
+`10000 -> 6004` share CRC32 bucket 65034. After the first 256 full directions, add
+the first key and then the second. Both must reach `[HW_OFFLOAD]` and return
+packets. Only the first key increments `0x1805032c`; the second is the expected
+ZCAM collision-stash entry.
+
+The age read-clear path is valid through index 262143. Capacity acceptance
+must cross index 4095, observe set bits above it after traffic, and observe
+zero on a later scan with traffic stopped.
+
+For the PPPoE capacity run, raise `net.netfilter.nf_conntrack_max` above the
+requested connection count and use long UDP conntrack/flowtable timeouts. The
+accepted run installed 4,300 bidirectional connections (8,600 full SDT14
+directions), crossing the old 4,096-entry IKEY ceiling without using IKEY.
+The duplicate-key index is an rhashtable; a burst of all 4,300 connections
+completed without a hung-task report. Deleting the nftables table returned the
+hardware count to zero and cleared both target DDR buckets.
+
+The PPPoE push response uses the factory local-fast action 1, which does not
+support SDT29 flow statistics; it uses hardware age for `lastused`. PPPoE pop
+uses full action 0 and retains exact SDT29 counters. For DDR connection 129,
+the pop counter changed from 1 packet/118 bytes to 21 packets/2,478 bytes after
+20 replies. The last connection's two age bits set after traffic and cleared
+on the next read.
 
 ## Cleanup
 

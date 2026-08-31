@@ -358,7 +358,8 @@ match, rewrite, and redirect information.
 `drivers/net/ethernet/zte/zx279133-offload.c` now implements that direct path
 for exact-match IPv4 TCP/UDP forwarding between the LAN conduit and WAN:
 
-- the original five-tuple becomes the 16-byte SDT 43 multi-hash key;
+- ordinary flows use the 16-byte SDT 43 multi-hash key, while PPPoE push/pop
+  use SDT 14's inline 512-bit response;
 - Ethernet, route, source/destination NAT, and port-NAT rewrites become the
   32-byte fast response;
 - source NAT updates WANID 0's source-IPv4 word while the translated address
@@ -370,13 +371,12 @@ for exact-match IPv4 TCP/UDP forwarding between the LAN conduit and WAN:
   locations per key and 5,120 physical slots;
 - add and delete use the SE algorithm indirect window at PPS `0x50000`.
 
-SDT 43 selects hash ID 0, exactly as the factory `0xb8` descriptor does, so
-fast IPv4 entries do not use the 16 MiB DDR window reserved for hash ID 1. The
-effective table limit is instead 4,096 independent IKEY/age entries, or 2,048
-bidirectional connections. The first 1,024 hardware directions additionally
-own exact SDT29 packet/byte counters; later directions leave the response's
-statistics-enable bit clear and use the independent SE age bit for truthful
-`lastused` refresh.
+SDT 43 selects hash ID 0, exactly as the factory `0xb8` descriptor does. Its
+compact entries remain limited by the 4,096-entry IKEY table. SDT 14 is table
+ID 0 in the 512-bit class and can overflow into the 16 MiB hash-DDR window.
+The first 1,024 stat-capable hardware directions additionally own exact SDT29
+packet/byte counters; later directions leave the response's statistics-enable
+bit clear and use the independent SE age bit for truthful `lastused` refresh.
 
 Capacity acceptance on 2026-08-26 installed 2,048 bidirectional UDP NAT
 connections: all 4,096 flower directions reported `in_hw_count 1`, and the
@@ -385,6 +385,66 @@ connections: all 4,096 flower directions reported `in_hw_count 1`, and the
 bidirectional connections whose LAN keys share ZCAM block 0/cell 0/address
 `0x42` and whose reverse keys share block 0/cell 0/address `0x0e`; all 64
 directions reached hardware through the remaining cell/block candidates.
+
+### SDT 14 hash-DDR overflow
+
+The mainline driver configures one factory-shaped external bulk at
+`0x9e100000`: 262,144 64-byte buckets, CRC32 polynomial `0x04c11db7`, depth
+18, and 512-bit mode. SDT 14 keeps its first 256 entries in ZCAM, then places
+later entries in bulk 0. DDR publication follows the factory ordering: write
+the 64-byte reversed body with the footer invalid, issue a write barrier, and
+set the physical first byte's valid bit last. Deletion invalidates first,
+clears the body, and returns the bucket to the bitmap allocator.
+
+Board acceptance forced source port 6500 into bucket 246703. Twenty packets
+were returned end to end while the external-comparator match counter advanced
+from `0x02` to `0x16`. Deleting the nftables table cleared the first two bucket
+words and changed 257 hardware connections to zero. Recreating 256 ZCAM flows
+and the same key selected bucket 246703 again; another 20 packets advanced the
+counter from `0x18` to `0x2c`.
+
+External lookup provides one CRC32 bucket for this SDT, not four parallel
+CRC32 probes. Collision handling therefore follows the factory hierarchy: a
+busy DDR bucket falls back to ZCAM's four CRC16 blocks and five shifted cells.
+The deliberate collision pair `18303 -> 6000` and `10000 -> 6004` maps to
+bucket 65034. Both flows returned 20/20 packets; the comparator advanced only
+for the DDR-resident first flow and remained unchanged for the ZCAM-resident
+collision flow.
+
+SDT 14 now carries the factory's 18-bit age encoding. The age pool and parser
+depth are 262,144 bits, and full entries no longer consume unused IKEY slots.
+With 2,306 bidirectional connections in hardware, a read-clear scan found 514
+set bits from age index 4096 through 4611, beyond the old software limit. A
+third scan with traffic stopped returned zero.
+
+PPPoE push and pop now both use full SDT 14 entries, so neither direction
+allocates from the 4,096-entry IKEY table. Push retains the required factory
+local-fast action 1; pop uses routed action 0. This distinction also closes the
+statistics boundary precisely: the factory code deliberately suppresses
+`flow_stat_en` for action 1, and hardware confirms that push has age-only
+`lastused`. Full pop retains its dedicated SDT29 packet/byte pair. The driver
+therefore does not allocate a counter ID for push and spends the 1,024 IDs only
+on directions that can count.
+
+Capacity acceptance on 2026-08-31 raised the diagnostic conntrack limit to
+16,384 and installed 4,300 bidirectional PPPoE UDP connections: all 4,300
+reported `[HW_OFFLOAD]`, representing 8,600 full SDT14 directions and crossing
+the old IKEY ceiling. The first 256 directions occupied ZCAM. Of the remaining
+8,344 directions, 8,277 incremented the external comparator and 67 used the
+ZCAM collision stash. The duplicate-key check uses an rhashtable rather than
+an O(n) xarray walk, so the full burst completed without the earlier
+offload-worker lock backlog or a hung-task report.
+
+Connection 129 was already in DDR. Its pop SDT29 pair changed from 1
+packet/118 bytes to 21 packets/2,478 bytes after 20 replies. At connection
+4,300, age indices 8,598 and 8,599 both read set after traffic and zero on the
+second read; the target returned 20/20 packets in both tested connections.
+Deleting the table returned the hardware count from 4,300 to zero and cleared
+the target buckets 255353 and 105414. Recreating 128 filler connections and
+the same target reused those exact buckets; another 20 replies advanced the
+comparator from `0x20a6` to `0x20ce`.
+The board-tested FIT is 10,267,336 bytes with SHA256
+`952ab576f722ee2655d2f0dba6abb35ea80007aab8e8f32e8b0f4f3fa6ff361a`.
 
 The WAN and LAN conduit netdevs advertise `NETIF_F_HW_TC`. Each bound flow
 block retains its actual netdev, so ordinary clsact rules use the bind device
@@ -611,10 +671,9 @@ small-packet tests.
 The synthetic `FLOW_CLS_STATS` implementation based on flow insertion time was
 removed before real statistics were available. The later accepted
 implementation assigns an independent SDT29 counter pair to each hardware
-direction and refreshes `lastused` only when those hardware packet or byte
-counters advance. The age index in the ZCAM response remains allocated as part
-of the validated response format; the driver does not consume the SE age
-read-clear bitmap.
+direction and refreshes `lastused` from hardware packet/byte counters or the
+SE age bit. Age read-clear returns one after a hardware hit and zero on a
+second read until the next packet.
 
 Four established UDP connections on dedicated ports ran concurrently at
 10 Mbit/s each. Once startup completed, all four conntrack entries showed
@@ -696,3 +755,31 @@ ticks, with no softirq increase; the 2 GiB reverse run advanced only idle
 ticks. These are single-stream hardware-path results, not a claim that the
 endpoint harness measured the NPPT IPv6 ceiling. The reproducible ruleset is
 `nat-acceptance/nft-ipv6-flowtable.nft`.
+
+## IPv6 over PPPoE
+
+The routed IPv6 key path and the PPPoE response path compose without an
+additional NPPT format. On the WAN side, netfilter supplies IPv6 five-tuples
+plus `FLOW_ACTION_PPPOE_PUSH` for LAN-to-WAN traffic; the reply direction uses
+the established PPPoE WAN state and the compact pop response. WAN captures
+remained EtherType `0x8864`, SID 1, with PPP protocol `0x0057` and never exposed
+a bare `0x86dd` forwarded frame.
+
+The accepted topology used `fd00:5::100/64` on Windows, `fd00:5::1/64` on
+router `lan1`, `fd00:1::1/128` on router `ppp0`, and `fd00:1::100/128` on the
+HVF PPPoE peer. Explicit `/128` peer routes were installed on both PPP
+endpoints. Active TCP and UDP connections in both directions showed
+`[HW_OFFLOAD]`. Peer-to-Windows single-flow TCP delivered 2.29 Gbit/s with zero
+retransmissions; Windows-to-peer delivered about 0.93 Gbit/s, the same VM
+virtio/PPPoE receive ceiling seen with IPv4.
+
+Destroying the flowtable during an active hardware TCP connection removed the
+hardware marker immediately, left the connection established and forwarding,
+and restored software PPPoE ping. Reloading the ruleset offloaded a new
+connection without rebooting; that new peer-to-Windows run delivered
+2.28 Gbit/s and remained `[HW_OFFLOAD]` while active. The final clean FIT also
+reproduced the hardware marker and 2.30 Gbit/s receiver throughput.
+
+The IPv6 nft rule keeps `meta nfproto ipv6`, the established-state check, and
+`flow add` in one statement. A newline between those expressions creates two
+independent nft rules and incorrectly admits unrelated IPv4 TCP/UDP traffic.
