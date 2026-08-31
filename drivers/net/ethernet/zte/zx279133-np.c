@@ -531,7 +531,7 @@ int zx279133_fast_stats_read(struct zx279133_eth *eth, u16 flow_id,
 	return zx279133_fast_stat_counter_read(eth, 2 * flow_id + 1, bytes);
 }
 
-int zx279133_fast_age_read_clear(struct zx279133_eth *eth, u16 age,
+int zx279133_fast_age_read_clear(struct zx279133_eth *eth, u32 age,
 				 bool *used)
 {
 	u32 data[ZX279133_SMMU0_WORDS];
@@ -1004,7 +1004,7 @@ static const u32 zx279133_core_sdt_info[][4] = {
 	{ 0x45, 1, 0x3, 0x20 },    { 0x46, 1, 0x3, 0x20 },
 	{ 0x9,  3, 0x8, 0x64 },    { 0xa,  3, 0xa, 0x94 },
 	{ 0xb,  3, 0x22, 0xd4 },   { 0xd,  3, 0x30, 0xd8 },
-	{ 0xe,  3, 0x10, 0xc1 },   { 0x2b, 3, 0x10, 0xb8 },
+	{ 0xe,  3, 0x10, 0xed },   { 0x2b, 3, 0x10, 0xb8 },
 	{ 0x43, 3, 0x30, 0xd8 },   { 0x2d, 3, 0x2, 0x40 },
 	{ 0x1e, 3, 0x6, 0x1000054 }, { 0x33, 3, 0x6, 0x54 },
 	{ 0x21, 3, 0x4, 0x44 },    { 0x24, 3, 0x4, 0x40 },
@@ -1136,8 +1136,8 @@ static int zx279133_se_hash_sdt_create(struct zx279133_eth *eth, u32 sdt_no,
 	if (age && !eth->se_age_done) {
 		/*
 		 * se_hash_creat_age_sdt: one 1-bit x (0x1000<<7) age table
-		 * at age pool block 0 (depth 4096); 32 parser base-address
-		 * writes, each with the age base (0).
+		 * at age pool block 0 (262144 bits); 32 parser base-address writes,
+		 * each with the age base (0).
 		 */
 		for (i = 0; i < 32; i++) {
 			ret = zx279133_se_parser_write(eth, i | 0x8400,

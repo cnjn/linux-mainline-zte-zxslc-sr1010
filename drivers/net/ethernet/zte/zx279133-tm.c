@@ -757,15 +757,13 @@ static void zx279133_se_frontend_restore(struct zx279133_eth *eth)
 }
 
 /*
- * se_hash_ddr_init() in np.ko assigns the complete 16 MiB hash window to
- * all eight CPU133 hash bulks.  The vendor indirect helpers reduce the
- * physical base to 4 KiB units, select 512-bit tables, and use depth 18 for
- * this window.  These are PPS registers, not NPPT registers.
+ * SDT14's 512-bit table IDs are in bulk 0.  Configure one 16 MiB, depth-18
+ * external hash table; later bulks remain available for independent hashes.
  */
 static int zx279133_se_hash_prepare(struct zx279133_eth *eth)
 {
 	u32 base = (u32)(eth->se_hash_base >> 12);
-	u32 crc, bulk, depth0, depth1;
+	u32 crc, bulk;
 	unsigned int i;
 
 	if (eth->se_hash_size < ZX279133_SE_HASH_REQUIRED_SIZE)
@@ -789,26 +787,18 @@ static int zx279133_se_hash_prepare(struct zx279133_eth *eth)
 	wmb();
 
 	for (i = 0; i < ARRAY_SIZE(eth->se_hash_smmu1_saved); i++)
-		writel(base, eth->pps_base + ZX279133_SE_SMMU1_HASH_BASE +
+		writel(i ? 0 : base,
+		       eth->pps_base + ZX279133_SE_SMMU1_HASH_BASE +
 		       i * sizeof(u32));
 
-	/* se_alg_set_hash_ext_crc_cfg(1, bulk, 0), bulk 0..7. */
+	/* CRC32 0x04c11db7, 512-bit buckets, 2^18 entries in bulk 0. */
 	crc = eth->se_hash_alg_crc_saved & ~GENMASK(15, 0);
-	/* se_alg_set_hash_ext_bulk_mode(1, bulk, 512), bulk 0..7. */
-	bulk = eth->se_hash_alg_bulk_saved | GENMASK(8, 1);
-	/* se_alg_set_hash_ext_depth(1, bulk, 18), bulk 0..7. */
-	depth0 = eth->se_hash_alg_depth_saved[0];
-	depth1 = eth->se_hash_alg_depth_saved[1];
-	for (i = 0; i < 4; i++) {
-		depth0 = (depth0 & ~(0xffu << (8 * i))) |
-			(18u << (8 * i));
-		depth1 = (depth1 & ~(0xffu << (8 * i))) |
-			(18u << (8 * i));
-	}
+	/* The register descriptor shifts the eight logical bulk bits by one. */
+	bulk = (eth->se_hash_alg_bulk_saved & ~GENMASK(8, 1)) | BIT(1);
 	writel(crc, eth->pps_base + ZX279133_SE_ALG_HASH_CRC);
 	writel(bulk, eth->pps_base + ZX279133_SE_ALG_HASH_BULK);
-	writel(depth0, eth->pps_base + ZX279133_SE_ALG_HASH_DEPTH0);
-	writel(depth1, eth->pps_base + ZX279133_SE_ALG_HASH_DEPTH1);
+	writel(18, eth->pps_base + ZX279133_SE_ALG_HASH_DEPTH0);
+	writel(0, eth->pps_base + ZX279133_SE_ALG_HASH_DEPTH1);
 	eth->se_hash_prepared = true;
 
 	return 0;

@@ -7,6 +7,7 @@
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/jiffies.h>
+#include <linux/rhashtable.h>
 #include <linux/slab.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
@@ -31,6 +32,13 @@
 #define ZX279133_ZCAM_SLOTS		(ZX279133_ZCAM_BLOCKS * \
 					 ZX279133_ZCAM_CELLS * \
 					 ZX279133_ZCAM_ADDRS)
+/* np.ko core_sdt_init() gives SDT14 256 ZCAM entries before DDR overflow. */
+#define ZX279133_FAST_FULL_ZCAM_LIMIT	256
+#define ZX279133_DDR_BUCKET_SHIFT	6
+#define ZX279133_DDR_BUCKET_SIZE		BIT(ZX279133_DDR_BUCKET_SHIFT)
+#define ZX279133_DDR_BUCKETS		(ZX279133_SE_HASH_REQUIRED_SIZE >> \
+					 ZX279133_DDR_BUCKET_SHIFT)
+#define ZX279133_HASH_CRC32_POLY		0x04c11db7
 
 #define ZX279133_SE_ALG_WR_DONE		0x50000
 #define ZX279133_SE_ALG_WR_CMD		0x50004
@@ -38,8 +46,8 @@
 #define ZX279133_SE_HASH_AGCLK		BIT(2)
 #define ZX279133_FAST_MULTI_SELECTOR	0x01
 #define ZX279133_FAST_MULTI_FOOTER	0xc1
-#define ZX279133_FAST_FULL_SELECTOR	0x02
-#define ZX279133_FAST_FULL_FOOTER	0xe2
+#define ZX279133_FAST_FULL_SELECTOR	0x00
+#define ZX279133_FAST_FULL_FOOTER	0xe0
 #define ZX279133_PPPOE_PUSH_WANID	0
 #define ZX279133_PPPOE_POP_WANID	16
 #define ZX279133_PPPOE_PUSH		1
@@ -66,12 +74,14 @@ struct zx279133_flow_data {
 };
 
 struct zx279133_flow_entry {
+	struct rhash_head key_node;
 	u8 key[ZX279133_FAST_KEY_SIZE];
 	u8 zblock;
 	u8 zcell;
 	u8 zaddr;
+	u32 ddr_bucket;
+	u32 age;
 	u16 ikey;
-	u16 age;
 	u16 stat;
 	u64 packets;
 	u64 bytes;
@@ -81,6 +91,7 @@ struct zx279133_flow_entry {
 	bool snat;
 	bool pppoe;
 	bool full;
+	bool in_ddr;
 };
 
 struct zx279133_flow_offload {
@@ -88,8 +99,10 @@ struct zx279133_flow_offload {
 	/* Serializes software flow state and SE indirect accesses. */
 	struct mutex lock;
 	struct xarray flows;
+	struct rhashtable key_flows;
 	struct list_head block_cb_list;
 	DECLARE_BITMAP(zcam_used, ZX279133_ZCAM_SLOTS);
+	unsigned long *ddr_used;
 	DECLARE_BITMAP(ikey_used, ZX279133_FAST_IKEY_DEPTH);
 	DECLARE_BITMAP(age_used, ZX279133_FAST_AGE_DEPTH);
 	DECLARE_BITMAP(stat_used, ZX279133_FAST_STAT_DEPTH);
@@ -99,7 +112,16 @@ struct zx279133_flow_offload {
 	u16 pppoe_sid;
 	u16 saved_pppoe_sid[2];
 	u32 pppoe_users;
+	u32 ddr_entries;
+	u16 fast_full_zcam_used;
 	u8 saved_pppoe_mode[2];
+};
+
+static const struct rhashtable_params zx279133_flow_key_ht_params = {
+	.head_offset = offsetof(struct zx279133_flow_entry, key_node),
+	.key_offset = offsetof(struct zx279133_flow_entry, key),
+	.key_len = ZX279133_FAST_KEY_SIZE,
+	.automatic_shrinking = true,
 };
 
 struct zx279133_flow_block {
@@ -127,6 +149,20 @@ static int zx279133_fast_index_alloc(unsigned long *used,
 	return 0;
 }
 
+static int
+zx279133_fast_age_alloc(struct zx279133_flow_offload *offload, u32 *index)
+{
+	unsigned long bit;
+
+	bit = find_first_zero_bit(offload->age_used, ZX279133_FAST_AGE_DEPTH);
+	if (bit == ZX279133_FAST_AGE_DEPTH)
+		return -ENOSPC;
+	__set_bit(bit, offload->age_used);
+	*index = bit;
+
+	return 0;
+}
+
 static u16 zx279133_crc16(u16 poly, const u8 *data, size_t len)
 {
 	u16 crc = 0;
@@ -136,6 +172,20 @@ static u16 zx279133_crc16(u16 poly, const u8 *data, size_t len)
 		crc ^= (u16)data[len] << 8;
 		for (bit = 0; bit < 8; bit++)
 			crc = crc & BIT(15) ? (crc << 1) ^ poly : crc << 1;
+	}
+
+	return crc;
+}
+
+static u32 zx279133_crc32(u32 poly, const u8 *data, size_t len)
+{
+	u32 crc = 0;
+	int bit;
+
+	while (len--) {
+		crc ^= (u32)data[len] << 24;
+		for (bit = 0; bit < 8; bit++)
+			crc = crc & BIT(31) ? (crc << 1) ^ poly : crc << 1;
 	}
 
 	return crc;
@@ -170,6 +220,78 @@ static int zx279133_zcam_alloc(struct zx279133_flow_offload *offload,
 	return -ENOSPC;
 }
 
+static int zx279133_ddr_alloc(struct zx279133_flow_offload *offload,
+			      struct zx279133_flow_entry *entry, u8 selector)
+{
+	u8 hash_input[49] = {};
+	u32 crc;
+
+	hash_input[0] = selector;
+	memcpy(hash_input + 1, entry->key, ZX279133_FAST_KEY_SIZE);
+	crc = zx279133_crc32(ZX279133_HASH_CRC32_POLY, hash_input, sizeof(hash_input));
+	entry->ddr_bucket = crc & (ZX279133_DDR_BUCKETS - 1);
+	if (test_and_set_bit(entry->ddr_bucket, offload->ddr_used))
+		return -ENOSPC;
+	entry->in_ddr = true;
+	if (!offload->ddr_entries)
+		dev_info(offload->eth->dev,
+			 "SDT14 fast-flow overflow entered DDR bulk 0 at bucket %u\n",
+			 entry->ddr_bucket);
+	offload->ddr_entries++;
+
+	return 0;
+}
+
+static int zx279133_flow_slot_alloc(struct zx279133_flow_offload *offload,
+				    struct zx279133_flow_entry *entry,
+				    u8 selector)
+{
+	int ret;
+
+	if (!entry->full ||
+	    offload->fast_full_zcam_used < ZX279133_FAST_FULL_ZCAM_LIMIT) {
+		ret = zx279133_zcam_alloc(offload, entry->key, selector,
+					  &entry->zblock, &entry->zcell,
+					  &entry->zaddr);
+		if (!ret) {
+			if (entry->full)
+				offload->fast_full_zcam_used++;
+			return 0;
+		}
+		if (!entry->full)
+			return ret;
+	}
+
+	ret = zx279133_ddr_alloc(offload, entry, selector);
+	if (ret != -ENOSPC)
+		return ret;
+
+	/* The external table has one 512-bit slot per CRC32 result.  Resolve a
+	 * collision through the ZCAM's 4 blocks x 5 CRC16 candidates.
+	 */
+	ret = zx279133_zcam_alloc(offload, entry->key, selector,
+				  &entry->zblock, &entry->zcell, &entry->zaddr);
+	if (!ret)
+		offload->fast_full_zcam_used++;
+
+	return ret;
+}
+
+static void zx279133_flow_slot_release(struct zx279133_flow_offload *offload,
+				       const struct zx279133_flow_entry *entry)
+{
+	if (entry->in_ddr) {
+		__clear_bit(entry->ddr_bucket, offload->ddr_used);
+		offload->ddr_entries--;
+		return;
+	}
+
+	clear_bit(zx279133_zcam_slot(entry->zblock, entry->zcell,
+				     entry->zaddr), offload->zcam_used);
+	if (entry->full)
+		offload->fast_full_zcam_used--;
+}
+
 static int zx279133_zcam_write(struct zx279133_flow_offload *offload,
 			       u8 zblock, u8 zcell, u8 zaddr,
 			       const u32 *table, unsigned int words)
@@ -200,6 +322,53 @@ out_restore_clock:
 		writel(agclk, eth->pps_base + ZX279133_PPU_AGCLK_CFG);
 
 	return ret;
+}
+
+static void zx279133_ddr_write(struct zx279133_flow_offload *offload,
+			       u32 bucket, const u32 *table)
+{
+	u8 ddr_table[ZX279133_DDR_BUCKET_SIZE];
+	u8 __iomem *dst = offload->eth->se_hash_mem +
+			  (bucket << ZX279133_DDR_BUCKET_SHIFT);
+	const u8 *src = (const u8 *)table;
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(ddr_table); i++)
+		ddr_table[i] = src[ARRAY_SIZE(ddr_table) - 1 - i];
+	ddr_table[0] &= ~BIT(7);
+	memcpy_toio(dst, ddr_table, sizeof(ddr_table));
+	/* Publish the complete body before making the table valid. */
+	wmb();
+	writeb(ddr_table[0] | BIT(7), dst);
+	/* Complete the valid-bit write before reporting the rule in hardware. */
+	wmb();
+}
+
+static void zx279133_ddr_clear(struct zx279133_flow_offload *offload,
+			       u32 bucket)
+{
+	u8 __iomem *dst = offload->eth->se_hash_mem +
+			  (bucket << ZX279133_DDR_BUCKET_SHIFT);
+
+	writeb(0, dst);
+	/* Invalidate the table before clearing data that SE may still read. */
+	wmb();
+	memset_io(dst + 1, 0, ZX279133_DDR_BUCKET_SIZE - 1);
+	/* Complete the clear before returning the bucket to the allocator. */
+	wmb();
+}
+
+static int zx279133_flow_table_write(struct zx279133_flow_offload *offload,
+				     const struct zx279133_flow_entry *entry,
+				     const u32 *table, unsigned int words)
+{
+	if (entry->in_ddr) {
+		zx279133_ddr_write(offload, entry->ddr_bucket, table);
+		return 0;
+	}
+
+	return zx279133_zcam_write(offload, entry->zblock, entry->zcell,
+				    entry->zaddr, table, words);
 }
 
 static void zx279133_put_ipv4(u8 *dst, __be32 addr)
@@ -301,7 +470,7 @@ static void zx279133_fast_response_build(u8 *fast,
 }
 
 static void zx279133_fast_multi_table_build(u32 *table, const u8 *fast,
-					    const u8 *key, u16 age)
+					    const u8 *key, u32 age)
 {
 	u8 packed[18] = {};
 	u8 *bytes = (u8 *)table;
@@ -327,19 +496,32 @@ static void zx279133_fast_multi_table_build(u32 *table, const u8 *fast,
 }
 
 static void zx279133_fast_full_table_build(u32 *table, const u8 *fast,
-					   const u8 *key)
+					   const u8 *key, u32 age)
 {
 	u32 response[ZX279133_FAST_DATA_SIZE / sizeof(u32)];
+	u8 packed[ZX279133_FAST_DATA_SIZE + 3] = {};
 	u8 *bytes = (u8 *)table;
 	u8 *response_bytes = (u8 *)response;
+	unsigned int i;
+	u32 tail;
 
-	/* fast_table_write() applies this conversion before its SDT14 fallback. */
+	/* fast_table_write() applies this conversion and the 18-bit age prefix
+	 * before its age-enabled SDT14 fallback.
+	 */
 	memcpy(response, fast, sizeof(response));
 	swap(response[0], response[4]);
 	response_bytes[26] = 0;
 	response_bytes[27] &= 0xe0;
+	for (i = 0; i < ZX279133_FAST_DATA_SIZE - 1; i++) {
+		packed[i] |= (response_bytes[i] & 0x3) << 6;
+		packed[i + 1] |= response_bytes[i] >> 2;
+	}
+	tail = (age & GENMASK(17, 0)) << 13 |
+	       (response_bytes[31] & GENMASK(6, 0)) << 6;
+	for (i = 0; i < sizeof(tail); i++)
+		packed[31 + i] += tail >> (8 * i);
 	memset(table, 0, ZX279133_ZCAM_ENTRY_SIZE);
-	memcpy(bytes + 15, response, sizeof(response));
+	memcpy(bytes + 15, packed + 3, ZX279133_FAST_DATA_SIZE);
 	memcpy(bytes + 47, key, ZX279133_FAST_KEY_SIZE);
 	bytes[63] = ZX279133_FAST_FULL_FOOTER;
 }
@@ -683,13 +865,8 @@ zx279133_flow_parse(struct zx279133_flow_offload *offload,
 static bool zx279133_flow_key_exists(struct zx279133_flow_offload *offload,
 				     const u8 *key)
 {
-	struct zx279133_flow_entry *entry;
-	unsigned long index;
-
-	xa_for_each(&offload->flows, index, entry)
-		if (!memcmp(entry->key, key, ZX279133_FAST_KEY_SIZE))
-			return true;
-	return false;
+	return rhashtable_lookup_fast(&offload->key_flows, key,
+				      zx279133_flow_key_ht_params);
 }
 
 static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
@@ -703,7 +880,8 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	u8 fast[ZX279133_FAST_DATA_SIZE];
 	u32 ikey[ZX279133_FAST_IKEY_SIZE / sizeof(u32)];
 	u32 table[ZX279133_ZCAM_ENTRY_SIZE / sizeof(u32)];
-	bool ipv6, pppoe, full, snat;
+	bool ipv6, pppoe, full, snat, stat_capable;
+	unsigned int table_words;
 	u16 lan_vid, pppoe_sid = 0;
 	u8 ip_proto;
 	int ret;
@@ -744,36 +922,44 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	}
 	pppoe = pppoe_sid || (ingress == ZX279133_FLOW_PORT_WAN &&
 				      offload->pppoe_users);
-	/* Compact responses cannot carry the PPPoE push length change. */
-	full = pppoe_sid;
+	/* Keep both PPPoE directions out of the finite IKEY table. */
+	full = pppoe;
+	/* The local-fast action used for PPPoE push has no SDT29 flow-stat
+	 * operation.  PPPoE pop uses action 0 and retains exact counters.
+	 */
+	stat_capable = !full || ingress == ZX279133_FLOW_PORT_WAN;
 	entry->pppoe = pppoe;
 	entry->full = full;
-	entry->has_age = !full;
-	ret = zx279133_zcam_alloc(offload, entry->key,
-				  full ? ZX279133_FAST_FULL_SELECTOR :
-					   ZX279133_FAST_MULTI_SELECTOR,
-				  &entry->zblock, &entry->zcell,
-				  &entry->zaddr);
+	entry->has_age = true;
+	ret = zx279133_flow_slot_alloc(offload, entry,
+				       full ? ZX279133_FAST_FULL_SELECTOR :
+					      ZX279133_FAST_MULTI_SELECTOR);
 	if (ret)
 		goto out_free;
-	ret = zx279133_fast_index_alloc(offload->ikey_used,
-					ZX279133_FAST_IKEY_DEPTH, &entry->ikey);
-	if (ret)
-		goto out_release_slot;
-	ret = zx279133_fast_index_alloc(offload->age_used,
-					ZX279133_FAST_AGE_DEPTH, &entry->age);
+	if (!full) {
+		ret = zx279133_fast_index_alloc(offload->ikey_used,
+						ZX279133_FAST_IKEY_DEPTH,
+						&entry->ikey);
+		if (ret)
+			goto out_release_slot;
+	}
+	ret = zx279133_fast_age_alloc(offload, &entry->age);
 	if (ret)
 		goto out_release_ikey;
-	ret = zx279133_fast_index_alloc(offload->stat_used,
-					ZX279133_FAST_STAT_DEPTH, &entry->stat);
-	if (!ret) {
-		entry->has_stat = true;
-		ret = zx279133_fast_stats_read(offload->eth, entry->stat,
-					       &entry->packets, &entry->bytes);
-		if (ret)
-			goto out_release_stat;
-	} else if (ret != -ENOSPC) {
-		goto out_release_age;
+	if (stat_capable) {
+		ret = zx279133_fast_index_alloc(offload->stat_used,
+						ZX279133_FAST_STAT_DEPTH,
+						&entry->stat);
+		if (!ret) {
+			entry->has_stat = true;
+			ret = zx279133_fast_stats_read(offload->eth, entry->stat,
+						       &entry->packets,
+						       &entry->bytes);
+			if (ret)
+				goto out_release_stat;
+		} else if (ret != -ENOSPC) {
+			goto out_release_age;
+		}
 	}
 	if (snat) {
 		ret = zx279133_flow_snat_get(offload, xlate.src_addr);
@@ -791,7 +977,11 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 				     entry->ikey, entry->stat,
 				     entry->has_stat, pppoe);
 	if (full) {
-		zx279133_fast_full_table_build(table, fast, entry->key);
+		/* Local-fast push is action 1; routed pop remains action 0. */
+		if (ingress == ZX279133_FLOW_PORT_LAN)
+			fast[31] = 1;
+		zx279133_fast_full_table_build(table, fast, entry->key,
+					       entry->age);
 	} else {
 		memcpy(ikey, fast, sizeof(ikey));
 		zx279133_fast_multi_table_build(table, fast, entry->key, entry->age);
@@ -802,10 +992,17 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	ret = xa_err(xa_store(&offload->flows, f->cookie, entry, GFP_KERNEL));
 	if (ret)
 		goto out_clear_ikey;
-	ret = zx279133_zcam_write(offload, entry->zblock, entry->zcell,
-				  entry->zaddr, table,
-				  full ? ARRAY_SIZE(table) : ARRAY_SIZE(ikey) * 2);
+	ret = rhashtable_insert_fast(&offload->key_flows, &entry->key_node,
+				     zx279133_flow_key_ht_params);
 	if (ret) {
+		xa_erase(&offload->flows, f->cookie);
+		goto out_clear_ikey;
+	}
+	table_words = full ? ARRAY_SIZE(table) : ARRAY_SIZE(ikey) * 2;
+	ret = zx279133_flow_table_write(offload, entry, table, table_words);
+	if (ret) {
+		rhashtable_remove_fast(&offload->key_flows, &entry->key_node,
+				       zx279133_flow_key_ht_params);
 		xa_erase(&offload->flows, f->cookie);
 		goto out_clear_ikey;
 	}
@@ -829,10 +1026,10 @@ out_release_stat:
 out_release_age:
 	__clear_bit(entry->age, offload->age_used);
 out_release_ikey:
-	__clear_bit(entry->ikey, offload->ikey_used);
+	if (!full)
+		__clear_bit(entry->ikey, offload->ikey_used);
 out_release_slot:
-	clear_bit(zx279133_zcam_slot(entry->zblock, entry->zcell,
-				     entry->zaddr), offload->zcam_used);
+	zx279133_flow_slot_release(offload, entry);
 out_free:
 	mutex_unlock(&offload->lock);
 	kfree(entry);
@@ -847,10 +1044,15 @@ zx279133_flow_entry_hw_clear(struct zx279133_flow_offload *offload,
 	u32 table[ZX279133_ZCAM_ENTRY_SIZE / sizeof(u32)] = {};
 	int ret;
 
-	ret = zx279133_zcam_write(offload, entry->zblock, entry->zcell,
-				  entry->zaddr, table,
-				  entry->full ? ARRAY_SIZE(table) :
-						 ARRAY_SIZE(ikey) * 2);
+	if (entry->in_ddr) {
+		zx279133_ddr_clear(offload, entry->ddr_bucket);
+		ret = 0;
+	} else {
+		ret = zx279133_zcam_write(offload, entry->zblock, entry->zcell,
+					  entry->zaddr, table,
+					  entry->full ? ARRAY_SIZE(table) :
+							 ARRAY_SIZE(ikey) * 2);
+	}
 	if (ret)
 		return ret;
 	if (!entry->full) {
@@ -877,10 +1079,12 @@ static int zx279133_flow_destroy(struct zx279133_flow_offload *offload,
 	ret = zx279133_flow_entry_hw_clear(offload, entry);
 	if (ret)
 		goto out_unlock;
+	rhashtable_remove_fast(&offload->key_flows, &entry->key_node,
+			       zx279133_flow_key_ht_params);
 	xa_erase(&offload->flows, f->cookie);
-	clear_bit(zx279133_zcam_slot(entry->zblock, entry->zcell,
-				     entry->zaddr), offload->zcam_used);
-	__clear_bit(entry->ikey, offload->ikey_used);
+	zx279133_flow_slot_release(offload, entry);
+	if (!entry->full)
+		__clear_bit(entry->ikey, offload->ikey_used);
 	__clear_bit(entry->age, offload->age_used);
 	if (entry->has_stat)
 		__clear_bit(entry->stat, offload->stat_used);
@@ -989,14 +1193,19 @@ zx279133_flow_entries_clear(struct zx279133_flow_offload *offload,
 			zx279133_flow_pppoe_put(offload);
 		if (entry->snat)
 			zx279133_flow_snat_put(offload);
+		rhashtable_remove_fast(&offload->key_flows, &entry->key_node,
+				       zx279133_flow_key_ht_params);
 		kfree(entry);
 	}
 	xa_destroy(&offload->flows);
 	xa_init(&offload->flows);
 	bitmap_zero(offload->zcam_used, ZX279133_ZCAM_SLOTS);
+	bitmap_zero(offload->ddr_used, ZX279133_DDR_BUCKETS);
 	bitmap_zero(offload->ikey_used, ZX279133_FAST_IKEY_DEPTH);
 	bitmap_zero(offload->age_used, ZX279133_FAST_AGE_DEPTH);
 	bitmap_zero(offload->stat_used, ZX279133_FAST_STAT_DEPTH);
+	offload->fast_full_zcam_used = 0;
+	offload->ddr_entries = 0;
 	mutex_unlock(&offload->lock);
 }
 
@@ -1070,19 +1279,29 @@ static void zx279133_flow_offload_cleanup(void *data)
 	struct zx279133_flow_offload *offload = data;
 
 	zx279133_flow_entries_clear(offload, false);
+	rhashtable_destroy(&offload->key_flows);
 	offload->eth->flow_offload = NULL;
 }
 
 int zx279133_flow_offload_init(struct zx279133_eth *eth)
 {
 	struct zx279133_flow_offload *offload;
+	int ret;
 
 	offload = devm_kzalloc(eth->dev, sizeof(*offload), GFP_KERNEL);
 	if (!offload)
 		return -ENOMEM;
 	offload->eth = eth;
+	offload->ddr_used = devm_bitmap_zalloc(eth->dev, ZX279133_DDR_BUCKETS,
+					       GFP_KERNEL);
+	if (!offload->ddr_used)
+		return -ENOMEM;
 	mutex_init(&offload->lock);
 	xa_init(&offload->flows);
+	ret = rhashtable_init(&offload->key_flows,
+			      &zx279133_flow_key_ht_params);
+	if (ret)
+		return ret;
 	INIT_LIST_HEAD(&offload->block_cb_list);
 	eth->flow_offload = offload;
 
