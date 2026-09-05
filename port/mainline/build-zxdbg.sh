@@ -26,6 +26,8 @@ NFT=${NFT:-"$OUT/nft"}
 PPPD_ROOT=${PPPD_ROOT:-"$OUT/ppp-root"}
 XSK_ZC=${XSK_ZC:-"$OUT/xsk-zc"}
 PTP_TEST=${PTP_TEST:-"$OUT/ptp-test"}
+MDB_CTL=${MDB_CTL:-"$OUT/mdb-ctl"}
+NIC_CTL=${NIC_CTL:-"$OUT/nic-ctl"}
 JOBS=${JOBS:-4}
 CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
 
@@ -74,6 +76,12 @@ mkdir -p "$KERNEL_OUT" "$OUT"
 "${CROSS_COMPILE}gcc" -O2 -static -Wall -Wextra -Werror \
 	"$SCRIPT_DIR/ptp-acceptance/ptp-test.c" -o "$PTP_TEST"
 "${CROSS_COMPILE}strip" -s "$PTP_TEST"
+"${CROSS_COMPILE}gcc" -O2 -static -Wall -Wextra -Werror \
+	"$SCRIPT_DIR/network-acceptance/mdb-ctl.c" -o "$MDB_CTL"
+"${CROSS_COMPILE}strip" -s "$MDB_CTL"
+"${CROSS_COMPILE}gcc" -O2 -static -Wall -Wextra -Werror \
+	"$SCRIPT_DIR/network-acceptance/nic-ctl.c" -o "$NIC_CTL"
+"${CROSS_COMPILE}strip" -s "$NIC_CTL"
 
 # ---- Assemble the initramfs root ------------------------------------------
 rm -rf "$ROOTFS"
@@ -138,6 +146,8 @@ file /bin/iperf3 $ROOTFS/bin/iperf3 0755 0 0
 file /bin/nft $ROOTFS/bin/nft 0755 0 0
 file /bin/xsk-zc $XSK_ZC 0755 0 0
 file /bin/ptp-test $PTP_TEST 0755 0 0
+file /bin/mdb-ctl $MDB_CTL 0755 0 0
+file /bin/nic-ctl $NIC_CTL 0755 0 0
 file /usr/sbin/pppd $ROOTFS/usr/sbin/pppd 0755 0 0
 file /usr/lib/pppd/2.5.3/pppoe.so \
 	$ROOTFS/usr/lib/pppd/2.5.3/pppoe.so 0755 0 0
@@ -198,12 +208,15 @@ for want in CONFIG_MODULES=y CONFIG_MODULE_UNLOAD=y CONFIG_NET_DSA=y \
 	CONFIG_HIGH_RES_TIMERS=y \
 	CONFIG_BLK_DEV_INITRD=y CONFIG_INET=y CONFIG_PACKET=y CONFIG_SYSCTL=y \
 	CONFIG_PROC_SYSCTL=y \
-	CONFIG_IPV6=y CONFIG_VLAN_8021Q=y \
+	CONFIG_IPV6=y CONFIG_VLAN_8021Q=y CONFIG_BRIDGE_IGMP_SNOOPING=y \
 	CONFIG_NETFILTER=y CONFIG_NF_CONNTRACK_PROCFS=y CONFIG_NFT_CT=y \
 	CONFIG_NF_FLOW_TABLE=y CONFIG_NF_FLOW_TABLE_PROCFS=y \
 	CONFIG_NF_FLOW_TABLE_INET=y CONFIG_NFT_FLOW_OFFLOAD=y \
-	CONFIG_NET_SCHED=y CONFIG_NET_CLS_ACT=y CONFIG_NET_CLS_FLOWER=y \
-	CONFIG_NET_ACT_MIRRED=y CONFIG_NET_ACT_PEDIT=y CONFIG_NET_ACT_CSUM=y \
+	CONFIG_NET_SCHED=y CONFIG_NET_SCH_ETS=y CONFIG_NET_SCH_TBF=y \
+	CONFIG_DCB=y CONFIG_NET_CLS_ACT=y CONFIG_NET_CLS_FLOWER=y \
+	CONFIG_NET_CLS_MATCHALL=y CONFIG_NET_ACT_GACT=y CONFIG_NET_ACT_MIRRED=y \
+	CONFIG_NET_ACT_POLICE=y CONFIG_NET_ACT_SKBEDIT=y CONFIG_NET_ACT_VLAN=y \
+	CONFIG_NET_ACT_PEDIT=y CONFIG_NET_ACT_CSUM=y \
 	CONFIG_FW_LOADER=y; do
 	grep -qx "$want" "$KERNEL_OUT/.config" || {
 		echo "required kernel setting missing: $want" >&2; exit 1; }

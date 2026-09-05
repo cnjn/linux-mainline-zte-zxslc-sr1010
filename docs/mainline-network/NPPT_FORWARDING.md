@@ -386,6 +386,155 @@ bidirectional connections whose LAN keys share ZCAM block 0/cell 0/address
 `0x42` and whose reverse keys share block 0/cell 0/address `0x0e`; all 64
 directions reached hardware through the remaining cell/block candidates.
 
+## WANID Hardware Contract
+
+The NPPT WANID table is not a list of 32 fixed-purpose ports. It is a bank of
+32 programmable, 128-bit WAN profiles. A fast-flow response carries a five-bit
+WANID and the packet processor uses that value to fetch per-service rewrite and
+encapsulation state. Physical egress selection and VLAN tagging are encoded by
+other response fields and tables; a WANID alone does not select a wire.
+
+The contract below is recovered from the symbolized vendor `np.ko`, principally
+`wanid_get_wanid_by_index()` at `0xb47e8`, `wanid_table_print_entry()` at
+`0xb495c`, `wanid_database_init()` at `0xb490c`, and `fast_hashinfo_set()` at
+`0xa6564`. In the factory `switch.ko` DS-Lite path, `convertflow2hff()` at
+`0x13a70` maps an interface named `nbifN` to base WAN index `N`.
+
+### Index and direction encoding
+
+`wanid_get_wanid_by_index()` implements this exact operation:
+
+```c
+wanid = (u8)index;
+if (direction == 1)
+	wanid |= BIT(4);
+```
+
+The intended base-index range is therefore 0..15, paired with a direction bit:
+
+| Logical service | Direction 0, upstream | Direction 1, downstream |
+|---|---:|---:|
+| `nbif0` | WANID 0 | WANID 16 |
+| `nbif1` | WANID 1 | WANID 17 |
+| ... | ... | ... |
+| `nbif15` | WANID 15 | WANID 31 |
+
+The board-proven mainline path uses WANID 0 for LAN-to-WAN SNAT and PPPoE push,
+and WANID 16 for WAN-to-LAN PPPoE pop. WANID 1/17 are consequently the second
+logical service pair, not intrinsically a second physical port. They are unused
+by the current mainline offload frontend. One factory boundary check accepts
+`nbif16`, but bit 4 is already the direction bit, so index 16 cannot form a new,
+non-aliasing pair. It is not evidence for a seventeenth logical service.
+
+Some factory tunnel paths additionally add an eight-entry bank offset or recover
+a WANID by MAC address. That remapping must be preserved when tunnel offload is
+implemented; it does not change the basic `index | direction << 4` encoding.
+
+### 128-bit entry layout
+
+The table entry printer accounts for every bit in the four 32-bit words:
+
+| Bits | Vendor field | Meaning | Evidence |
+|---|---|---|---|
+| 15:0 | `m_l3_mtu` | Per-WAN L3 MTU | vendor static analysis; mainline programs 1996 |
+| 31:16 | `m_sessionid` | PPPoE session ID | vendor static analysis and board PPPoE capture |
+| 63:32 | `m_sip` | IPv4 source address used by SNAT | vendor static analysis and board NAT hit |
+| 111:64 | `m_cpumac` | 48-bit CPU/WAN MAC | vendor static analysis and mainline programming |
+| 117:112 | `m_rsv` | Reserved; preserve on read-modify-write | vendor printer names it reserved |
+| 119:118 | `m_gre` | GRE selector | field name and position only |
+| 121:120 | `m_vxlan` | VXLAN selector | field position and production writers recovered |
+| 123:122 | `m_pppoe` | PPPoE rewrite mode | static and board-proven writers recovered |
+| 125:124 | `m_6rd` | 6rd selector | field name and position only |
+| 127:126 | `m_dislite` | DS-Lite rewrite mode; vendor spelling retained | production writers recovered statically |
+
+The table resides at SMMU0 address `(16386 + wanid) << 7`. The vendor software
+database contains 32 records of 68 bytes; it caches the 16-byte WANID image plus
+associated DS-Lite state. `fast_hashinfo_set()` compares the newly constructed
+image with that cache and writes the hardware table only when the profile has
+changed.
+
+### Two-bit mode values
+
+The two-bit fields are not one shared enum. Each protocol interprets its own
+field, so values must not be generalized from PPPoE to the other protocols.
+
+| Field | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| `m_pppoe` | inactive | push/add an 8-byte PPPoE header | pop/delete an 8-byte PPPoE header | no production writer found |
+| `m_dislite` | inactive | IPv4-in-IPv6 encapsulation, packet length `+40` | IPv4-in-IPv6 decapsulation, packet length `-40` | no production writer found |
+| `m_vxlan` | inactive | select the IPv4 VXLAN tables | no production writer found | select the IPv6 VXLAN tables |
+| `m_gre` | inactive/default | unknown | unknown | unknown |
+| `m_6rd` | inactive/default | unknown | unknown | unknown |
+
+The exact factory modify-action bits observed in `fast_hashinfo_set()` are:
+
+| Modify flag | WANID effect |
+|---:|---|
+| `0x00020000` | set `m_pppoe = 1`, install the session ID, length `+8` |
+| `0x00010000` | set `m_pppoe = 2`, length `-8` |
+| `0x01000000` | set `m_dislite = 1`, install the IPv6 tunnel tuple, length `+40` |
+| `0x02000000` | set `m_dislite = 2`, length `-40` |
+| `0x10000000` | allocate/program VXLAN metadata and set `m_vxlan = 1` for IPv4 or `3` for IPv6 |
+
+`m_vxlan` is therefore a tunnel-family/table selector, not a PPPoE-style
+push/pop enum. The reverse direction finds the previously programmed tunnel
+profile by WANID/MAC and uses the fast-flow direction and tunnel metadata to
+perform the complementary operation.
+
+No production instruction in this `np.ko` writes a non-zero `m_gre` or `m_6rd`
+value. GRE uses separate tunnel, MAC, and IP tables plus per-port GRE controls.
+The exported `tm_6rd_sip_set()` is an explicit stub which prints that 6rd is not
+supported there and is configured in a separate 6rd SE table. Consequently the
+field positions are proven, but assigning meanings to values 1..3 would be
+speculation. Value 3 is likewise unproven for PPPoE and DS-Lite, and value 2 is
+unproven for VXLAN.
+
+Evidence levels are deliberately different:
+
+- PPPoE 1/2: static writer, length delta, WAN capture, hardware hits, and
+  teardown/restore are proven.
+- DS-Lite 1/2: static writer and exact length delta are proven; no SR1010 packet
+  acceptance has been run.
+- VXLAN 1/3: static writer and selection of the IPv4/IPv6 metadata tables are
+  proven; no SR1010 packet acceptance has been run.
+- GRE and 6rd non-zero modes: not established by the available production
+  binaries. Their dedicated auxiliary tables are real, but do not define the
+  WANID mode encoding.
+
+### Mainline coverage and multi-WAN boundary
+
+The hardware contract is broader than the current Linux frontend:
+
+- `zx279133_flow_dev_port()` recognizes only the native WAN netdev as WAN and
+  the DSA conduit and its children as LAN.
+- The parser accepts only LAN-to-WAN or WAN-to-LAN flows.
+- SNAT has one global active source address and always programs WANID 0.
+- PPPoE has one global active session and programs only WANID 0/16.
+- WANID 0, 1, and 16 receive initial CPU MAC programming; all 32 entries receive
+  the 1996-byte L3 MTU, but no mainline flow selects WANID 1/17.
+- Provider VLAN and physical-port selection are outside the WANID entry. A
+  single-wire tagged dual-WAN design also needs VLAN match/action and endpoint
+  mapping; allocating WANID 1/17 alone is insufficient.
+
+Multi-WAN hardware NAT therefore requires code, not just another performance
+test. A complete implementation must allocate one base index per logical WAN,
+derive the direction pair, keep per-WAN MAC/source-IP/PPPoE state, encode the
+provider VLAN or physical egress separately, and flush only the affected
+profile's flows when routes or links change.
+
+The minimum acceptance gate for a second profile is:
+
+1. Program WANID 1/17 with values distinct from WANID 0/16 and read them back.
+2. Establish simultaneous flows through both logical WANs and prove the
+   intended WANID in each hardware response.
+3. Capture both wires or provider VLANs and verify MAC, SNAT address, VLAN, and
+   PPPoE session independently in both directions.
+4. Compare per-flow packet/byte/last-used data and endpoint counters, rather
+   than relying only on `in_hw`.
+5. Delete or fail one WAN, prove that only its flows are removed, then reuse its
+   WANID pair without disturbing the other WAN.
+6. Repeat after `reboot -f` and direct `bootm` to reject stale table state.
+
 ### SDT 14 hash-DDR overflow
 
 The mainline driver configures one factory-shaped external bulk at
@@ -718,7 +867,9 @@ customer VID 100 configured as PVID/untagged on both `lan1` and the bridge self
 port. Windows stayed untagged and reachable. A UDP NAT connection on port 5700
 again reached `[HW_OFFLOAD]` with bidirectional delivery. This is the supported
 access-VLAN model: the customer VLAN is nested inside the private DSA CPU-link
-transport, and tagged trunk VLANs remain outside the current driver scope.
+transport. Tagged customer VLANs remain inner C-tags and are supported by the
+DSA VLAN programming path; this particular acceptance covered the access-port
+model.
 
 ICMP is intentionally absent from the nftables `flow add` rule. Four Windows
 pings crossed the VLAN-aware bridge and SNAT path with zero loss and 1 ms
@@ -728,6 +879,30 @@ backend rather than dropping it or falsely claiming offload. No debugfs or
 production-register interface was added; the one-off userspace netlink helper
 used to configure VID 100 was removed from host and board after the test. The
 kernel log remained free of BUG, Oops, WARNING, WANID, and SMMU failures.
+
+## RTL8372N S-VLAN CPU Transport
+
+The final DSA transport follows the factory switch model: RTL ports 4..7 are
+assigned private SVID59..62 and CPU8 is the only S-VLAN service port. This
+keeps customer C-tags independent of source-port identification and avoids the
+NPPT parser regression caused by a proprietary `0x8899` tag.
+
+LAN-ingress hardware flows explicitly pop the four-byte private S-tag in the
+fast response. SDT29 increased by exactly 16,506 packets and 25,122,132 bytes
+for one diagnostic burst, while the `lan1` software receive count increased by
+only eight packets. A later bidirectional UDP run offered 2,512,048,960 payload
+bytes in 10.099 seconds (1.990 Gbit/s); a one-second receiver sample accepted
+173,812 packets and 255,851,264 payload bytes. The WAN capture contained plain
+IPv4 frames with a valid UDP checksum and no residual service tag.
+
+The final combined FIT
+`c32be49f80a5e8b257bb6f5bf1bd251ec6dbdb2ce273a4aff0b75ec825a4839b`
+reproduced `[HW_OFFLOAD]`. Its single sender offered 2,486,664,320 payload
+bytes in 10.071 seconds (1.975 Gbit/s), while the one-second WAN receiver
+sample accepted 165,181 packets. After the hardware marker appeared, the
+`lan1` software RX counter increased by only two packets through the remainder
+of the run. This is the transport-regression gate, not a new measurement of
+the already proven 2.38 Gbit/s NPPT ceiling.
 
 ## IPv6 Routed Offload
 

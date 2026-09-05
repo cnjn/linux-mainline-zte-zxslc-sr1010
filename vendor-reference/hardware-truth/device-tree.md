@@ -11,7 +11,7 @@ Evidence: `vendor-reference/2b5/zx279133-sr1010.dts`; `vendor-reference/2b5/zx27
 * Live U-Boot fixups are minimal: SFC changes from disabled to okay; `chosen.bootargs` changes to JFFS2 `/dev/mtdblock8`; `chosen.versioninfo` is populated. No hardware resource, address, interrupt, clock, reset, OPP, or wiring cells otherwise change.
 * Vendor DT models a broad BSP inventory (three UARTs, two I2C, three I2S, PWM regulator + CPU OPPs, two USB, MMC, NAND, SFC, dual PCIe/MSI/Wi-Fi, SSP/TDM, PON/PPS/NPPT/RGMII/SerDes/PCU/GEPHY/IPsec/DDR helper nodes). Most data-plane and PCIe blocks are disabled, while PON, both watchdogs, PVT, UART0, I2C0/1, USB at 0x15010000, MDIO0/1 and DDR helper nodes are enabled.
 * Mainline deliberately contracts the description to supported hardware: clocks/resets, UART0, PVT, GPIO, SFC, USB3, MDIO, PWM, efuse, watchdogs, unified PON+UNI SerDes/NPPT/XPCS. It omits vendor PCIe/Wi-Fi, I2C/audio/voice, MMC/raw NAND, PON standalone driver, RGMII/GEPHY/IPsec/DDR helper nodes, CPU DVFS/regulator, and all vendor leaf-clock nodes.
-* Mainline board wiring adds reset key GPIO0[0] active-low; white LED GPIO2[0] active-low; red LED GPIO2[4] active-low; RTL8372N reset GPIO1[1] active-low and SMI address 0x1d; ZX279051 PHY address 1 reset GPIO0[1] active-low; four 2.5-Gbit internal LAN ports (4..7) and a 10-Gbit CPU port 8; three NPPT reserved-memory pools; SPI-NAND partitions; and a PVT thermal zone.
+* Mainline board wiring adds reset key GPIO0[0] active-low; white LED GPIO2[0] active-low; red LED GPIO2[4] active-low; RTL8372N reset GPIO1[1] active-low and SMI address 0x1d; ZX279051 PHY address 1 reset GPIO0[1] active-low; four internal-PHY LAN ports (4..7) negotiating up to 2.5 Gbit/s and a fixed 10-Gbit CPU port 8; three NPPT reserved-memory pools; SPI-NAND partitions; and a PVT thermal zone.
 * No `dmas`/`dma-names`, IOMMU, power-domain, interconnect, or vendor thermal-zone bindings occur in either vendor tree. Mainline also has no DMA/IOMMU/power-domain/interconnect references; its only thermal consumer is the board `soc-thermal` zone.
 
 ## FIT versus live runtime
@@ -342,7 +342,7 @@ The board status overrides and wiring follow in the next table.
 
 ## Architecture / data flow
 
-Firmware starts from the FIT DTB and U-Boot enables the serial-flash controller plus injects rootfs/version metadata. The vendor kernel consumes many private `zxic,*` clock leaf providers and private platform compatibles. Mainline replaces that clock forest with TOPCRM and LSP0/LSP1 providers, explicit reset controllers, fixed firmware-owned PLL roots, and supported subsystem drivers. On SR1010, NPPT is the central packet/data-plane node: it consumes PON and UNI SerDes PHYs, XPCS1 for PON and XPCS0 for LAN, three reserved-memory pools, a ZX279051 external PHY, and a logical LAN conduit to an RTL8372N switch. The switch's ports 4-7 are fixed 2.5G LAN links and port 8 is a fixed 10G CPU link.
+Firmware starts from the FIT DTB and U-Boot enables the serial-flash controller plus injects rootfs/version metadata. The vendor kernel consumes many private `zxic,*` clock leaf providers and private platform compatibles. Mainline replaces that clock forest with TOPCRM and LSP0/LSP1 providers, explicit reset controllers, fixed firmware-owned PLL roots, and supported subsystem drivers. On SR1010, NPPT is the central packet/data-plane node: it consumes PON and UNI SerDes PHYs, XPCS1 for PON and XPCS0 for LAN, three reserved-memory pools, a ZX279051 external PHY, and a logical LAN conduit to an RTL8372N switch. The switch's ports 4-7 use a private Clause 45 MDIO bus and internal PHY negotiation up to 2.5G; port 8 remains the fixed 10G CPU link.
 
 ## Files retrieved / start here
 
@@ -354,4 +354,3 @@ Firmware starts from the FIT DTB and U-Boot enables the serial-flash controller 
 6. `linux-6.18.38/arch/arm64/boot/dts/zte/zx279133-sr1010.dts` lines 1-237 — board wiring, enables, memory, switch and flash layout.
 
 Start with `linux-6.18.38/arch/arm64/boot/dts/zte/zx279133.dtsi` to understand the supported hardware model, then use the vendor table to identify omitted/unsupported BSP blocks.
-

@@ -9,7 +9,6 @@ table inet sr1010v6 {
 
 	chain forward {
 		type filter hook forward priority filter; policy accept;
-		meta nfproto ipv6 ct state established
-			meta l4proto { tcp, udp } flow add @fast
+		meta nfproto ipv6 ct state established meta l4proto { tcp, udp } flow add @fast
 	}
 }
