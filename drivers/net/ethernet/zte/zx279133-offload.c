@@ -452,6 +452,14 @@ static void zx279133_fast_response_build(u8 *fast,
 	if (has_stat)
 		fast[29] |= BIT(4);
 	fast[30] = BIT(5) | BIT(4) | BIT(3);
+	if (ingress == ZX279133_FLOW_PORT_LAN) {
+		/* The factory RTL8372N CPU link carries a four-byte private
+		 * service tag. Pop it before routing to the WAN; with PPPoE push,
+		 * the net packet-length change remains four bytes.
+		 */
+		put_unaligned(2, (u32 *)(fast + 16));
+		fast[30] |= BIT(7);
+	}
 
 	if (xlate->src_addr != data->tuple.src_addr)
 		fast[29] |= BIT(7);

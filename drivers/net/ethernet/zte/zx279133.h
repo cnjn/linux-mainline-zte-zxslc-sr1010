@@ -665,7 +665,6 @@ struct zx279133_eth {
 	unsigned long datapath_users;
 	bool hardware_prepared;
 	bool lan_datapath_ready;
-	bool lan_vlan62_active;
 	bool lan_dsa_active;
 	bool serdes_powered;
 	bool np_reset_prepared;

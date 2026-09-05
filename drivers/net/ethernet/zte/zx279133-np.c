@@ -556,12 +556,33 @@ int zx279133_fast_age_read_clear(struct zx279133_eth *eth, u32 age,
 
 int zx279133_vlan_runtime_prepare(struct zx279133_eth *eth)
 {
-	/* Factory VLAN action template for untagged traffic (VID 0). */
-	return zx279133_smmu0_write(eth,
-				   ZX279133_VLAN_ERAM_BASE_BLOCK << 7,
-				   zx279133_vlan0_entry,
-				   ARRAY_SIZE(zx279133_vlan0_entry),
-				   ZX279133_SMMU0_CMD_WRITE);
+	u16 vid;
+	int ret;
+
+	/* SDT0 is a 4096-entry, 128-bit VLAN action table. Apply the board-proven
+	 * port policy to VID 0 and to the switch's private service tags.
+	 */
+	ret = zx279133_smmu0_write(eth,
+				  ZX279133_VLAN_ERAM_BASE_BLOCK << 7,
+				  zx279133_vlan0_entry,
+				  ARRAY_SIZE(zx279133_vlan0_entry),
+				  ZX279133_SMMU0_CMD_WRITE);
+	if (ret)
+		return ret;
+
+	for (vid = ZX279133_LAN_TRANSPORT_VID_MIN;
+	     vid <= ZX279133_LAN_TRANSPORT_VID_MAX; vid++) {
+		ret = zx279133_smmu0_write(eth,
+					  (ZX279133_VLAN_ERAM_BASE_BLOCK << 7) +
+					  vid * 128,
+					  zx279133_vlan0_entry,
+					  ARRAY_SIZE(zx279133_vlan0_entry),
+					  ZX279133_SMMU0_CMD_WRITE);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
 }
 
 static int zx279133_np_ppu_init_tail(struct zx279133_eth *eth)

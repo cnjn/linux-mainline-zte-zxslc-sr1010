@@ -131,44 +131,24 @@
 				reg = <4>;
 				label = "lan4";
 				phy-mode = "internal";
-
-				fixed-link {
-					speed = <2500>;
-					full-duplex;
-				};
 			};
 
 			port@5 {
 				reg = <5>;
 				label = "lan3";
 				phy-mode = "internal";
-
-				fixed-link {
-					speed = <2500>;
-					full-duplex;
-				};
 			};
 
 			port@6 {
 				reg = <6>;
 				label = "lan2";
 				phy-mode = "internal";
-
-				fixed-link {
-					speed = <2500>;
-					full-duplex;
-				};
 			};
 
 			port@7 {
 				reg = <7>;
 				label = "lan1";
 				phy-mode = "internal";
-
-				fixed-link {
-					speed = <2500>;
-					full-duplex;
-				};
 			};
 
 			port@8 {

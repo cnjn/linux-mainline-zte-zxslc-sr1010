@@ -2,6 +2,7 @@
 
 #include <linux/dma-mapping.h>
 #include <linux/bpf_trace.h>
+#include <linux/dsa/8021q.h>
 #include <linux/etherdevice.h>
 #include <linux/filter.h>
 #include <linux/if_arp.h>
@@ -271,18 +272,30 @@ static u16 zx279133_idm_rx_restore_lan_l2(struct sk_buff *skb, u32 metadata0)
 	return VLAN_HLEN;
 }
 
-static bool zx279133_idm_rx_normalize_vlan(struct vlan_ethhdr *vhdr)
+static bool zx279133_idm_rx_preserve_dsa_vlan(struct vlan_ethhdr *vhdr)
 {
+	u16 transport_vid = ZX279133_LAN_VID;
+	u16 ingress_vid;
 	u16 tci;
 
-	if (vhdr->h_vlan_proto != htons(ETH_P_8021Q))
+	if (!eth_type_vlan(vhdr->h_vlan_proto))
 		return false;
 
 	tci = ntohs(vhdr->h_vlan_TCI);
-	if ((tci & VLAN_VID_MASK) == ZX279133_LAN_INGRESS_VID) {
-		tci = (tci & ~VLAN_VID_MASK) | ZX279133_LAN_VID;
-		vhdr->h_vlan_TCI = htons(tci);
-	}
+	ingress_vid = tci & VLAN_VID_MASK;
+	if (vid_is_dsa_8021q(ingress_vid))
+		return true;
+
+	/* Preserve customer VLANs. Normalize only the old private VID format. */
+	if (ingress_vid != ZX279133_LAN_INGRESS_VID &&
+	    (ingress_vid < ZX279133_LAN_TRANSPORT_VID_MIN ||
+	     ingress_vid > ZX279133_LAN_TRANSPORT_VID_MAX))
+		return true;
+
+	if (ingress_vid >= ZX279133_LAN_TRANSPORT_VID_MIN)
+		transport_vid = ingress_vid;
+	tci = (tci & ~VLAN_VID_MASK) | transport_vid;
+	vhdr->h_vlan_TCI = htons(tci);
 
 	return true;
 }
@@ -583,11 +596,9 @@ xsk_recycle:
 deliver_skb:
 		if (skb) {
 			struct net_device *rx_ndev = ndev;
-			bool lan_vlan_active;
 			bool lan_dsa_active;
 
 			lan_dsa_active = READ_ONCE(eth->lan_dsa_active);
-			lan_vlan_active = READ_ONCE(eth->lan_vlan62_active);
 			/* Factory CPU RX queues 0..7 belong to the external switch;
 			 * queues 8..15 belong to the other CPU datapath group. Unlike the
 			 * parsed descriptor fields, that split remains stable when CPU8
@@ -596,7 +607,7 @@ deliver_skb:
 			if (lan_source)
 				len += zx279133_idm_rx_restore_lan_l2(
 					skb, le32_to_cpu(READ_ONCE(desc->metadata[0])));
-			if (lan_source && !lan_dsa_active && !lan_vlan_active) {
+			if (lan_source && !lan_dsa_active) {
 				if (eth->lan_ndev)
 					zx279133_stats_rx_dropped(eth, eth->lan_ndev);
 				dev_kfree_skb_any(skb);
@@ -604,51 +615,23 @@ deliver_skb:
 			}
 
 			if (lan_dsa_active && lan_source && eth->lan_ndev) {
-				bool vlan_header = false;
+				bool dsa_header = false;
 				u16 transport_vid = ZX279133_LAN_VID;
 
 				rx_ndev = eth->lan_ndev;
-				if (len >= sizeof(struct vlan_ethhdr)) {
-					struct vlan_ethhdr *vhdr =
-						(struct vlan_ethhdr *)skb->data;
-					u16 tci = ntohs(vhdr->h_vlan_TCI);
-					u16 ingress_vid = tci & VLAN_VID_MASK;
-
-					if (eth_type_vlan(vhdr->h_vlan_proto) &&
-					    (ingress_vid == ZX279133_LAN_INGRESS_VID ||
-					     (ingress_vid >= ZX279133_LAN_TRANSPORT_VID_MIN &&
-					      ingress_vid <= ZX279133_LAN_TRANSPORT_VID_MAX))) {
-						/* The switch's private transport VID may arrive
-						 * as VID 1 or another transport VID. Normalize
-						 * VID 1 to the active fast-path port; preserve a
-						 * tagged transport VID for the other DSA ports.
-						 */
-						vlan_header = true;
-						if (ingress_vid >=
-						    ZX279133_LAN_TRANSPORT_VID_MIN)
-							transport_vid = ingress_vid;
-						tci = (tci & ~VLAN_VID_MASK) |
-						      transport_vid;
-						vhdr->h_vlan_TCI = htons(tci);
-					}
-				}
-				/* Preserve a customer VLAN already present in-band by
-				 * stacking the private transport VID outside it. The DSA
-				 * tagger removes only this outer sideband tag.
+				if (len >= ETH_HLEN &&
+				    ((struct ethhdr *)skb->data)->h_proto ==
+				    htons(ETH_P_REALTEK))
+					dsa_header = true;
+				else if (len >= sizeof(struct vlan_ethhdr))
+					dsa_header = zx279133_idm_rx_preserve_dsa_vlan(
+						(struct vlan_ethhdr *)skb->data);
+				/* Native Realtek and VLAN-based DSA headers are already
+				 * complete. Only synthesize the legacy transport tag for
+				 * a genuinely untagged legacy frame.
 				 */
-				if (!vlan_header)
+				if (!dsa_header)
 					zx279133_idm_rx_put_vlan(skb, transport_vid);
-			} else if (lan_vlan_active && lan_source) {
-				bool vlan_header = false;
-
-				if (len >= sizeof(struct vlan_ethhdr)) {
-					struct vlan_ethhdr *vhdr;
-
-					vhdr = (struct vlan_ethhdr *)skb->data;
-					vlan_header = zx279133_idm_rx_normalize_vlan(vhdr);
-				}
-				if (!vlan_header)
-					zx279133_idm_rx_put_vlan(skb, ZX279133_LAN_VID);
 			}
 			skb->protocol = eth_type_trans(skb, rx_ndev);
 			napi_gro_receive(napi, skb);

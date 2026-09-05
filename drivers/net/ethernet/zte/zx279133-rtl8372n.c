@@ -3,19 +3,21 @@
  * ZTE ZX279133 / RTL8372N DSA switch driver.
  *
  * The module owns the XMAC0/XPCS0/Uni-SerDes CPU path, the validated
- * RTL8372N ports4..7-to-CPU8 private transport image, and the board's
- * active-low switch reset line. Removal restores the SoC-side state and
- * holds the switch reset.
+ * RTL8372N ports4..7-to-CPU8 link, and the board's active-low switch reset
+ * line. Removal restores the SoC-side state and holds the switch reset.
  */
 
 #include <linux/bitfield.h>
 #include <linux/delay.h>
+#include <linux/dcbnl.h>
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
+#include <linux/ethtool_netlink.h>
 #include <linux/gpio/consumer.h>
 #include <linux/if_vlan.h>
 #include <linux/if_bridge.h>
 #include <linux/iopoll.h>
+#include <linux/jiffies.h>
 #include <linux/mdio.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -24,10 +26,14 @@
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/ptp_clock_kernel.h>
 #include <linux/slab.h>
+#include <linux/tc_act/tc_csum.h>
 
 #include <net/dsa.h>
 #include <net/dsa_zx279133_rtl8372n.h>
+#include <net/flow_offload.h>
+#include <net/pkt_cls.h>
 
 #include "zx279133-lan.h"
 
@@ -75,22 +81,50 @@
 #define RTL8372N_CHIP_ID			0x0004
 #define RTL8372N_PHY_PORT_SELECT	0x6438
 #define RTL8372N_PHY_CTRL		0x643c
+#define RTL8372N_PHY_READ_DATA		0x6440
 #define RTL8372N_PHY_DATA		0x6444
 #define RTL8372N_PHY_BUSY		BIT(0)
 #define RTL8372N_PHY_OP_STATUS		GENMASK(26, 24)
+#define RTL8372N_PHY_READ_CMD		0x3
 #define RTL8372N_PHY_WRITE_CMD		0x7
+#define RTL8372N_MAC_PORT_CTRL(port)	(0x1238 + (port) * 0x100)
+#define RTL8372N_MAC_PORT_LOCAL_LOOPBACK	BIT(7)
+#define RTL8372N_PHY_RTCT_CTRL		0xa422
+#define RTL8372N_PHY_RTCT_PAGE		0xa436
+#define RTL8372N_PHY_RTCT_DATA		0xa438
+#define RTL8372N_PHY_RTCT_LINK_LEN	0xa880
+#define RTL8372N_PHY_RTCT_FORCE		0xa400
+#define RTL8372N_PHY_RTCT_2P5G_LEN	0xacba
+#define RTL8372N_PHY_RTCT_DONE		BIT(15)
+#define RTL8372N_PHY_RTCT_CHANNELS	GENMASK(7, 4)
+#define RTL8372N_PHY_RTCT_ENABLE	BIT(0)
+#define RTL8372N_PHY_RTCT_LINK_DOWN	BIT(1)
 #define RTL8372N_SDS_CTRL		0x03f8
 #define RTL8372N_SDS_READ_DATA		0x03fc
 #define RTL8372N_SDS_WRITE_DATA	0x0400
 #define RTL8372N_VERSION			0x000c
 #define RTL8372N_PORT8_FORCE_ABILITY	0x6364
-#define RTL8372N_ABILITY_STATUS		0x63e8
+#define RTL8372N_LINK_STATUS		0x63e8
 #define RTL8372N_MEDIA_STATUS		0x63ec
 #define RTL8372N_SPEED_STATUS0		0x63f0
 #define RTL8372N_SPEED_STATUS1		0x63f4
 #define RTL8372N_DUPLEX_STATUS		0x63f8
-#define RTL8372N_LINK_STATUS		0x63fc
+#define RTL8372N_TX_PAUSE_STATUS	0x63fc
+#define RTL8372N_RX_PAUSE_STATUS	0x6400
+#define RTL8372N_EEE_STATUS		0x6404
 #define RTL8372N_EXTERNAL_CPU_PORT	0x6724
+#define RTL8372N_MAC_FORCE_MODE_CTRL1_BASE 0x636c
+#define RTL8372N_MAC_FORCE_MODE_CTRL1_STRIDE 4
+#define RTL8372N_MAC_FORCE_EEE_MASK	GENMASK(8, 0)
+#define RTL8372N_EEE_CTRL_BASE		0x125c
+#define RTL8372N_EEE_CTRL_STRIDE	0x100
+#define RTL8372N_EEE_RX_ENABLE		BIT(0)
+#define RTL8372N_EEE_TX_ENABLE		BIT(1)
+#define RTL8372N_CPU_TAG_TPID		0x6038
+#define RTL8372N_CPU_TAG_AWARE		0x603c
+#define RTL8372N_CPU_TAG_CTRL		0x6720
+#define RTL8372N_CPU_TAG_EXT_INSERT	GENMASK(11, 10)
+#define RTL8372N_CPU_TAG_EXT_ENABLE	BIT(1)
 #define RTL8372N_SDS_TOP_MODE		0x7b20
 #define RTL8372N_SDS1_MODE_MASK	GENMASK(9, 5)
 #define RTL8372N_SDS1_SUBMODE_MASK	GENMASK(20, 16)
@@ -98,18 +132,114 @@
 #define RTL8372N_SDS_MODE_10GUSXG	13
 #define RTL8372N_PORT8_FORCE_10G	0x0227
 #define RTL8372N_VLAN_CTRL		0x4e14
-#define RTL8372N_MSTP0_STATE		0x5310
+#define RTL8372N_MSTP_STATE_BASE	0x5310
+#define RTL8372N_MSTP_STATE_STRIDE	4
+#define RTL8372N_MSTP_INSTANCES		16
+#define RTL8372N_L2_AGE_CTRL		0x5354
+#define RTL8372N_L2_AGE_UNIT_MASK	GENMASK(15, 0)
+#define RTL8372N_L2_FLUSH_CMD		0x53d4
+#define RTL8372N_L2_FLUSH_BUSY		BIT(17)
+#define RTL8372N_L2_FLUSH_START		BIT(16)
+#define RTL8372N_L2_FLUSH_PORT_MASK	GENMASK(9, 0)
+#define RTL8372N_L2_FLUSH_MODE		0x53dc
+#define RTL8372N_L2_FLUSH_MODE_MASK	GENMASK(1, 0)
+#define RTL8372N_L2_FLUSH_MODE_PORT	0
+#define RTL8372N_L2_FLUSH_MODE_VID	1
+#define RTL8372N_L2_FLUSH_STATIC	BIT(2)
+#define RTL8372N_L2_FLUSH_XID		0x53e0
+#define RTL8372N_L2_FLUSH_VID_MASK	GENMASK(11, 0)
+#define RTL8372N_L2_LEARN_LIMIT_BASE	0x5384
+#define RTL8372N_L2_LEARN_LIMIT_STRIDE	4
+#define RTL8372N_L2_LEARN_LIMIT_MASK	GENMASK(12, 0)
+#define RTL8372N_L2_LEARN_LIMIT_MAX	4160
+#define RTL8372N_L2_UNKNOWN_UC_FLOOD	0x5360
+#define RTL8372N_L2_UNKNOWN_MC_FLOOD	0x5364
+#define RTL8372N_IPV4_UNKNOWN_MC_FLOOD	0x5368
+#define RTL8372N_IPV6_UNKNOWN_MC_FLOOD	0x536c
+#define RTL8372N_L2_BROADCAST_FLOOD	0x5370
+#define RTL8372N_L2_FLOOD_MASK		GENMASK(9, 0)
+#define RTL8372N_IGBW_CTRL		0x4c10
+#define RTL8372N_IGBW_INCLUDE_IFG	BIT(7)
+#define RTL8372N_IGBW_PORT_BASE		0x4c18
+#define RTL8372N_IGBW_PORT_STRIDE	4
+#define RTL8372N_IGBW_ENABLE		BIT(20)
+#define RTL8372N_IGBW_RATE_MASK		GENMASK(19, 0)
+#define RTL8372N_IGBW_RATE_UNIT_KBPS	16
+#define RTL8372N_IGBW_BURST_BASE	0x4c3c
+#define RTL8372N_IGBW_BURST_STRIDE	8
+#define RTL8372N_IGBW_BURST_MASK	GENMASK(30, 0)
+#define RTL8372N_IGBW_LB_RESET		0x4c84
+#define RTL8372N_IGBW_FC_CTRL		0x4c8c
+#define RTL8372N_IGBW_DROP_BASE		0x4c90
+#define RTL8372N_IGBW_DROP_STRIDE	4
 #define RTL8372N_VLAN_IGR_FILTER	0x4e18
 #define RTL8372N_PORT_PVID_4_5		0x4e24
 #define RTL8372N_PORT_PVID_6_7		0x4e28
 #define RTL8372N_PORT_PVID_8_9		0x4e2c
 #define RTL8372N_PORT_FID_ENABLE	0x4e38
 #define RTL8372N_PORT_FID_4_7		0x4e3c
-#define RTL8372N_PORT7_ACCEPT		0x4e10
+#define RTL8372N_VLAN_ACCEPT_FRAME	0x4e10
 #define RTL8372N_PORT_ISOLATION_BASE	0x50c0
-#define RTL8372N_PORT7_ISOLATION	0x50dc
-#define RTL8372N_PORT8_ISOLATION	0x50e0
+#define RTL8372N_MIRROR_POLICY		0x50e8
+#define RTL8372N_MIRROR_KEEP_ORIGINAL	BIT(7)
+#define RTL8372N_MIRROR_RX_ISOLATION_LEAKY BIT(6)
+#define RTL8372N_MIRROR_TX_ISOLATION_LEAKY BIT(5)
+#define RTL8372N_MIRROR_RX_VLAN_LEAKY	BIT(4)
+#define RTL8372N_MIRROR_TX_VLAN_LEAKY	BIT(3)
+#define RTL8372N_MIRROR_COUNTER		0x50f0
+#define RTL8372N_MIRROR_MATCHED_MASK	GENMASK(31, 16)
+#define RTL8372N_MIRROR_SAMPLED_MASK	GENMASK(15, 0)
+#define RTL8372N_TRUNK_MEMBER_BASE	0x4f38
+#define RTL8372N_TRUNK_HASH_BASE	0x4f48
+#define RTL8372N_TRUNK_GROUP_STRIDE	4
+#define RTL8372N_TRUNK_GROUPS		4
+#define RTL8372N_TRUNK_MEMBER_MASK	GENMASK(9, 0)
+#define RTL8372N_TRUNK_HASH_MASK	GENMASK(6, 0)
+#define RTL8372N_TRUNK_HASH_SMAC	BIT(1)
+#define RTL8372N_TRUNK_HASH_DMAC	BIT(2)
+#define RTL8372N_TRUNK_HASH_SIP		BIT(3)
+#define RTL8372N_TRUNK_HASH_DIP		BIT(4)
+#define RTL8372N_TRUNK_HASH_L4_SPORT	BIT(5)
+#define RTL8372N_TRUNK_HASH_L4_DPORT	BIT(6)
+#define RTL8372N_PTP_CLK_SRC_CTRL	0x7ccc
+#define RTL8372N_PTP_CLK_SRC_EXTERNAL	BIT(0)
+#define RTL8372N_PTP_APPLY_FREQ		0x7c4c
+#define RTL8372N_PTP_TIME_FREQ0		0x7c50
+#define RTL8372N_PTP_TIME_FREQ1		0x7c54
+#define RTL8372N_PTP_CUR_TIME_FREQ0	0x7c58
+#define RTL8372N_PTP_CUR_TIME_FREQ1	0x7c5c
+#define RTL8372N_PTP_TIME_NSEC0		0x7c60
+#define RTL8372N_PTP_TIME_NSEC1		0x7c64
+#define RTL8372N_PTP_TIME_SEC0		0x7c68
+#define RTL8372N_PTP_TIME_SEC1		0x7c6c
+#define RTL8372N_PTP_TIME_SEC2		0x7c70
+#define RTL8372N_PTP_TIME_CTRL		0x7c74
+#define RTL8372N_PTP_TIME_NSEC_RD0	0x7c78
+#define RTL8372N_PTP_TIME_NSEC_RD1	0x7c7c
+#define RTL8372N_PTP_TIME_SEC_RD0	0x7c80
+#define RTL8372N_PTP_TIME_SEC_RD1	0x7c84
+#define RTL8372N_PTP_TIME_SEC_RD2	0x7c88
+#define RTL8372N_PTP_TIME_EXEC		BIT(2)
+#define RTL8372N_PTP_TIME_CMD_MASK	GENMASK(1, 0)
+#define RTL8372N_PTP_TIME_READ		0
+#define RTL8372N_PTP_TIME_WRITE		1
+#define RTL8372N_PTP_TIME_ADJUST	2
+#define RTL8372N_PTP_TOD_VALID		BIT(15)
+#define RTL8372N_PTP_NSEC_HIGH_MASK	GENMASK(13, 0)
+#define RTL8372N_PTP_NOMINAL_FREQ	0x10000000U
+#define RTL8372N_PTP_MAX_ADJ		500000
+#define RTL8372N_PTP_PORT_CTRL(port)	(0x7d20 + ((port) - 4) * 0x20)
+#define RTL8372N_PTP_PORT_MISC(port)	(0x7d28 + ((port) - 4) * 0x20)
+#define RTL8372N_PTP_PORT_ID(port)	(0x7d34 + ((port) - 4) * 0x20)
+#define RTL8372N_PTP_PORT_BYPASS	BIT(0)
+#define RTL8372N_PTP_VERSION		0x7d1c
+#define RTL8372N_PTP_DUMP_WORDS		10
 #define RTL8372N_SVLAN_SERVICE_PORT	0x57c0
+#define RTL8372N_SVLAN_CTRL		0x57c4
+#define RTL8372N_SVLAN_PRI_REF_MASK	GENMASK(4, 3)
+#define RTL8372N_SVLAN_PRI_REF_CTAG	BIT(3)
+#define RTL8372N_SVLAN_UNTAG_MASK	GENMASK(1, 0)
+#define RTL8372N_SVLAN_DFLT_SVID_BASE	0x57cc
 #define RTL8372N_TABLE_CTRL		0x5cac
 #define RTL8372N_L2_CTRL		0x5cb0
 #define RTL8372N_TABLE_WRITE_DATA0	0x5cb8
@@ -121,13 +251,181 @@
 #define RTL8372N_L2_READ_METHOD_MASK	GENMASK(17, 14)
 #define RTL8372N_L2_READ_METHOD_NEXT_UC	(3 << 14)
 #define RTL8372N_L2_LOOKUP_HIT		BIT(12)
+#define RTL8372N_L2_MC_PORT_MASK	GENMASK(9, 0)
+#define RTL8372N_L2_ENTRY_CLEAR		BIT(18)
 #define RTL8372N_L2_MAX_ADDRESS		0x0fff
 #define RTL8372N_L2_TABLE_COMMAND	(4 << 8)
 #define RTL8372N_L2_READ_COMMAND	(RTL8372N_L2_TABLE_COMMAND | BIT(0))
 #define RTL8372N_L2_WRITE_COMMAND	(RTL8372N_L2_TABLE_COMMAND | BIT(1) | BIT(0))
+#define RTL8372N_ACL_RULES		96
+#define RTL8372N_ACL_METERS		64
+#define RTL8372N_ACL_COUNTERS		32
+#define RTL8372N_ACL_RANGES		16
+#define RTL8372N_ACL_FIELDS		8
+#define RTL8372N_ACL_TEMPLATES		5
+#define RTL8372N_ACL_RULE_WORDS		5
+#define RTL8372N_ACL_ACTION_WORDS	3
+#define RTL8372N_ACL_CTRL		0x4810
+#define RTL8372N_ACL_TABLE_RESET	BIT(0)
+#define RTL8372N_ACL_PORT_ENABLE	0x4818
+#define RTL8372N_ACL_UNMATCH_PERMIT	0x481c
+#define RTL8372N_ACL_TEMPLATE_BASE	0x4820
+#define RTL8372N_ACL_TEMPLATE_STRIDE	8
+#define RTL8372N_ACL_FIELD_SELECTOR_BASE	0x6f58
+#define RTL8372N_ACL_FIELD_SELECTOR_STRIDE 4
+#define RTL8372N_HSB_DATA_WORDS		20
+#define RTL8372N_HSAB_CTRL		0x5cb4
+#define RTL8372N_HSAB_LATCH_ALWAYS	BIT(16)
+#define RTL8372N_HSAB_LATCH_FIRST	BIT(15)
+#define RTL8372N_HSAB_SPA_ENABLE	BIT(14)
+#define RTL8372N_HSAB_SPA_SHIFT		8
+#define RTL8372N_HSAB_TABLE_TARGET	7
+#define RTL8372N_REG_DUMP_HEADER_WORDS	6
+#define RTL8372N_REG_DUMP_CPU_WORDS	12
+#define RTL8372N_REG_DUMP_TRUNK_WORDS	(RTL8372N_TRUNK_GROUPS * 2)
+#define RTL8372N_REG_DUMP_COUNTER_WORDS	(4 + RTL8372N_ACL_COUNTERS)
+#define RTL8372N_REG_DUMP_WORDS		(RTL8372N_REG_DUMP_HEADER_WORDS + \
+					 RTL8372N_REG_DUMP_CPU_WORDS + \
+					 RTL8372N_REG_DUMP_TRUNK_WORDS + \
+					 RTL8372N_PTP_DUMP_WORDS + \
+					 RTL8372N_ACL_TEMPLATES * 2 + \
+					 ARRAY_SIZE(rtl8372n_acl_field_selectors) + \
+					 RTL8372N_REG_DUMP_COUNTER_WORDS + \
+					 RTL8372N_HSB_DATA_WORDS * 3)
+#define RTL8372N_ACL_ACTION_CTRL_BASE	0x4848
+#define RTL8372N_ACL_ACTION_CTRL_STRIDE	4
+#define RTL8372N_ACL_ACTION_CVLAN	BIT(0)
+#define RTL8372N_ACL_ACTION_SVLAN	BIT(1)
+#define RTL8372N_ACL_ACTION_PRIORITY	BIT(2)
+#define RTL8372N_ACL_ACTION_REMARK	BIT(3)
+#define RTL8372N_ACL_ACTION_POLICE	BIT(4)
+#define RTL8372N_ACL_ACTION_FWD		BIT(5)
+#define RTL8372N_ACL_RULE_VALID		BIT(21)
+#define RTL8372N_ACL_RULE_INFO_MASK	GENMASK(20, 0)
+#define RTL8372N_ACL_RULE_TARGET	1
+#define RTL8372N_ACL_ACTION_TARGET	2
+#define RTL8372N_ACL_FWD_REDIRECT	1
+#define RTL8372N_ACL_FWD_MIRROR		2
+#define RTL8372N_ACL_CACT_EXT_MASK	GENMASK(3, 2)
+#define RTL8372N_ACL_CVID_MASK		GENMASK(15, 4)
+#define RTL8372N_ACL_CTAG_FORMAT_MASK	GENMASK(17, 16)
+#define RTL8372N_ACL_CACT_EGRESS		1
+#define RTL8372N_ACL_CACT_EXT_BOTH	1
+#define RTL8372N_ACL_CACT_EXT_TAG_ONLY	2
+#define RTL8372N_ACL_CTAG_FORMAT_TAG	1
+#define RTL8372N_ACL_SACT_MASK		GENMASK(19, 18)
+#define RTL8372N_ACL_SVID_MASK		GENMASK(31, 20)
+#define RTL8372N_ACL_SACT_INGRESS	0
+#define RTL8372N_ACL_PRIORITY_MASK	GENMASK(2, 0)
+#define RTL8372N_ACL_REMARK_DSCP	BIT(3)
+#define RTL8372N_ACL_REMARK_VALUE_MASK	GENMASK(9, 4)
+#define RTL8372N_ACL_METER_INDEX_MASK	GENMASK(15, 10)
+#define RTL8372N_ACL_LOG_SELECT		BIT(16)
+#define RTL8372N_ACL_COUNTER_RESET	0x4b50
+#define RTL8372N_ACL_COUNTER_RESET_VALUE 0x4b54
+#define RTL8372N_ACL_COUNTER_TYPE	0x4b58
+#define RTL8372N_ACL_COUNTER_MODE	0x4b5c
+#define RTL8372N_ACL_COUNTER_DATA_BASE	0x4b60
+#define RTL8372N_ACL_COUNTER_STRIDE	4
+#define RTL8372N_ACL_METER_RATE_BASE	0x5cf0
+#define RTL8372N_ACL_METER_BURST_BASE	0x5df0
+#define RTL8372N_ACL_METER_MODE_BASE	0x5ef0
+#define RTL8372N_ACL_METER_EXCEED_BASE	0x5ef8
+#define RTL8372N_ACL_METER_IPG_BASE	0x5f08
+#define RTL8372N_ACL_METER_WORD_STRIDE	4
+#define RTL8372N_ACL_METER_RATE_MAX	0x989680
+#define RTL8372N_ACL_METER_BURST_MAX	0x0fffffff
+#define RTL8372N_ACL_PORT_RANGE_BASE	0x4ad0
+#define RTL8372N_ACL_PORT_RANGE_STRIDE	8
+#define RTL8372N_ACL_PORT_RANGE_SRC	1
+#define RTL8372N_ACL_PORT_RANGE_DST	2
+#define RTL8372N_ACL_TEMPLATE_MASK	GENMASK(2, 0)
+#define RTL8372N_ACL_TAG_CTAG		BIT(3)
+#define RTL8372N_ACL_TAG_STAG		BIT(4)
+#define RTL8372N_ACL_ACTIVE_PORT_SHIFT	11
+#define RTL8372N_QOS_PROFILES		2
+#define RTL8372N_QOS_QUEUES		8
+#define RTL8372N_QOS_PRIORITIES		8
+#define RTL8372N_QOS_PORT_PRI		0x5170
+#define RTL8372N_QOS_DOT1Q_REMAP	0x5174
+#define RTL8372N_QOS_DSCP_REMAP_BASE	0x5178
+#define RTL8372N_QOS_PROFILE_BASE	0x5198
+#define RTL8372N_QOS_PROFILE_STRIDE	4
+#define RTL8372N_QOS_PROFILE_SELECT	0x51a0
+#define RTL8372N_QOS_QUEUE_MAP_BASE	0x51a4
+#define RTL8372N_QOS_QUEUE_MAP_STRIDE	4
+#define RTL8372N_QOS_PORT_PRI_DUP	0x674c
+#define RTL8372N_QOS_PORT_PRI_MASK(port) \
+	(GENMASK(2, 0) << ((port) * 3))
+#define RTL8372N_QOS_DSCP_MASK(dscp) \
+	(GENMASK(2, 0) << (((dscp) % 10) * 3))
+#define RTL8372N_QOS_DSCP_REG(dscp) \
+	(RTL8372N_QOS_DSCP_REMAP_BASE + ((dscp) / 10) * 4)
+#define RTL8372N_QOS_TRUST_PCP		BIT(0)
+#define RTL8372N_QOS_TRUST_DSCP		BIT(1)
+#define RTL8372N_QOS_WEIGHT_PCP		16
+#define RTL8372N_QOS_WEIGHT_SVLAN	8
+#define RTL8372N_QOS_WEIGHT_DSCP	4
+#define RTL8372N_QOS_WEIGHT_ACL		2
+#define RTL8372N_QOS_WEIGHT_PORT	1
+#define RTL8372N_QOS_SCHED_BASE(port, queue) \
+	(0x1d28 + ((port) << 10) + ((queue) << 2))
+#define RTL8372N_QOS_SCHED_STRICT	BIT(7)
+#define RTL8372N_QOS_SCHED_WEIGHT_MASK	GENMASK(6, 0)
+#define RTL8372N_QOS_SCHED_TYPE		0x4534
+#define RTL8372N_QOS_EGBW_CTRL		0x447c
+#define RTL8372N_QOS_EGBW_INCLUDE_IFG	BIT(1)
+#define RTL8372N_QOS_EGBW_PORT_BASE(port) \
+	(0x1c34 + ((port) << 10))
+#define RTL8372N_QOS_EGBW_QUEUE_BASE(port, queue) \
+	(0x1c3c + ((port) << 10) + ((queue) << 3))
+#define RTL8372N_QOS_EGBW_RATE_MASK	GENMASK(19, 0)
+#define RTL8372N_QOS_EGBW_ENABLE	BIT(20)
+#define RTL8372N_QOS_EGBW_BURST_MASK	GENMASK(15, 0)
+#define RTL8372N_QOS_EGBW_PORT_RESET	0x4484
+#define RTL8372N_QOS_EGBW_QUEUE_RESET(port) \
+	(0x1c7c + ((port) << 10))
+#define RTL8372N_QOS_EGBW_PORT_RATE_UNIT_KBPS 16
 #define RTL8372N_MIB_CTRL		0x0f60
 #define RTL8372N_MIB_DATA_LOW		0x0f64
 #define RTL8372N_MIB_DATA_HIGH		0x0f68
+#define RTL8372N_MIB_RX_OCTETS		0
+#define RTL8372N_MIB_TX_OCTETS		2
+#define RTL8372N_MIB_RX_UCAST		4
+#define RTL8372N_MIB_RX_MCAST		6
+#define RTL8372N_MIB_RX_BCAST		8
+#define RTL8372N_MIB_TX_UCAST		10
+#define RTL8372N_MIB_TX_MCAST		12
+#define RTL8372N_MIB_TX_BCAST		14
+#define RTL8372N_MIB_TX_DISCARDS	16
+#define RTL8372N_MIB_RX_DISCARDS	17
+#define RTL8372N_MIB_TX_SINGLE_COLLISION	18
+#define RTL8372N_MIB_TX_MULTI_COLLISION	19
+#define RTL8372N_MIB_TX_DEFERRED	20
+#define RTL8372N_MIB_TX_LATE_COLLISION	21
+#define RTL8372N_MIB_TX_EXCESS_COLLISION	22
+#define RTL8372N_MIB_RX_SYMBOL_ERRORS	23
+#define RTL8372N_MIB_RX_UNKNOWN_OPCODE	24
+#define RTL8372N_MIB_RX_PAUSE		25
+#define RTL8372N_MIB_TX_PAUSE		26
+#define RTL8372N_MIB_RX_CRC_ALIGN	31
+#define RTL8372N_MIB_RX_UNDERSIZE	33
+#define RTL8372N_MIB_RX_OVERSIZE	35
+#define RTL8372N_MIB_RX_FRAGMENTS	37
+#define RTL8372N_MIB_RX_JABBERS		39
+#define RTL8372N_MIB_TX_COLLISIONS	40
+#define RTL8372N_MIB_TX_64		41
+#define RTL8372N_MIB_RX_64		42
+#define RTL8372N_MIB_TX_65_127		43
+#define RTL8372N_MIB_RX_65_127		44
+#define RTL8372N_MIB_TX_128_255		45
+#define RTL8372N_MIB_RX_128_255		46
+#define RTL8372N_MIB_TX_256_511		47
+#define RTL8372N_MIB_RX_256_511		48
+#define RTL8372N_MIB_TX_512_1023	49
+#define RTL8372N_MIB_RX_512_1023	50
+#define RTL8372N_MIB_TX_1024_1518	51
+#define RTL8372N_MIB_RX_1024_1518	52
 #define RTL8372N_MIB_TX_GOOD_HIGH	92
 #define RTL8372N_MIB_RX_GOOD_HIGH	94
 #define RTL8372N_MIB_RX_ERROR		96
@@ -137,19 +435,91 @@
 #define RTL8372N_MIB_RX_ERROR_PHY	102
 #define RTL8372N_MIB_TX_ERROR_PHY	103
 #define RTL8372N_SVLAN_TPID		0x6044
-#define RTL8372N_PORT_TAG_MODE_6_9	0x6738
+#define RTL8372N_MIRROR_CTRL		0x6048
+#define RTL8372N_MIRROR_ISOLATE	BIT(6)
+#define RTL8372N_MIRROR_RX_TX_SELECT	BIT(5)
+#define RTL8372N_MIRROR_DEST_MASK	GENMASK(4, 1)
+#define RTL8372N_MIRROR_ENABLE		BIT(0)
+#define RTL8372N_MIRROR_PORT_MASK	0x604c
+#define RTL8372N_MIRROR_RX_MASK		GENMASK(25, 16)
+#define RTL8372N_MIRROR_TX_MASK		GENMASK(9, 0)
+#define RTL8372N_PORT_TAG_MODE		0x6738
 #define RTL8372N_USER_PORT_MIN		4
 #define RTL8372N_USER_PORT_MAX		7
 #define RTL8372N_USER_PORT_MASK		GENMASK(7, 4)
+#define RTL8372N_ALL_PORT_MASK		GENMASK(9, 0)
 #define RTL8372N_CPU_PORT		8
 #define RTL8372N_TRANSPORT_VID_BASE	ZX279133_RTL8372N_TRANSPORT_VID_BASE
 #define RTL8372N_VLAN_MBR_MASK		GENMASK(9, 0)
 #define RTL8372N_VLAN_UNTAG_SHIFT	10
 #define RTL8372N_VLAN_UNTAG_MASK	GENMASK(19, 10)
+#define RTL8372N_VLAN_MSTI_MASK		GENMASK(23, 20)
 #define RTL8372N_VLAN_IVL		BIT(25)
 #define RTL8372N_INIT_STATE		0x7f60
 #define RTL8372N_RESET_ASSERT_MS	100
 #define RTL8372N_RESET_DEASSERT_MS	100
+
+struct rtl8372n_acl_match {
+	u16 data[RTL8372N_ACL_FIELDS];
+	u16 mask[RTL8372N_ACL_FIELDS];
+	u32 info_data;
+	u32 info_mask;
+};
+
+struct rtl8372n_acl_port_range {
+	u16 lower;
+	u16 upper;
+	u8 type;
+	u8 index;
+};
+
+struct rtl8372n_acl_entry {
+	struct rtl8372n_acl_match match[RTL8372N_ACL_TEMPLATES];
+	unsigned long cookie;
+	unsigned long templates;
+	u32 action[RTL8372N_ACL_ACTION_WORDS];
+	u32 action_ctrl;
+	u32 meter_rate_kbps;
+	u32 meter_burst;
+	u32 priority;
+	u32 counter_last;
+	unsigned long lastused;
+	u8 port;
+	u8 meter;
+	u8 counter;
+	u8 port_range_count;
+	bool meter_valid;
+	bool stats_enabled;
+	bool counter_valid;
+	struct rtl8372n_acl_port_range port_range[2];
+};
+
+struct rtl8372n_acl_port_range_state {
+	u16 lower;
+	u16 upper;
+	u16 refs;
+	u8 type;
+};
+
+static const u8 rtl8372n_acl_templates[5][RTL8372N_ACL_FIELDS] = {
+	{ 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x4f },
+	{ 0x10, 0x11, 0x12, 0x13, 0x34, 0x35, 0x36, 0x40 },
+	{ 0x12, 0x13, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45 },
+	{ 0x10, 0x11, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b },
+	{ 0x30, 0x31, 0x32, 0x08, 0x07, 0x41, 0x42, 0x33 },
+};
+
+/* Parser format in bits 2:0, byte offset in bits 10:3. */
+static const u16 rtl8372n_acl_field_selectors[16] = {
+	0x0c5, 0x0d5, 0x0e5, 0x0f5,
+	0x105, 0x115, 0x045, 0x055,
+	0x065, 0x075, 0x085, 0x095,
+	0x033, 0x006, 0x016, 0x000,
+};
+
+struct rtl8372n_phy_priv {
+	bool rtct_linked;
+};
 
 struct zx279133_rtl8372n {
 	struct zx279133_lan_service *service;
@@ -184,13 +554,35 @@ struct zx279133_rtl8372n {
 	bool switch_reset_asserted;
 	bool switch_initialized;
 	bool switch_cpu8_configured;
-	bool vlan62_tx_active;
 	bool dsa_registered;
 	unsigned long vlan_filtering_mask;
-	unsigned long vlan_unaware_vid1_mask;
+	u16 mirror_rx_mask;
+	u16 mirror_tx_mask;
+	u8 mirror_port;
+	bool mirror_port_valid;
+	u16 lag_port_mask[RTL8372N_TRUNK_GROUPS];
+	u16 lag_active_mask[RTL8372N_TRUNK_GROUPS];
+	u8 lag_hash[RTL8372N_TRUNK_GROUPS];
+	struct ptp_clock_info ptp_info;
+	struct ptp_clock *ptp_clock;
 	u16 bridge_pvid[9];
 	bool bridge_pvid_valid[9];
+	u16 learning_limit[9];
+	unsigned long isolated_mask;
+	struct rtl8372n_acl_entry acl[RTL8372N_ACL_RULES];
+	struct rtl8372n_acl_port_range_state acl_port_range[RTL8372N_ACL_RANGES];
+	DECLARE_BITMAP(acl_meter_used, RTL8372N_ACL_METERS);
+	DECLARE_BITMAP(acl_counter_used, RTL8372N_ACL_COUNTERS);
+	u32 qos_ets_handle[9];
+	unsigned long qos_profile_ports[RTL8372N_QOS_PROFILES];
+	u8 qos_profile_sources[RTL8372N_QOS_PROFILES];
+	u8 qos_port_profile[9];
+	unsigned int acl_count;
+	unsigned int acl_hw_count;
 };
+
+static DEFINE_MUTEX(rtl8372n_phy_driver_lock);
+static unsigned int rtl8372n_phy_driver_users;
 
 static u32 zx279133_lan_nppt_read(struct zx279133_rtl8372n *priv, u32 offset)
 {
@@ -405,6 +797,567 @@ static int rtl8372n_table_wait_ready(struct mdio_device *mdiodev)
 	return -ETIMEDOUT;
 }
 
+static int rtl8372n_table_access(struct mdio_device *mdiodev, u8 target,
+				 u16 address, bool write, u32 *words,
+				 unsigned int count)
+{
+	unsigned int i;
+	u32 command;
+	int ret;
+
+	ret = rtl8372n_table_wait_ready(mdiodev);
+	if (ret)
+		return ret;
+	if (write) {
+		for (i = 0; i < count; i++) {
+			ret = rtl8372n_write_reg(mdiodev,
+					 RTL8372N_TABLE_WRITE_DATA0 + i * 4,
+					 words[i]);
+			if (ret)
+				return ret;
+		}
+	}
+
+	command = (u32)address << 16 | (u32)target << 8 | BIT(0);
+	if (write)
+		command |= BIT(1);
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_CTRL, command);
+	if (ret)
+		return ret;
+	ret = rtl8372n_table_wait_ready(mdiodev);
+	if (ret || write)
+		return ret;
+
+	for (i = 0; i < count; i++) {
+		ret = rtl8372n_read_reg(mdiodev,
+					RTL8372N_TABLE_READ_DATA0 + i * 4,
+					&words[i]);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static void rtl8372n_acl_encode_rule(const struct rtl8372n_acl_match *match,
+				      bool valid, u32 data[5], u32 care[5])
+{
+	u32 raw_data;
+	u32 raw_mask;
+	unsigned int i;
+
+	for (i = 0; i < RTL8372N_ACL_FIELDS / 2; i++) {
+		raw_data = match->data[i * 2] |
+			   (u32)match->data[i * 2 + 1] << 16;
+		raw_mask = match->mask[i * 2] |
+			   (u32)match->mask[i * 2 + 1] << 16;
+		care[i] = ~raw_mask | ~raw_data;
+		data[i] = ~raw_mask | raw_data;
+	}
+	care[4] = ~match->info_mask | ~match->info_data;
+	data[4] = ~match->info_mask | match->info_data;
+	if (valid)
+		data[4] |= RTL8372N_ACL_RULE_VALID;
+	else
+		data[4] &= ~RTL8372N_ACL_RULE_VALID;
+}
+
+static int rtl8372n_acl_meter_write(struct mdio_device *mdiodev,
+				     const struct rtl8372n_acl_entry *entry)
+{
+	u16 bitmap_reg;
+	u16 burst_reg;
+	u16 rate_reg;
+	u32 readback;
+	u32 bit;
+	int ret;
+
+	rate_reg = RTL8372N_ACL_METER_RATE_BASE +
+		   entry->meter * RTL8372N_ACL_METER_WORD_STRIDE;
+	burst_reg = RTL8372N_ACL_METER_BURST_BASE +
+		    entry->meter * RTL8372N_ACL_METER_WORD_STRIDE;
+	bitmap_reg = RTL8372N_ACL_METER_MODE_BASE +
+		     (entry->meter / 32) * RTL8372N_ACL_METER_WORD_STRIDE;
+	bit = BIT(entry->meter % 32);
+
+	ret = rtl8372n_write_reg(mdiodev, rate_reg, entry->meter_rate_kbps);
+	if (!ret)
+		ret = rtl8372n_write_reg(mdiodev, burst_reg,
+					 entry->meter_burst);
+	if (!ret)
+		ret = rtl8372n_modify_reg(mdiodev, bitmap_reg, bit, 0);
+	bitmap_reg = RTL8372N_ACL_METER_IPG_BASE +
+		     (entry->meter / 32) * RTL8372N_ACL_METER_WORD_STRIDE;
+	if (!ret)
+		ret = rtl8372n_modify_reg(mdiodev, bitmap_reg, bit, 0);
+	if (!ret)
+		ret = rtl8372n_write_reg(mdiodev,
+					 RTL8372N_ACL_METER_EXCEED_BASE +
+					 (entry->meter / 32) *
+					 RTL8372N_ACL_METER_WORD_STRIDE,
+					 bit);
+	if (!ret)
+		ret = rtl8372n_read_reg(mdiodev, rate_reg, &readback);
+	if (!ret && readback != entry->meter_rate_kbps)
+		ret = -EIO;
+	if (!ret)
+		ret = rtl8372n_read_reg(mdiodev, burst_reg, &readback);
+	if (!ret && readback != entry->meter_burst)
+		ret = -EIO;
+
+	return ret;
+}
+
+static int rtl8372n_acl_counter_reset(struct mdio_device *mdiodev,
+				       unsigned int index, u32 *value)
+{
+	int ret;
+
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_ACL_COUNTER_RESET_VALUE, 0);
+	if (!ret)
+		ret = rtl8372n_write_reg(mdiodev, RTL8372N_ACL_COUNTER_RESET,
+					 BIT(index));
+	if (!ret)
+		ret = rtl8372n_write_reg(mdiodev, RTL8372N_ACL_COUNTER_RESET, 0);
+	if (!ret)
+		ret = rtl8372n_read_reg(mdiodev,
+					RTL8372N_ACL_COUNTER_DATA_BASE +
+					index * RTL8372N_ACL_COUNTER_STRIDE,
+					value);
+
+	return ret;
+}
+
+static int rtl8372n_acl_counter_read(struct mdio_device *mdiodev,
+				      unsigned int index, u32 *value)
+{
+	return rtl8372n_read_reg(mdiodev, RTL8372N_ACL_COUNTER_DATA_BASE +
+				 index * RTL8372N_ACL_COUNTER_STRIDE, value);
+}
+
+static int
+rtl8372n_acl_port_range_write(struct mdio_device *mdiodev,
+			      unsigned int index,
+			      const struct rtl8372n_acl_port_range_state *range)
+{
+	u16 reg = RTL8372N_ACL_PORT_RANGE_BASE +
+		  index * RTL8372N_ACL_PORT_RANGE_STRIDE;
+	u32 bounds = (u32)range->upper << 16 | range->lower;
+	u32 readback;
+	int ret;
+
+	ret = rtl8372n_write_reg(mdiodev, reg, range->refs ? range->type : 0);
+	if (!ret && range->refs)
+		ret = rtl8372n_write_reg(mdiodev, reg + 4, bounds);
+	if (!ret)
+		ret = rtl8372n_read_reg(mdiodev, reg, &readback);
+	if (!ret && (readback & GENMASK(1, 0)) !=
+		    (range->refs ? range->type : 0))
+		ret = -EIO;
+	if (!ret && range->refs)
+		ret = rtl8372n_read_reg(mdiodev, reg + 4, &readback);
+	if (!ret && range->refs && readback != bounds)
+		ret = -EIO;
+
+	return ret;
+}
+
+static int rtl8372n_acl_port_ranges_sync(struct zx279133_rtl8372n *priv)
+{
+	unsigned int index;
+	int ret;
+
+	for (index = 0; index < RTL8372N_ACL_RANGES; index++) {
+		ret = rtl8372n_acl_port_range_write(priv->switch_mdiodev,
+						     index,
+						     &priv->acl_port_range[index]);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int rtl8372n_acl_rule_write(struct mdio_device *mdiodev,
+				    unsigned int index,
+				    const struct rtl8372n_acl_entry *entry,
+				    const struct rtl8372n_acl_match *match,
+				    bool first)
+{
+	u32 data[RTL8372N_ACL_RULE_WORDS];
+	u32 care[RTL8372N_ACL_RULE_WORDS];
+	u32 readback[RTL8372N_ACL_RULE_WORDS];
+	u32 invalid[RTL8372N_ACL_RULE_WORDS];
+	u32 action[RTL8372N_ACL_ACTION_WORDS];
+	u16 care_addr = index;
+	u16 data_addr = BIT(7) | index;
+	int ret;
+
+	if (first && entry->meter_valid) {
+		ret = rtl8372n_acl_meter_write(mdiodev, entry);
+		if (ret)
+			return ret;
+	}
+	rtl8372n_acl_encode_rule(match, true, data, care);
+	memcpy(invalid, data, sizeof(invalid));
+	invalid[4] &= ~RTL8372N_ACL_RULE_VALID;
+	ret = rtl8372n_table_access(mdiodev, RTL8372N_ACL_RULE_TARGET,
+				    data_addr, true, invalid,
+				    RTL8372N_ACL_RULE_WORDS);
+	if (ret)
+		return ret;
+	ret = rtl8372n_table_access(mdiodev, RTL8372N_ACL_RULE_TARGET,
+				    care_addr, true, care,
+				    RTL8372N_ACL_RULE_WORDS);
+	if (ret)
+		return ret;
+	ret = rtl8372n_write_reg(mdiodev,
+				 RTL8372N_ACL_ACTION_CTRL_BASE +
+				 index * RTL8372N_ACL_ACTION_CTRL_STRIDE,
+				 first ? entry->action_ctrl : 0);
+	if (ret)
+		return ret;
+	if (first)
+		memcpy(action, entry->action, sizeof(action));
+	else
+		memset(action, 0, sizeof(action));
+	ret = rtl8372n_table_access(mdiodev, RTL8372N_ACL_ACTION_TARGET,
+				    index, true, action,
+				    RTL8372N_ACL_ACTION_WORDS);
+	if (ret)
+		return ret;
+	ret = rtl8372n_table_access(mdiodev, RTL8372N_ACL_RULE_TARGET,
+				    data_addr, true, data,
+				    RTL8372N_ACL_RULE_WORDS);
+	if (ret)
+		return ret;
+
+	ret = rtl8372n_table_access(mdiodev, RTL8372N_ACL_RULE_TARGET,
+				    data_addr, false, readback,
+				    RTL8372N_ACL_RULE_WORDS);
+	if (ret)
+		return ret;
+	if (memcmp(readback, data, sizeof(data[0]) * 4) ||
+	    (readback[4] & (RTL8372N_ACL_RULE_INFO_MASK |
+			    RTL8372N_ACL_RULE_VALID)) !=
+	    (data[4] & (RTL8372N_ACL_RULE_INFO_MASK |
+			 RTL8372N_ACL_RULE_VALID))) {
+		dev_err(&mdiodev->dev,
+			"ACL %u data readback mismatch: %08x/%08x %08x/%08x %08x/%08x %08x/%08x %08x/%08x\n",
+			index, readback[0], data[0], readback[1], data[1],
+			readback[2], data[2], readback[3], data[3],
+			readback[4], data[4]);
+		return -EIO;
+	}
+	ret = rtl8372n_table_access(mdiodev, RTL8372N_ACL_RULE_TARGET,
+				    care_addr, false, readback,
+				    RTL8372N_ACL_RULE_WORDS);
+	if (ret)
+		return ret;
+	if (memcmp(readback, care, sizeof(care[0]) * 4) ||
+	    (readback[4] & RTL8372N_ACL_RULE_INFO_MASK) !=
+	    (care[4] & RTL8372N_ACL_RULE_INFO_MASK)) {
+		dev_err(&mdiodev->dev,
+			"ACL %u care readback mismatch: %08x/%08x %08x/%08x %08x/%08x %08x/%08x %08x/%08x\n",
+			index, readback[0], care[0], readback[1], care[1],
+			readback[2], care[2], readback[3], care[3],
+			readback[4], care[4]);
+		return -EIO;
+	}
+	ret = rtl8372n_table_access(mdiodev, RTL8372N_ACL_ACTION_TARGET,
+				    index, false, readback,
+				    RTL8372N_ACL_ACTION_WORDS);
+	if (ret)
+		return ret;
+
+	if (memcmp(readback, action, sizeof(action))) {
+		dev_err(&mdiodev->dev,
+			"ACL %u action readback mismatch: %08x/%08x %08x/%08x %08x/%08x\n",
+			index, readback[0], action[0],
+			readback[1], action[1],
+			readback[2], action[2]);
+		return -EIO;
+	}
+	ret = rtl8372n_read_reg(mdiodev, RTL8372N_ACL_ACTION_CTRL_BASE +
+				index * RTL8372N_ACL_ACTION_CTRL_STRIDE, &readback[0]);
+	if (ret)
+		return ret;
+
+	return (readback[0] & GENMASK(8, 0)) ==
+		(first ? entry->action_ctrl : 0) ? 0 : -EIO;
+}
+
+static int rtl8372n_acl_rule_clear(struct mdio_device *mdiodev,
+				    unsigned int index)
+{
+	struct rtl8372n_acl_match match = {};
+	u32 data[RTL8372N_ACL_RULE_WORDS];
+	u32 care[RTL8372N_ACL_RULE_WORDS];
+	u32 action[RTL8372N_ACL_ACTION_WORDS] = {};
+	int ret;
+
+	rtl8372n_acl_encode_rule(&match, false, data, care);
+	ret = rtl8372n_table_access(mdiodev, RTL8372N_ACL_RULE_TARGET,
+				    BIT(7) | index, true, data,
+				    RTL8372N_ACL_RULE_WORDS);
+	if (ret)
+		return ret;
+	ret = rtl8372n_table_access(mdiodev, RTL8372N_ACL_RULE_TARGET,
+				    index, true, care,
+				    RTL8372N_ACL_RULE_WORDS);
+	if (ret)
+		return ret;
+	ret = rtl8372n_table_access(mdiodev, RTL8372N_ACL_RULE_TARGET,
+				    BIT(7) | index, true, data,
+				    RTL8372N_ACL_RULE_WORDS);
+	if (ret)
+		return ret;
+	ret = rtl8372n_write_reg(mdiodev,
+				 RTL8372N_ACL_ACTION_CTRL_BASE +
+				 index * RTL8372N_ACL_ACTION_CTRL_STRIDE, 0xff);
+	if (ret)
+		return ret;
+
+	return rtl8372n_table_access(mdiodev, RTL8372N_ACL_ACTION_TARGET,
+				     index, true, action,
+				     RTL8372N_ACL_ACTION_WORDS);
+}
+
+static int rtl8372n_acl_hw_init(struct zx279133_rtl8372n *priv)
+{
+	struct mdio_device *mdiodev = priv->switch_mdiodev;
+	unsigned int index;
+	u32 readback;
+	u32 value;
+	int ret;
+
+	for (index = 0; index < RTL8372N_ACL_RULES; index++) {
+		ret = rtl8372n_write_reg(mdiodev,
+					 RTL8372N_ACL_ACTION_CTRL_BASE +
+					 index * RTL8372N_ACL_ACTION_CTRL_STRIDE,
+					 0xff);
+		if (ret)
+			return ret;
+	}
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_ACL_CTRL,
+				 RTL8372N_ACL_TABLE_RESET);
+	if (ret)
+		return ret;
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_ACL_COUNTER_TYPE, 0);
+	if (ret)
+		return ret;
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_ACL_COUNTER_MODE, 0);
+	if (ret)
+		return ret;
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_ACL_COUNTER_RESET_VALUE, 0);
+	if (ret)
+		return ret;
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_ACL_COUNTER_RESET,
+				 GENMASK(RTL8372N_ACL_COUNTERS - 1, 0));
+	if (ret)
+		return ret;
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_ACL_COUNTER_RESET, 0);
+	if (ret)
+		return ret;
+	ret = rtl8372n_read_reg(mdiodev, RTL8372N_ACL_COUNTER_TYPE,
+				&readback);
+	if (ret || readback)
+		return ret ?: -EIO;
+	ret = rtl8372n_read_reg(mdiodev, RTL8372N_ACL_COUNTER_MODE,
+				&readback);
+	if (ret || readback)
+		return ret ?: -EIO;
+	for (index = 0; index < ARRAY_SIZE(rtl8372n_acl_templates); index++) {
+		value = get_unaligned_le32(&rtl8372n_acl_templates[index][4]);
+		ret = rtl8372n_write_reg(mdiodev,
+					 RTL8372N_ACL_TEMPLATE_BASE +
+					 index * RTL8372N_ACL_TEMPLATE_STRIDE,
+					 value);
+		if (ret)
+			return ret;
+		value = get_unaligned_le32(&rtl8372n_acl_templates[index][0]);
+		ret = rtl8372n_write_reg(mdiodev,
+					 RTL8372N_ACL_TEMPLATE_BASE +
+					 index * RTL8372N_ACL_TEMPLATE_STRIDE + 4,
+					 value);
+		if (ret)
+			return ret;
+	}
+	for (index = 0; index < ARRAY_SIZE(rtl8372n_acl_field_selectors);
+	     index++) {
+		ret = rtl8372n_write_reg(mdiodev,
+					 RTL8372N_ACL_FIELD_SELECTOR_BASE +
+					 index * RTL8372N_ACL_FIELD_SELECTOR_STRIDE,
+					 rtl8372n_acl_field_selectors[index]);
+		if (ret)
+			return ret;
+		ret = rtl8372n_read_reg(mdiodev,
+					RTL8372N_ACL_FIELD_SELECTOR_BASE +
+					index * RTL8372N_ACL_FIELD_SELECTOR_STRIDE,
+					&readback);
+		if (ret)
+			return ret;
+		if ((readback & GENMASK(10, 0)) !=
+		    rtl8372n_acl_field_selectors[index])
+			return -EIO;
+	}
+	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_ACL_PORT_ENABLE,
+				  RTL8372N_ALL_PORT_MASK,
+				  RTL8372N_USER_PORT_MASK);
+	if (ret)
+		return ret;
+	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_ACL_UNMATCH_PERMIT,
+				  RTL8372N_ALL_PORT_MASK,
+				  RTL8372N_USER_PORT_MASK);
+	if (ret)
+		return ret;
+	ret = rtl8372n_read_reg(mdiodev, RTL8372N_ACL_PORT_ENABLE,
+				&readback);
+	if (ret)
+		return ret;
+
+	return (readback & RTL8372N_ALL_PORT_MASK) ==
+	       RTL8372N_USER_PORT_MASK ? 0 : -EIO;
+}
+
+static u32 rtl8372n_qos_profile_value(u8 sources)
+{
+	u32 value = RTL8372N_QOS_WEIGHT_PORT << 5 |
+		    RTL8372N_QOS_WEIGHT_ACL << 15 |
+		    RTL8372N_QOS_WEIGHT_SVLAN << 20;
+
+	if (sources & RTL8372N_QOS_TRUST_DSCP)
+		value |= RTL8372N_QOS_WEIGHT_DSCP << 10;
+	if (sources & RTL8372N_QOS_TRUST_PCP)
+		value |= RTL8372N_QOS_WEIGHT_PCP;
+
+	return value;
+}
+
+static int rtl8372n_qos_profile_write(struct mdio_device *mdiodev,
+				       unsigned int profile, u8 sources)
+{
+	u16 reg = RTL8372N_QOS_PROFILE_BASE +
+		  profile * RTL8372N_QOS_PROFILE_STRIDE;
+	u32 expected = rtl8372n_qos_profile_value(sources);
+	u32 readback;
+	int ret;
+
+	ret = rtl8372n_write_reg(mdiodev, reg, expected);
+	if (!ret)
+		ret = rtl8372n_read_reg(mdiodev, reg, &readback);
+
+	return ret ?: (readback == expected ? 0 : -EIO);
+}
+
+static int rtl8372n_qos_queue_map_write(struct mdio_device *mdiodev,
+					 int port, const u8 queue[8])
+{
+	u32 expected = 0;
+	u32 readback;
+	unsigned int prio;
+	int ret;
+
+	for (prio = 0; prio < RTL8372N_QOS_PRIORITIES; prio++)
+		expected |= (u32)queue[prio] << (prio * 4);
+	ret = rtl8372n_write_reg(mdiodev,
+				 RTL8372N_QOS_QUEUE_MAP_BASE +
+				 port * RTL8372N_QOS_QUEUE_MAP_STRIDE,
+				 expected);
+	if (!ret)
+		ret = rtl8372n_read_reg(mdiodev,
+				RTL8372N_QOS_QUEUE_MAP_BASE +
+				port * RTL8372N_QOS_QUEUE_MAP_STRIDE,
+				&readback);
+
+	return ret ?: (readback == expected ? 0 : -EIO);
+}
+
+static int rtl8372n_qos_sched_write(struct mdio_device *mdiodev, int port,
+				     unsigned int queue, u32 value)
+{
+	u32 mask = RTL8372N_QOS_SCHED_STRICT |
+		   RTL8372N_QOS_SCHED_WEIGHT_MASK;
+	u32 readback;
+	int ret;
+
+	ret = rtl8372n_write_reg(mdiodev,
+				 RTL8372N_QOS_SCHED_BASE(port, queue), value);
+	if (!ret)
+		ret = rtl8372n_read_reg(mdiodev,
+				RTL8372N_QOS_SCHED_BASE(port, queue),
+				&readback);
+
+	return ret ?: ((readback & mask) == value ? 0 : -EIO);
+}
+
+static int rtl8372n_qos_ets_reset(struct mdio_device *mdiodev, int port)
+{
+	u8 queue_map[RTL8372N_QOS_PRIORITIES];
+	unsigned int queue;
+	int ret;
+
+	for (queue = 0; queue < RTL8372N_QOS_QUEUES; queue++) {
+		queue_map[queue] = queue;
+		ret = rtl8372n_qos_sched_write(mdiodev, port, queue,
+						 RTL8372N_QOS_SCHED_STRICT);
+		if (ret)
+			return ret;
+	}
+
+	return rtl8372n_qos_queue_map_write(mdiodev, port, queue_map);
+}
+
+static int rtl8372n_qos_hw_init(struct zx279133_rtl8372n *priv)
+{
+	struct mdio_device *mdiodev = priv->switch_mdiodev;
+	u32 port_mask = GENMASK(RTL8372N_CPU_PORT, RTL8372N_USER_PORT_MIN);
+	unsigned int profile;
+	unsigned int port;
+	unsigned int reg;
+	int ret;
+
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_QOS_DOT1Q_REMAP,
+				0x76543210);
+	for (reg = RTL8372N_QOS_DSCP_REMAP_BASE;
+	     !ret && reg < RTL8372N_QOS_PROFILE_BASE; reg += 4)
+		ret = rtl8372n_write_reg(mdiodev, reg, 0);
+	if (!ret)
+		ret = rtl8372n_modify_reg(mdiodev, RTL8372N_QOS_PORT_PRI,
+					GENMASK(26, 12), 0);
+	if (!ret)
+		ret = rtl8372n_modify_reg(mdiodev, RTL8372N_QOS_PORT_PRI_DUP,
+					GENMASK(26, 12), 0);
+	for (profile = 0; !ret && profile < RTL8372N_QOS_PROFILES;
+	     profile++)
+		ret = rtl8372n_qos_profile_write(mdiodev, profile,
+					 RTL8372N_QOS_TRUST_PCP);
+	if (!ret)
+		ret = rtl8372n_modify_reg(mdiodev,
+					RTL8372N_QOS_PROFILE_SELECT,
+					port_mask, 0);
+	for (port = RTL8372N_USER_PORT_MIN;
+	     !ret && port <= RTL8372N_CPU_PORT; port++)
+		ret = rtl8372n_qos_ets_reset(mdiodev, port);
+	if (!ret)
+		ret = rtl8372n_modify_reg(mdiodev, RTL8372N_QOS_SCHED_TYPE,
+					port_mask, 0);
+	if (!ret)
+		ret = rtl8372n_modify_reg(mdiodev, RTL8372N_QOS_EGBW_CTRL,
+					RTL8372N_QOS_EGBW_INCLUDE_IFG, 0);
+	if (ret)
+		return ret;
+
+	priv->qos_profile_sources[0] = RTL8372N_QOS_TRUST_PCP;
+	priv->qos_profile_sources[1] = RTL8372N_QOS_TRUST_PCP;
+	priv->qos_profile_ports[0] = port_mask;
+	priv->qos_profile_ports[1] = 0;
+	memset(priv->qos_port_profile, 0, sizeof(priv->qos_port_profile));
+	memset(priv->qos_ets_handle, 0, sizeof(priv->qos_ets_handle));
+
+	return 0;
+}
+
 static int rtl8372n_vlan_write(struct mdio_device *mdiodev, u16 vid,
 			       u32 value)
 {
@@ -441,13 +1394,6 @@ static int rtl8372n_vlan_read(struct mdio_device *mdiodev, u16 vid,
 		return ret;
 
 	return rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_READ_DATA0, value);
-}
-
-static bool rtl8372n_is_transport_vid(u16 vid)
-{
-	return (vid >= RTL8372N_TRANSPORT_VID_BASE + RTL8372N_USER_PORT_MIN &&
-		vid <= RTL8372N_TRANSPORT_VID_BASE + RTL8372N_USER_PORT_MAX) ||
-	       vid == ZX279133_RTL8372N_LAN1_TX_VID;
 }
 
 static int rtl8372n_port_pvid_field(int port, u16 *reg, u32 *mask,
@@ -566,7 +1512,7 @@ static int rtl8372n_l2_write_words(struct mdio_device *mdiodev,
 
 static int rtl8372n_l2_lookup(struct mdio_device *mdiodev,
 			      const unsigned char *addr, u16 fid, bool ivl,
-			       u32 words[3])
+			      u16 *address, u32 words[3])
 {
 	u32 key[3];
 	u32 ctrl;
@@ -601,6 +1547,8 @@ static int rtl8372n_l2_lookup(struct mdio_device *mdiodev,
 		return ret;
 	if (!(ctrl & RTL8372N_L2_LOOKUP_HIT))
 		return -ENOENT;
+	if (address)
+		*address = ctrl & RTL8372N_L2_MAX_ADDRESS;
 	ret = rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_READ_DATA0,
 				&words[0]);
 	if (ret)
@@ -612,6 +1560,30 @@ static int rtl8372n_l2_lookup(struct mdio_device *mdiodev,
 
 	return rtl8372n_read_reg(mdiodev, RTL8372N_TABLE_READ_DATA2,
 				 &words[2]);
+}
+
+static int rtl8372n_l2_clear(struct mdio_device *mdiodev, u16 address)
+{
+	int clear_ret;
+	int ret;
+
+	ret = rtl8372n_table_wait_ready(mdiodev);
+	if (ret)
+		return ret;
+	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_L2_CTRL,
+				  RTL8372N_L2_ENTRY_CLEAR,
+				  RTL8372N_L2_ENTRY_CLEAR);
+	if (ret)
+		return ret;
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_TABLE_CTRL,
+				 (u32)address << 16 |
+				 RTL8372N_L2_WRITE_COMMAND);
+	if (!ret)
+		ret = rtl8372n_table_wait_ready(mdiodev);
+	clear_ret = rtl8372n_modify_reg(mdiodev, RTL8372N_L2_CTRL,
+					RTL8372N_L2_ENTRY_CLEAR, 0);
+
+	return ret ? ret : clear_ret;
 }
 
 static int rtl8372n_l2_next_uc(struct mdio_device *mdiodev, u16 start,
@@ -686,8 +1658,35 @@ static int rtl8372n_mib_read(struct mdio_device *mdiodev, unsigned int port,
 	if (ret)
 		return ret;
 
-	*value = ((u64)low << 32) | high;
+	if (counter < 16 || (counter >= 92 && counter < 96) ||
+	    (counter >= 98 && counter < 102))
+		*value = ((u64)low << 32) | high;
+	else
+		*value = counter & 1 ? high : low;
 	return 0;
+}
+
+static int
+rtl8372n_mib_snapshot(struct zx279133_rtl8372n *priv, unsigned int port,
+		      const unsigned int *counters, u64 *values,
+		      unsigned int count)
+{
+	unsigned int i;
+	int ret = 0;
+
+	if (!priv->switch_mdiodev || port > RTL8372N_CPU_PORT)
+		return -ENODEV;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	for (i = 0; i < count; i++) {
+		ret = rtl8372n_mib_read(priv->switch_mdiodev, port,
+					 counters[i], &values[i]);
+		if (ret)
+			break;
+	}
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
 }
 
 static int rtl8372n_phy_wait_ready(struct mdio_device *mdiodev)
@@ -700,9 +1699,8 @@ static int rtl8372n_phy_wait_ready(struct mdio_device *mdiodev)
 		ret = rtl8372n_read_reg(mdiodev, RTL8372N_PHY_CTRL, &value);
 		if (ret)
 			return ret;
-		if (!(value & RTL8372N_PHY_BUSY) &&
-		    !(value & RTL8372N_PHY_OP_STATUS))
-			return 0;
+		if (!(value & RTL8372N_PHY_BUSY))
+			return value & RTL8372N_PHY_OP_STATUS ? -EIO : 0;
 		if (i + 1 < RTL8372N_SMI_POLL_MAX)
 			fsleep(10);
 	}
@@ -710,8 +1708,35 @@ static int rtl8372n_phy_wait_ready(struct mdio_device *mdiodev)
 	return -ETIMEDOUT;
 }
 
+static int rtl8372n_phy_read(struct mdio_device *mdiodev, u8 phy_id,
+			     u16 devad, u16 reg, u16 *value)
+{
+	u32 command;
+	u32 data;
+	int ret;
+
+	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PHY_DATA,
+				  GENMASK(15, 0), phy_id);
+	if (ret)
+		return ret;
+	command = (u32)devad << 19 | (u32)reg << 3 |
+		  RTL8372N_PHY_READ_CMD;
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_PHY_CTRL, command);
+	if (ret)
+		return ret;
+	ret = rtl8372n_phy_wait_ready(mdiodev);
+	if (ret)
+		return ret;
+	ret = rtl8372n_read_reg(mdiodev, RTL8372N_PHY_READ_DATA, &data);
+	if (ret)
+		return ret;
+
+	*value = data & 0xffff;
+	return 0;
+}
+
 static int rtl8372n_phy_write(struct mdio_device *mdiodev, u32 port_mask,
-			      u16 page, u16 reg, u16 value)
+			      u16 devad, u16 reg, u16 value)
 {
 	u32 command;
 	int ret;
@@ -723,7 +1748,8 @@ static int rtl8372n_phy_write(struct mdio_device *mdiodev, u32 port_mask,
 				  GENMASK(15, 0), value);
 	if (ret)
 		return ret;
-	command = (u32)page << 19 | (u32)reg << 3 | RTL8372N_PHY_WRITE_CMD;
+	command = (u32)devad << 19 | (u32)reg << 3 |
+		  RTL8372N_PHY_WRITE_CMD;
 	ret = rtl8372n_write_reg(mdiodev, RTL8372N_PHY_CTRL, command);
 	if (ret)
 		return ret;
@@ -1028,7 +2054,9 @@ static int rtl8372n_cpu8_link_init(struct device *dev,
 	if (ret)
 		goto out_unlock;
 	/* zte_priv_init() marks external CPU port 8 as an SVLAN service port. */
-	ret = rtl8372n_modify_reg(mdiodev, 0x57c0, BIT(8), BIT(8));
+	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SVLAN_SERVICE_PORT,
+				  BIT(RTL8372N_CPU_PORT),
+				  BIT(RTL8372N_CPU_PORT));
 	if (ret)
 		goto out_unlock;
 	ret = rtl8372n_sds_write(mdiodev, 1, 0x20, 0, 0x0010);
@@ -1054,208 +2082,117 @@ out_unlock:
 	return 0;
 }
 
-static int rtl8372n_port7_vlan_init(struct device *dev,
-				    struct zx279133_rtl8372n *priv)
+static int rtl8372n_svlan_transport_init(struct device *dev,
+					 struct zx279133_rtl8372n *priv)
 {
 	struct mdio_device *mdiodev = priv->switch_mdiodev;
+	unsigned int port;
+	u32 expected;
 	u32 value;
 	int ret;
 
 	mutex_lock(&mdiodev->bus->mdio_lock);
 	priv->switch_touched = true;
 
-	/* Strip RX VID62 toward both Port7 and CPU8 so the active LAN1 fast path
-	 * reaches PPU as an ordinary Ethernet frame. Use a separate TX-only VID
-	 * because RTL8372N cannot ingress a tagged CPU8 frame through an entry
-	 * that also marks CPU8 untagged.
+	/* Match zte_priv_init(): CPU8 is an S-VLAN service port and each user
+	 * port gets a private default SVID. Customer C-tags remain untouched.
 	 */
 	ret = rtl8372n_write_reg(mdiodev, RTL8372N_SVLAN_TPID, 0x8100);
 	if (ret)
 		goto out_unlock;
+	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SVLAN_CTRL,
+				  RTL8372N_SVLAN_PRI_REF_MASK |
+				  RTL8372N_SVLAN_UNTAG_MASK,
+				  RTL8372N_SVLAN_PRI_REF_CTAG);
+	if (ret)
+		goto out_unlock;
 	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_SVLAN_SERVICE_PORT,
-				  BIT(8), 0);
+				  RTL8372N_ALL_PORT_MASK,
+				  BIT(RTL8372N_CPU_PORT));
 	if (ret)
 		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT7_ACCEPT,
-				  GENMASK(17, 14), 0);
+	for (port = RTL8372N_USER_PORT_MIN;
+	     port <= RTL8372N_USER_PORT_MAX; port += 2) {
+		value = RTL8372N_TRANSPORT_VID_BASE + port;
+		value |= (RTL8372N_TRANSPORT_VID_BASE + port + 1) << 12;
+		ret = rtl8372n_modify_reg(mdiodev,
+					  RTL8372N_SVLAN_DFLT_SVID_BASE +
+					  port / 2 * 4,
+					  GENMASK(23, 0), value);
+		if (ret)
+			goto out_unlock;
+	}
+
+	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_ACCEPT_FRAME,
+				  GENMASK(2 * RTL8372N_CPU_PORT + 1,
+					  2 * RTL8372N_USER_PORT_MIN), 0);
 	if (ret)
 		goto out_unlock;
-	ret = rtl8372n_vlan_write(mdiodev, 62, 0x00060180);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_vlan_write(mdiodev,
-				 ZX279133_RTL8372N_LAN1_TX_VID, 0x00020180);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_write_reg(mdiodev, RTL8372N_PORT7_ISOLATION, 0x180);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_write_reg(mdiodev, RTL8372N_PORT8_ISOLATION, 0x1ff);
+	ret = rtl8372n_write_reg(mdiodev,
+				 RTL8372N_PORT_ISOLATION_BASE +
+				 RTL8372N_CPU_PORT * 4,
+				 GENMASK(RTL8372N_CPU_PORT, 0));
 	if (ret)
 		goto out_unlock;
 	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_ENABLE,
-				  BIT(7), BIT(7));
+				  RTL8372N_USER_PORT_MASK,
+				  RTL8372N_USER_PORT_MASK);
 	if (ret)
 		goto out_unlock;
 	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_4_7,
-				  GENMASK(31, 28), 1 << 28);
+				  GENMASK(31, 16), 0x11110000);
 	if (ret)
 		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_PVID_6_7,
-				  GENMASK(23, 12), 62 << 12);
-	if (ret)
-		goto out_unlock;
+	for (port = RTL8372N_USER_PORT_MIN;
+	     port <= RTL8372N_USER_PORT_MAX; port++) {
+		ret = rtl8372n_port_pvid_write(mdiodev, port, 1);
+		if (ret)
+			goto out_unlock;
+	}
 	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_PVID_8_9,
 				  GENMASK(11, 0), 1);
 	if (ret)
 		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_TAG_MODE_6_9,
-				  GENMASK(17, 14), 0);
+	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_TAG_MODE,
+				  GENMASK(2 * RTL8372N_CPU_PORT + 1,
+					  2 * RTL8372N_USER_PORT_MIN), 0);
 	if (ret)
 		goto out_unlock;
 	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_CTRL, BIT(2), 0);
 	if (ret)
 		goto out_unlock;
 	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_IGR_FILTER,
-				  BIT(7) | BIT(8), 0);
+				  RTL8372N_USER_PORT_MASK |
+				  BIT(RTL8372N_CPU_PORT), 0);
 	if (ret)
 		goto out_unlock;
-	ret = rtl8372n_vlan_read(mdiodev, 62, &value);
-	if (ret)
-		goto out_unlock;
-	if (value != 0x00060180) {
-		dev_err(dev, "RTL8372N VLAN62 readback mismatch: %#x\n", value);
-		ret = -EIO;
-		goto out_unlock;
-	}
-	ret = rtl8372n_vlan_read(mdiodev,
-				ZX279133_RTL8372N_LAN1_TX_VID, &value);
-	if (ret)
-		goto out_unlock;
-	if (value != 0x00020180) {
-		dev_err(dev, "RTL8372N VLAN63 readback mismatch: %#x\n", value);
-		ret = -EIO;
-		goto out_unlock;
-	}
 
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT7_ACCEPT,
-				  GENMASK(9, 8), 0);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_vlan_write(mdiodev, 59, 0x00004110);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_write_reg(mdiodev, 0x50d0, 0x110);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_ENABLE,
-				  BIT(4), BIT(4));
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_4_7,
-				  GENMASK(19, 16), 1 << 16);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, 0x4e24,
-				  GENMASK(11, 0), 59);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_TAG_MODE_6_9,
-				  GENMASK(9, 8), 0);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_IGR_FILTER,
-				  BIT(4), 0);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_vlan_read(mdiodev, 59, &value);
-	if (ret)
-		goto out_unlock;
-	if (value != 0x00004110) {
-		dev_err(dev, "RTL8372N VLAN59 readback mismatch: %#x\n",
-			value);
-		ret = -EIO;
-		goto out_unlock;
-	}
-
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT7_ACCEPT,
-				  GENMASK(11, 10), 0);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_vlan_write(mdiodev, 60, 0x00008120);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_write_reg(mdiodev, 0x50d4, 0x120);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_ENABLE,
-				  BIT(5), BIT(5));
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_4_7,
-				  GENMASK(23, 20), 1 << 20);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, 0x4e24,
-				  GENMASK(23, 12), 60 << 12);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_TAG_MODE_6_9,
-				  GENMASK(11, 10), 0);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_IGR_FILTER,
-				  BIT(5), 0);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_vlan_read(mdiodev, 60, &value);
-	if (ret)
-		goto out_unlock;
-	if (value != 0x00008120) {
-		dev_err(dev, "RTL8372N VLAN60 readback mismatch: %#x\n",
-			value);
-		ret = -EIO;
-		goto out_unlock;
-	}
-
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT7_ACCEPT,
-				  GENMASK(13, 12), 0);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_vlan_write(mdiodev, 61, 0x00010140);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_write_reg(mdiodev, 0x50d8, 0x140);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_ENABLE,
-				  BIT(6), BIT(6));
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_FID_4_7,
-				  GENMASK(27, 24), 1 << 24);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_PVID_6_7,
-				  GENMASK(11, 0), 61);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_PORT_TAG_MODE_6_9,
-				  GENMASK(13, 12), 0);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_IGR_FILTER,
-				  BIT(6), 0);
-	if (ret)
-		goto out_unlock;
-	ret = rtl8372n_vlan_read(mdiodev, 61, &value);
-	if (ret)
-		goto out_unlock;
-	if (value != 0x00010140) {
-		dev_err(dev, "RTL8372N VLAN61 readback mismatch: %#x\n",
-			value);
-		ret = -EIO;
-		goto out_unlock;
+	for (port = RTL8372N_USER_PORT_MIN;
+	     port <= RTL8372N_USER_PORT_MAX; port++) {
+		expected = BIT(port) | BIT(RTL8372N_CPU_PORT) |
+			   (BIT(port) << RTL8372N_VLAN_UNTAG_SHIFT);
+		ret = rtl8372n_vlan_write(mdiodev,
+					 RTL8372N_TRANSPORT_VID_BASE + port,
+					 expected);
+		if (ret)
+			goto out_unlock;
+		ret = rtl8372n_write_reg(mdiodev,
+					 RTL8372N_PORT_ISOLATION_BASE + port * 4,
+					 BIT(port) | BIT(RTL8372N_CPU_PORT));
+		if (ret)
+			goto out_unlock;
+		ret = rtl8372n_vlan_read(mdiodev,
+					RTL8372N_TRANSPORT_VID_BASE + port,
+					&value);
+		if (ret)
+			goto out_unlock;
+		if (value != expected) {
+			dev_err(dev,
+				"RTL8372N S-VLAN%u readback mismatch: %#x\n",
+				RTL8372N_TRANSPORT_VID_BASE + port, value);
+			ret = -EIO;
+			goto out_unlock;
+		}
 	}
 
  out_unlock:
@@ -1267,8 +2204,7 @@ static int rtl8372n_port7_vlan_init(struct device *dev,
 		return ret;
 	}
 
-	dev_info(dev,
-		 "RTL8372N C-VLAN59..62 RX and LAN1 VID63 TX transport configured\n");
+	dev_info(dev, "RTL8372N S-VLAN59..62 CPU transport configured\n");
 	return 0;
 }
 
@@ -1764,6 +2700,531 @@ static void zx279133_lan_xmac_configure(struct zx279133_rtl8372n *priv)
 	zx279133_lan_xmac_unlock(priv);
 }
 
+static int rtl8372n_phy_speed_decode(u32 speed)
+{
+	switch (speed) {
+	case 0:
+		return SPEED_10;
+	case 1:
+		return SPEED_100;
+	case 2:
+		return SPEED_1000;
+	case 4:
+		return SPEED_10000;
+	case 5:
+		return SPEED_2500;
+	case 6:
+		return SPEED_5000;
+	default:
+		return SPEED_UNKNOWN;
+	}
+}
+
+static int rtl8372n_mdio_read_c45(struct mii_bus *bus, int port, int devad,
+				  int regnum)
+{
+	struct zx279133_rtl8372n *priv = bus->priv;
+	u16 value;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN ||
+	    port > RTL8372N_USER_PORT_MAX)
+		return -EOPNOTSUPP;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_phy_read(priv->switch_mdiodev, port, devad, regnum,
+				&value);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	/* An absent MMD is not a fatal error while the MDIO core probes C45. */
+	return ret ? 0xffff : value;
+}
+
+static int rtl8372n_mdio_write_c45(struct mii_bus *bus, int port, int devad,
+				   int regnum, u16 value)
+{
+	struct zx279133_rtl8372n *priv = bus->priv;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN ||
+	    port > RTL8372N_USER_PORT_MAX)
+		return -EOPNOTSUPP;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_phy_write(priv->switch_mdiodev, BIT(port), devad,
+				 regnum, value);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static int rtl8372n_phy_match(struct phy_device *phydev,
+			      const struct phy_driver *phydrv)
+{
+	struct mii_bus *bus = phydev->mdio.bus;
+
+	return bus && bus->read_c45 == rtl8372n_mdio_read_c45 &&
+	       phydev->mdio.addr >= RTL8372N_USER_PORT_MIN &&
+	       phydev->mdio.addr <= RTL8372N_USER_PORT_MAX;
+}
+
+static int rtl8372n_phy_probe(struct phy_device *phydev)
+{
+	struct rtl8372n_phy_priv *phy_priv;
+
+	phy_priv = devm_kzalloc(&phydev->mdio.dev, sizeof(*phy_priv),
+				GFP_KERNEL);
+	if (!phy_priv)
+		return -ENOMEM;
+	phydev->priv = phy_priv;
+	phydev->is_internal = true;
+	phydev->port = PORT_TP;
+
+	return 0;
+}
+
+static int rtl8372n_phy_get_features(struct phy_device *phydev)
+{
+	linkmode_zero(phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_TP_BIT, phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_MII_BIT, phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_Autoneg_BIT, phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_10baseT_Half_BIT,
+			 phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_10baseT_Full_BIT,
+			 phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Half_BIT,
+			 phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT,
+			 phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
+			 phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT,
+			 phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_Pause_BIT, phydev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_Asym_Pause_BIT,
+			 phydev->supported);
+
+	return genphy_c45_read_eee_abilities(phydev);
+}
+
+static int rtl8372n_phy_setup_forced(struct phy_device *phydev)
+{
+	u16 speed_bits;
+	int ctrl;
+	int ret;
+
+	switch (phydev->speed) {
+	case SPEED_10:
+		speed_bits = 0;
+		break;
+	case SPEED_100:
+		speed_bits = MDIO_PMA_CTRL1_SPEED100;
+		break;
+	case SPEED_1000:
+		speed_bits = MDIO_PMA_CTRL1_SPEED1000;
+		break;
+	case SPEED_2500:
+		speed_bits = MDIO_CTRL1_SPEED2_5G;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	ctrl = phy_read_mmd(phydev, MDIO_MMD_PMAPMD, MDIO_CTRL1);
+	if (ctrl < 0)
+		return ctrl;
+	ctrl &= ~(MDIO_CTRL1_SPEEDSEL | MDIO_CTRL1_FULLDPLX);
+	ctrl |= speed_bits;
+	if (phydev->duplex == DUPLEX_FULL)
+		ctrl |= MDIO_CTRL1_FULLDPLX;
+	else if (phydev->duplex != DUPLEX_HALF)
+		return -EINVAL;
+
+	ret = phy_write_mmd(phydev, MDIO_MMD_PMAPMD, MDIO_CTRL1, ctrl);
+	if (ret)
+		return ret;
+
+	return genphy_c45_an_disable_aneg(phydev);
+}
+
+static int rtl8372n_phy_config_aneg(struct phy_device *phydev)
+{
+	bool changed;
+	int ret;
+
+	if (phydev->autoneg == AUTONEG_DISABLE)
+		return rtl8372n_phy_setup_forced(phydev);
+
+	ret = genphy_c45_an_config_aneg(phydev);
+	if (ret < 0)
+		return ret;
+	changed = ret > 0;
+
+	ret = phy_modify_mmd_changed(phydev, MDIO_MMD_VEND2, 0xa412,
+				     BIT(9),
+		linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
+				  phydev->advertising) ? BIT(9) : 0);
+	if (ret < 0)
+		return ret;
+	changed |= ret > 0;
+
+	return genphy_c45_check_and_restart_aneg(phydev, changed);
+}
+
+static int rtl8372n_phy_read_status(struct phy_device *phydev)
+{
+	struct zx279133_rtl8372n *priv = phydev->mdio.bus->priv;
+	unsigned int port = phydev->mdio.addr;
+	u32 rx_pause;
+	u32 tx_pause;
+	u32 eee;
+	u32 duplex;
+	u32 speed;
+	u32 link;
+	int ret;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_read_reg(priv->switch_mdiodev,
+				RTL8372N_LINK_STATUS, &link);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_SPEED_STATUS0, &speed);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_DUPLEX_STATUS, &duplex);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_TX_PAUSE_STATUS, &tx_pause);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_RX_PAUSE_STATUS, &rx_pause);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_EEE_STATUS, &eee);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		return ret;
+
+	phydev->link = !!(link & BIT(port));
+	phydev->autoneg_complete = phydev->link;
+	phydev->speed = SPEED_UNKNOWN;
+	phydev->duplex = DUPLEX_UNKNOWN;
+	phydev->pause = false;
+	phydev->asym_pause = false;
+	phydev->eee_active = !!(eee & BIT(port));
+	if (!phydev->link)
+		return 0;
+
+	if (phydev->autoneg == AUTONEG_ENABLE) {
+		ret = genphy_c45_read_lpa(phydev);
+		if (ret)
+			return ret;
+	}
+
+	phydev->speed = rtl8372n_phy_speed_decode(
+		(speed >> ((port & 7) * 4)) & 0xf);
+	phydev->duplex = duplex & BIT(port) ? DUPLEX_FULL : DUPLEX_HALF;
+	phydev->pause = (tx_pause & BIT(port)) && (rx_pause & BIT(port));
+	phydev->asym_pause = !!(tx_pause & BIT(port)) !=
+			     !!(rx_pause & BIT(port));
+
+	return 0;
+}
+
+static int rtl8372n_phy_rtct_read(struct phy_device *phydev, u16 selector)
+{
+	int ret;
+
+	ret = phy_write_mmd(phydev, MDIO_MMD_VEND2,
+			    RTL8372N_PHY_RTCT_PAGE, selector);
+	if (ret)
+		return ret;
+
+	return phy_read_mmd(phydev, MDIO_MMD_VEND2,
+			    RTL8372N_PHY_RTCT_DATA);
+}
+
+static int rtl8372n_phy_cable_test_start(struct phy_device *phydev)
+{
+	struct rtl8372n_phy_priv *priv = phydev->priv;
+	int pma_ctrl;
+	int pcs_ctrl;
+	int ret;
+
+	pma_ctrl = phy_read_mmd(phydev, MDIO_MMD_PMAPMD, MDIO_CTRL1);
+	if (pma_ctrl < 0)
+		return pma_ctrl;
+	pcs_ctrl = phy_read_mmd(phydev, MDIO_MMD_PCS, MDIO_CTRL1);
+	if (pcs_ctrl < 0)
+		return pcs_ctrl;
+	if ((pma_ctrl | pcs_ctrl) & MDIO_CTRL1_LPOWER)
+		return -EBUSY;
+	if (phydev->link && phydev->speed == SPEED_10)
+		return -EOPNOTSUPP;
+
+	priv->rtct_linked = phydev->link;
+	if (priv->rtct_linked)
+		return 0;
+
+	ret = phy_set_bits_mmd(phydev, MDIO_MMD_VEND2,
+			       RTL8372N_PHY_RTCT_FORCE, BIT(9));
+	if (ret < 0)
+		return ret;
+	usleep_range(5000, 10000);
+	ret = phy_set_bits_mmd(phydev, MDIO_MMD_VEND2,
+			       RTL8372N_PHY_RTCT_CTRL,
+			       RTL8372N_PHY_RTCT_LINK_DOWN);
+	if (ret < 0)
+		return ret;
+	ret = phy_modify_mmd(phydev, MDIO_MMD_VEND2,
+			     RTL8372N_PHY_RTCT_CTRL,
+			     RTL8372N_PHY_RTCT_DONE, 0);
+	if (ret < 0)
+		return ret;
+	usleep_range(1000, 2000);
+	ret = phy_set_bits_mmd(phydev, MDIO_MMD_VEND2,
+			       RTL8372N_PHY_RTCT_CTRL,
+			       RTL8372N_PHY_RTCT_CHANNELS |
+			       RTL8372N_PHY_RTCT_ENABLE);
+
+	return ret < 0 ? ret : 0;
+}
+
+static int rtl8372n_phy_cable_report(struct phy_device *phydev, u8 pair,
+				     u8 result, u32 length, bool length_valid)
+{
+	int ret;
+
+	ret = ethnl_cable_test_result(phydev, pair, result);
+	if (ret)
+		return ret;
+	if (!length_valid)
+		return 0;
+
+	return ethnl_cable_test_fault_length(phydev, pair, length);
+}
+
+static u8 rtl8372n_phy_cable_result(u16 value)
+{
+	value &= 0xff;
+	if (!(value & BIT(6)))
+		return ETHTOOL_A_CABLE_RESULT_CODE_RESOLUTION_NOT_POSSIBLE;
+	if (value & (BIT(5) | GENMASK(2, 0)))
+		return ETHTOOL_A_CABLE_RESULT_CODE_OK;
+	if (value & BIT(3))
+		return ETHTOOL_A_CABLE_RESULT_CODE_OPEN;
+	if (value & BIT(4))
+		return ETHTOOL_A_CABLE_RESULT_CODE_SAME_SHORT;
+	if (value & BIT(7))
+		return ETHTOOL_A_CABLE_RESULT_CODE_CROSS_SHORT;
+
+	return ETHTOOL_A_CABLE_RESULT_CODE_RESOLUTION_NOT_POSSIBLE;
+}
+
+static int rtl8372n_phy_cable_test_linked(struct phy_device *phydev)
+{
+	static const u8 pairs[] = {
+		ETHTOOL_A_CABLE_PAIR_A, ETHTOOL_A_CABLE_PAIR_B,
+		ETHTOOL_A_CABLE_PAIR_C, ETHTOOL_A_CABLE_PAIR_D,
+	};
+	u32 length;
+	int value;
+	int count;
+	int ret;
+	int i;
+
+	switch (phydev->speed) {
+	case SPEED_100:
+	case SPEED_1000:
+		value = phy_read_mmd(phydev, MDIO_MMD_VEND2,
+				     RTL8372N_PHY_RTCT_LINK_LEN);
+		if (value < 0)
+			return value;
+		length = (value & 0xff) * 100;
+		count = phydev->speed == SPEED_100 ? 2 : ARRAY_SIZE(pairs);
+		break;
+	case SPEED_2500:
+		value = phy_read_mmd(phydev, MDIO_MMD_VEND2,
+				     RTL8372N_PHY_RTCT_2P5G_LEN);
+		if (value < 0)
+			return value;
+		length = FIELD_GET(GENMASK(9, 2), value) * 100;
+		count = ARRAY_SIZE(pairs);
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	for (i = 0; i < count; i++) {
+		ret = rtl8372n_phy_cable_report(phydev, pairs[i],
+				ETHTOOL_A_CABLE_RESULT_CODE_OK, length, true);
+		if (ret)
+			return ret;
+	}
+	for (; i < ARRAY_SIZE(pairs); i++) {
+		ret = ethnl_cable_test_result(phydev, pairs[i],
+			ETHTOOL_A_CABLE_RESULT_CODE_RESOLUTION_NOT_POSSIBLE);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int rtl8372n_phy_cable_test_unlinked(struct phy_device *phydev)
+{
+	static const u8 pairs[] = {
+		ETHTOOL_A_CABLE_PAIR_A, ETHTOOL_A_CABLE_PAIR_B,
+		ETHTOOL_A_CABLE_PAIR_C, ETHTOOL_A_CABLE_PAIR_D,
+	};
+	u32 phase_count;
+	u32 length;
+	u8 result;
+	int phase_high;
+	int phase_low;
+	int status;
+	int ret;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(pairs); i++) {
+		phase_high = rtl8372n_phy_rtct_read(phydev, 0x8028 + i * 4);
+		if (phase_high < 0)
+			return phase_high;
+		phase_low = rtl8372n_phy_rtct_read(phydev, 0x8029 + i * 4);
+		if (phase_low < 0)
+			return phase_low;
+		phase_count = (phase_high & 0xff00) |
+			      FIELD_GET(GENMASK(15, 8), phase_low);
+		length = phase_count >= 620 ?
+			 (phase_count - 620) * 100 / 78 : 0;
+		status = rtl8372n_phy_rtct_read(phydev, 0x8026 + i * 4);
+		if (status < 0)
+			return status;
+		result = rtl8372n_phy_cable_result(status);
+		ret = rtl8372n_phy_cable_report(phydev, pairs[i], result,
+				length, length ||
+				result != ETHTOOL_A_CABLE_RESULT_CODE_OK);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int rtl8372n_phy_cable_test_get_status(struct phy_device *phydev,
+					      bool *finished)
+{
+	struct rtl8372n_phy_priv *priv = phydev->priv;
+	int value;
+	int ret;
+
+	*finished = false;
+	if (priv->rtct_linked) {
+		ret = rtl8372n_phy_cable_test_linked(phydev);
+		if (ret)
+			return ret;
+		*finished = true;
+		return 0;
+	}
+
+	value = phy_read_mmd(phydev, MDIO_MMD_VEND2,
+			     RTL8372N_PHY_RTCT_CTRL);
+	if (value < 0)
+		return value;
+	if (!(value & RTL8372N_PHY_RTCT_DONE))
+		return 0;
+
+	ret = rtl8372n_phy_cable_test_unlinked(phydev);
+	if (ret)
+		return ret;
+	*finished = true;
+	return 0;
+}
+
+static struct phy_driver rtl8372n_phy_driver = {
+	.name = "RTL8372N internal PHY",
+	.match_phy_device = rtl8372n_phy_match,
+	.probe = rtl8372n_phy_probe,
+	.get_features = rtl8372n_phy_get_features,
+	.config_aneg = rtl8372n_phy_config_aneg,
+	.read_status = rtl8372n_phy_read_status,
+	.cable_test_start = rtl8372n_phy_cable_test_start,
+	.cable_test_get_status = rtl8372n_phy_cable_test_get_status,
+};
+
+static int rtl8372n_phy_driver_get(void)
+{
+	int ret = 0;
+
+	mutex_lock(&rtl8372n_phy_driver_lock);
+	if (!rtl8372n_phy_driver_users) {
+		/* The private bus is removed before this in-module PHY driver. */
+		ret = phy_drivers_register(&rtl8372n_phy_driver, 1,
+					   NULL);
+		if (ret)
+			goto out;
+	}
+	rtl8372n_phy_driver_users++;
+out:
+	mutex_unlock(&rtl8372n_phy_driver_lock);
+	return ret;
+}
+
+static void rtl8372n_phy_driver_put(void)
+{
+	mutex_lock(&rtl8372n_phy_driver_lock);
+	if (rtl8372n_phy_driver_users && !--rtl8372n_phy_driver_users)
+		phy_drivers_unregister(&rtl8372n_phy_driver, 1);
+	mutex_unlock(&rtl8372n_phy_driver_lock);
+}
+
+static int rtl8372n_mdio_setup(struct dsa_switch *ds)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct mii_bus *bus;
+	int ret;
+
+	ret = rtl8372n_phy_driver_get();
+	if (ret)
+		return ret;
+
+	bus = mdiobus_alloc();
+	if (!bus) {
+		rtl8372n_phy_driver_put();
+		return -ENOMEM;
+	}
+
+	bus->priv = priv;
+	bus->name = "RTL8372N internal MDIO";
+	snprintf(bus->id, MII_BUS_ID_SIZE, "%s-mii", dev_name(ds->dev));
+	bus->read_c45 = rtl8372n_mdio_read_c45;
+	bus->write_c45 = rtl8372n_mdio_write_c45;
+	bus->parent = ds->dev;
+	bus->phy_mask = ~ds->phys_mii_mask;
+	ds->user_mii_bus = bus;
+
+	ret = mdiobus_register(bus);
+	if (ret) {
+		mdiobus_free(bus);
+		ds->user_mii_bus = NULL;
+		rtl8372n_phy_driver_put();
+	}
+
+	return ret;
+}
+
+static void rtl8372n_mdio_teardown(struct dsa_switch *ds)
+{
+	if (!ds->user_mii_bus)
+		return;
+
+	mdiobus_unregister(ds->user_mii_bus);
+	mdiobus_free(ds->user_mii_bus);
+	ds->user_mii_bus = NULL;
+	rtl8372n_phy_driver_put();
+}
+
 static enum dsa_tag_protocol
 zx279133_rtl8372n_get_tag_protocol(struct dsa_switch *ds, int port,
 				   enum dsa_tag_protocol conduit_proto)
@@ -1771,51 +3232,1090 @@ zx279133_rtl8372n_get_tag_protocol(struct dsa_switch *ds, int port,
 	return DSA_TAG_PROTO_ZX279133_RTL8372N;
 }
 
-static int zx279133_rtl8372n_setup(struct dsa_switch *ds)
+static int
+zx279133_rtl8372n_devlink_info_get(struct dsa_switch *ds,
+				   struct devlink_info_req *req,
+				   struct netlink_ext_ack *extack)
 {
-	/* Probe completes the reset, CPU-link and transport setup first. */
+	return devlink_info_version_fixed_put(req,
+					      DEVLINK_INFO_VERSION_GENERIC_ASIC_ID,
+					      "RTL8372N");
+}
+
+static int rtl8372n_ptp_exec_locked(struct zx279133_rtl8372n *priv,
+				    u32 command)
+{
+	u32 value;
+	int attempt;
+	int ret;
+
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+				  RTL8372N_PTP_TIME_CTRL,
+				  RTL8372N_PTP_TIME_CMD_MASK, command);
+	if (!ret && command == RTL8372N_PTP_TIME_WRITE)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_PTP_TIME_NSEC1,
+					  RTL8372N_PTP_TOD_VALID,
+					  RTL8372N_PTP_TOD_VALID);
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_PTP_TIME_CTRL,
+					  RTL8372N_PTP_TIME_EXEC,
+					  RTL8372N_PTP_TIME_EXEC);
+	if (ret)
+		return ret;
+
+	for (attempt = 0; attempt < 20; attempt++) {
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_PTP_TIME_CTRL, &value);
+		if (ret)
+			return ret;
+		if (!(value & RTL8372N_PTP_TIME_EXEC)) {
+			if (command == RTL8372N_PTP_TIME_WRITE)
+				return rtl8372n_modify_reg(
+					priv->switch_mdiodev,
+					RTL8372N_PTP_TIME_NSEC1,
+					RTL8372N_PTP_TOD_VALID, 0);
+			return 0;
+		}
+		usleep_range(100, 200);
+	}
+
+	return -ETIMEDOUT;
+}
+
+static int rtl8372n_ptp_stage_time_locked(struct zx279133_rtl8372n *priv,
+					  u64 sec, u32 nsec)
+{
+	int ret;
+
+	ret = rtl8372n_write_reg(priv->switch_mdiodev,
+				 RTL8372N_PTP_TIME_NSEC0, nsec & 0xffff);
+	if (!ret)
+		ret = rtl8372n_write_reg(priv->switch_mdiodev,
+					 RTL8372N_PTP_TIME_NSEC1,
+					 (nsec >> 16) &
+					 RTL8372N_PTP_NSEC_HIGH_MASK);
+	if (!ret)
+		ret = rtl8372n_write_reg(priv->switch_mdiodev,
+					 RTL8372N_PTP_TIME_SEC0, sec & 0xffff);
+	if (!ret)
+		ret = rtl8372n_write_reg(priv->switch_mdiodev,
+					 RTL8372N_PTP_TIME_SEC1,
+					 (sec >> 16) & 0xffff);
+	if (!ret)
+		ret = rtl8372n_write_reg(priv->switch_mdiodev,
+					 RTL8372N_PTP_TIME_SEC2,
+					 (sec >> 32) & 0xffff);
+
+	return ret;
+}
+
+static int rtl8372n_ptp_read_time_locked(struct zx279133_rtl8372n *priv,
+					 u64 *sec, u32 *nsec)
+{
+	u32 sec_lo;
+	u32 sec_mid;
+	u32 sec_hi;
+	u32 nsec_lo;
+	u32 nsec_hi;
+	int ret;
+
+	ret = rtl8372n_ptp_exec_locked(priv, RTL8372N_PTP_TIME_READ);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_PTP_TIME_SEC_RD2, &sec_hi);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_PTP_TIME_SEC_RD1, &sec_mid);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_PTP_TIME_SEC_RD0, &sec_lo);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_PTP_TIME_NSEC_RD1, &nsec_hi);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_PTP_TIME_NSEC_RD0, &nsec_lo);
+	if (ret)
+		return ret;
+
+	*sec = ((u64)(sec_hi & 0xffff) << 32) |
+	       ((u64)(sec_mid & 0xffff) << 16) | (sec_lo & 0xffff);
+	*nsec = ((nsec_hi & RTL8372N_PTP_NSEC_HIGH_MASK) << 16) |
+		(nsec_lo & 0xffff);
+
 	return 0;
 }
 
-static int
-zx279133_rtl8372n_port_bridge_join(struct dsa_switch *ds, int port,
-				   struct dsa_bridge bridge,
-				  bool *tx_fwd_offload,
-				  struct netlink_ext_ack *extack)
+static int rtl8372n_ptp_gettimex64(struct ptp_clock_info *info,
+				   struct timespec64 *ts,
+				   struct ptp_system_timestamp *sts)
 {
-	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+	struct zx279133_rtl8372n *priv =
+		container_of(info, struct zx279133_rtl8372n, ptp_info);
+	u64 sec;
+	u32 nsec;
+	int ret;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (sts)
+		ptp_read_system_prets(sts);
+	ret = rtl8372n_ptp_read_time_locked(priv, &sec, &nsec);
+	if (sts)
+		ptp_read_system_postts(sts);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		return ret;
+	if (nsec >= NSEC_PER_SEC)
+		return -EIO;
+
+	ts->tv_sec = sec;
+	ts->tv_nsec = nsec;
+	return 0;
+}
+
+static int rtl8372n_ptp_settime64(struct ptp_clock_info *info,
+				  const struct timespec64 *ts)
+{
+	struct zx279133_rtl8372n *priv =
+		container_of(info, struct zx279133_rtl8372n, ptp_info);
+	int ret;
+
+	if (ts->tv_sec < 0 || ts->tv_sec > GENMASK_ULL(47, 0) ||
+	    ts->tv_nsec < 0 || ts->tv_nsec >= NSEC_PER_SEC)
+		return -ERANGE;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_ptp_stage_time_locked(priv, ts->tv_sec, ts->tv_nsec);
+	if (!ret)
+		ret = rtl8372n_ptp_exec_locked(priv, RTL8372N_PTP_TIME_WRITE);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static int rtl8372n_ptp_adjtime(struct ptp_clock_info *info, s64 delta)
+{
+	struct zx279133_rtl8372n *priv =
+		container_of(info, struct zx279133_rtl8372n, ptp_info);
+	u64 magnitude = delta < 0 ? -delta : delta;
+	u64 sec;
+	u32 nsec;
+	int ret;
+
+	sec = div_u64_rem(magnitude, NSEC_PER_SEC, &nsec);
+	if (delta < 0) {
+		if (nsec) {
+			sec++;
+			sec = -sec;
+			nsec = NSEC_PER_SEC - nsec;
+		} else {
+			sec = -sec;
+		}
+		sec &= GENMASK_ULL(47, 0);
+	}
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_ptp_stage_time_locked(priv, sec, nsec);
+	if (!ret)
+		ret = rtl8372n_ptp_exec_locked(priv, RTL8372N_PTP_TIME_ADJUST);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static int rtl8372n_ptp_write_freq_locked(struct zx279133_rtl8372n *priv,
+					  u32 freq)
+{
+	u32 value;
+	int attempt;
+	int ret;
+
+	ret = rtl8372n_write_reg(priv->switch_mdiodev,
+				 RTL8372N_PTP_TIME_FREQ0, freq & 0xffff);
+	if (!ret)
+		ret = rtl8372n_write_reg(priv->switch_mdiodev,
+					 RTL8372N_PTP_TIME_FREQ1, freq >> 16);
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_PTP_APPLY_FREQ, BIT(0), BIT(0));
+	for (attempt = 0; !ret && attempt < 20; attempt++) {
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_PTP_APPLY_FREQ, &value);
+		if (ret || !(value & BIT(0)))
+			break;
+		usleep_range(100, 200);
+	}
+	if (!ret && value & BIT(0))
+		ret = -ETIMEDOUT;
+
+	return ret;
+}
+
+static int rtl8372n_ptp_adjfine(struct ptp_clock_info *info, long scaled_ppm)
+{
+	struct zx279133_rtl8372n *priv =
+		container_of(info, struct zx279133_rtl8372n, ptp_info);
+	u32 freq = adjust_by_scaled_ppm(RTL8372N_PTP_NOMINAL_FREQ,
+					scaled_ppm);
+	int ret;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_ptp_write_freq_locked(priv, freq);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static int rtl8372n_ptp_enable(struct ptp_clock_info *info,
+			       struct ptp_clock_request *request, int on)
+{
+	return -EOPNOTSUPP;
+}
+
+static int rtl8372n_ptp_clock_init(struct zx279133_rtl8372n *priv)
+{
+	struct timespec64 now;
+	u64 first_sec;
+	u64 second_sec;
+	u32 first_nsec;
+	u32 second_nsec;
+	u32 version;
+	int port;
+	int ret;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+				  RTL8372N_PTP_CLK_SRC_CTRL,
+				  RTL8372N_PTP_CLK_SRC_EXTERNAL, 0);
+	if (!ret)
+		ret = rtl8372n_write_reg(priv->switch_mdiodev, 0x7c40,
+					 ETH_P_8021Q);
+	if (!ret)
+		ret = rtl8372n_write_reg(priv->switch_mdiodev, 0x7c30,
+					 ETH_P_8021AD);
+	if (!ret)
+		ret = rtl8372n_ptp_write_freq_locked(priv,
+						RTL8372N_PTP_NOMINAL_FREQ);
+	for (port = RTL8372N_USER_PORT_MIN;
+	     !ret && port <= RTL8372N_USER_PORT_MAX; port++) {
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_PTP_PORT_MISC(port),
+					  RTL8372N_PTP_PORT_BYPASS, 0);
+		if (!ret)
+			ret = rtl8372n_write_reg(priv->switch_mdiodev,
+						 RTL8372N_PTP_PORT_ID(port), port);
+	}
+	if (!ret) {
+		ktime_get_real_ts64(&now);
+		ret = rtl8372n_ptp_stage_time_locked(priv, now.tv_sec,
+						    now.tv_nsec);
+	}
+	if (!ret)
+		ret = rtl8372n_ptp_exec_locked(priv, RTL8372N_PTP_TIME_WRITE);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_PTP_VERSION, &version);
+	if (!ret)
+		ret = rtl8372n_ptp_read_time_locked(priv, &first_sec,
+						    &first_nsec);
+	if (!ret) {
+		usleep_range(1000, 2000);
+		ret = rtl8372n_ptp_read_time_locked(priv, &second_sec,
+						    &second_nsec);
+	}
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		return ret;
+	if (first_sec == second_sec && first_nsec == second_nsec) {
+		dev_info(priv->ds->dev,
+			 "RTL8372N PTP timer version %#x is not clocked; PHC disabled\n",
+			 version);
+		return -EOPNOTSUPP;
+	}
+
+	priv->ptp_info = (struct ptp_clock_info) {
+		.owner = THIS_MODULE,
+		.name = "rtl8372n",
+		.max_adj = RTL8372N_PTP_MAX_ADJ,
+		.adjfine = rtl8372n_ptp_adjfine,
+		.adjtime = rtl8372n_ptp_adjtime,
+		.gettimex64 = rtl8372n_ptp_gettimex64,
+		.settime64 = rtl8372n_ptp_settime64,
+		.enable = rtl8372n_ptp_enable,
+	};
+	priv->ptp_clock = ptp_clock_register(&priv->ptp_info, priv->ds->dev);
+	if (IS_ERR(priv->ptp_clock)) {
+		ret = PTR_ERR(priv->ptp_clock);
+		priv->ptp_clock = NULL;
+		return ret;
+	}
+
+	return 0;
+}
+
+static void rtl8372n_ptp_clock_teardown(struct zx279133_rtl8372n *priv)
+{
+	if (!priv->ptp_clock)
+		return;
+
+	ptp_clock_unregister(priv->ptp_clock);
+	priv->ptp_clock = NULL;
+}
+
+static int zx279133_rtl8372n_get_ts_info(struct dsa_switch *ds, int port,
+					 struct kernel_ethtool_ts_info *info)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX ||
+	    !priv->ptp_clock)
 		return -EOPNOTSUPP;
 
-	/* Private transport VLANs remain isolated to one user port plus CPU8.
-	 * Linux owns all bridge forwarding and customer VLAN filtering.
-	 */
-	*tx_fwd_offload = false;
-	dev_info(ds->dev, "port %d joined bridge %s\n", port,
-		 bridge.dev->name);
+	info->so_timestamping = 0;
+	info->phc_index = ptp_clock_index(priv->ptp_clock);
+	info->tx_types = BIT(HWTSTAMP_TX_OFF);
+	info->rx_filters = BIT(HWTSTAMP_FILTER_NONE);
+
 	return 0;
 }
 
-static void
-zx279133_rtl8372n_port_bridge_leave(struct dsa_switch *ds, int port,
-				    struct dsa_bridge bridge)
+static int rtl8372n_isolation_program(struct dsa_switch *ds,
+				      unsigned long isolated_mask);
+
+static int zx279133_rtl8372n_setup(struct dsa_switch *ds)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct mdio_device *mdiodev = priv->switch_mdiodev;
+	u32 vlan1;
+	u32 members;
+	u32 untag;
+	int ptp_ret;
+	int port;
+	int ret;
+
+	mutex_lock(&mdiodev->bus->mdio_lock);
+	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_VLAN_CTRL,
+				  BIT(2), BIT(2));
+	if (!ret)
+		ret = rtl8372n_vlan_read(mdiodev, 1, &vlan1);
+	if (!ret) {
+		members = FIELD_GET(RTL8372N_VLAN_MBR_MASK, vlan1) |
+			  RTL8372N_USER_PORT_MASK | BIT(RTL8372N_CPU_PORT);
+		untag = FIELD_GET(RTL8372N_VLAN_UNTAG_MASK, vlan1) |
+			RTL8372N_USER_PORT_MASK | BIT(RTL8372N_CPU_PORT);
+		vlan1 &= ~(RTL8372N_VLAN_MBR_MASK | RTL8372N_VLAN_UNTAG_MASK);
+		vlan1 |= FIELD_PREP(RTL8372N_VLAN_MBR_MASK, members) |
+			 FIELD_PREP(RTL8372N_VLAN_UNTAG_MASK, untag);
+		ret = rtl8372n_vlan_write(mdiodev, 1, vlan1);
+	}
+	for (port = RTL8372N_USER_PORT_MIN;
+	     !ret && port <= RTL8372N_USER_PORT_MAX; port++)
+		ret = rtl8372n_port_pvid_write(mdiodev, port, 1);
+	if (!ret)
+		ret = rtl8372n_modify_reg(mdiodev, RTL8372N_CPU_TAG_AWARE,
+					  RTL8372N_ALL_PORT_MASK, 0);
+	if (!ret)
+		ret = rtl8372n_modify_reg(mdiodev, RTL8372N_CPU_TAG_CTRL,
+					  RTL8372N_CPU_TAG_EXT_INSERT |
+					  RTL8372N_CPU_TAG_EXT_ENABLE,
+					  0);
+	if (!ret)
+		ret = rtl8372n_isolation_program(ds, priv->isolated_mask);
+	if (!ret)
+		ret = rtl8372n_acl_hw_init(priv);
+	if (!ret)
+		ret = rtl8372n_qos_hw_init(priv);
+	mutex_unlock(&mdiodev->bus->mdio_lock);
+	if (!ret)
+		ret = rtl8372n_mdio_setup(ds);
+	if (!ret) {
+		ptp_ret = rtl8372n_ptp_clock_init(priv);
+		if (ptp_ret && ptp_ret != -EOPNOTSUPP)
+			dev_warn(ds->dev, "RTL8372N PHC disabled: %d\n", ptp_ret);
+	}
+	return ret;
+}
+
+static void zx279133_rtl8372n_teardown(struct dsa_switch *ds)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+
+	rtl8372n_ptp_clock_teardown(priv);
+	rtl8372n_mdio_teardown(ds);
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	rtl8372n_modify_reg(priv->switch_mdiodev, RTL8372N_CPU_TAG_CTRL,
+			       RTL8372N_CPU_TAG_EXT_ENABLE, 0);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+}
+
+static int zx279133_rtl8372n_port_get_default_prio(struct dsa_switch *ds,
+						    int port)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u32 mask = RTL8372N_QOS_PORT_PRI_MASK(port);
+	u32 duplicate;
+	u32 value;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return -EINVAL;
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_read_reg(priv->switch_mdiodev,
+				RTL8372N_QOS_PORT_PRI, &value);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_QOS_PORT_PRI_DUP, &duplicate);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		return ret;
+	value = (value & mask) >> (port * 3);
+	duplicate = (duplicate & mask) >> (port * 3);
+
+	return value == duplicate ? value : -EIO;
+}
+
+static int zx279133_rtl8372n_port_set_default_prio(struct dsa_switch *ds,
+						    int port, u8 prio)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u32 mask = RTL8372N_QOS_PORT_PRI_MASK(port);
+	u32 value;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX ||
+	    prio >= RTL8372N_QOS_PRIORITIES)
+		return -EINVAL;
+	value = (u32)prio << (port * 3);
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+				 RTL8372N_QOS_PORT_PRI, mask, value);
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_QOS_PORT_PRI_DUP,
+					  mask, value);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static int zx279133_rtl8372n_port_get_dscp_prio(struct dsa_switch *ds,
+						 int port, u8 dscp)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u32 mask;
+	u32 value;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX ||
+	    dscp >= 64)
+		return -EINVAL;
+	mask = RTL8372N_QOS_DSCP_MASK(dscp);
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_read_reg(priv->switch_mdiodev,
+				RTL8372N_QOS_DSCP_REG(dscp), &value);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret ?: (value & mask) >> ((dscp % 10) * 3);
+}
+
+static int zx279133_rtl8372n_port_add_dscp_prio(struct dsa_switch *ds,
+						 int port, u8 dscp,
+						 u8 prio)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u32 mask;
+	u32 value;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX ||
+	    dscp >= 64 || prio >= RTL8372N_QOS_PRIORITIES)
+		return -EINVAL;
+	mask = RTL8372N_QOS_DSCP_MASK(dscp);
+	value = (u32)prio << ((dscp % 10) * 3);
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+				 RTL8372N_QOS_DSCP_REG(dscp), mask, value);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static int zx279133_rtl8372n_port_del_dscp_prio(struct dsa_switch *ds,
+						 int port, u8 dscp,
+						 u8 prio)
+{
+	int old_prio;
+
+	old_prio = zx279133_rtl8372n_port_get_dscp_prio(ds, port, dscp);
+	if (old_prio < 0 || old_prio != prio)
+		return old_prio < 0 ? old_prio : 0;
+
+	return zx279133_rtl8372n_port_add_dscp_prio(ds, port, dscp, 0);
+}
+
+static int rtl8372n_qos_apptrust_sources(const u8 *sel, int nsel, u8 *sources)
+{
+	static const u8 supported[] = {
+		DCB_APP_SEL_PCP,
+		IEEE_8021QAZ_APP_SEL_DSCP,
+	};
+	int index = 0;
+	int i;
+
+	*sources = 0;
+	for (i = 0; i < nsel; i++) {
+		while (index < ARRAY_SIZE(supported) &&
+		       supported[index] != sel[i])
+			index++;
+		if (index == ARRAY_SIZE(supported))
+			return -EINVAL;
+		*sources |= sel[i] == DCB_APP_SEL_PCP ?
+			    RTL8372N_QOS_TRUST_PCP : RTL8372N_QOS_TRUST_DSCP;
+		index++;
+	}
+
+	return 0;
+}
+
+static int zx279133_rtl8372n_port_set_apptrust(struct dsa_switch *ds,
+						int port, const u8 *sel,
+						int nsel)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	unsigned int old_profile;
+	unsigned int target;
+	u8 sources;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return -EINVAL;
+	ret = rtl8372n_qos_apptrust_sources(sel, nsel, &sources);
+	if (ret)
+		return ret;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	old_profile = priv->qos_port_profile[port];
+	if (priv->qos_profile_sources[old_profile] == sources) {
+		ret = 0;
+		goto out_unlock;
+	}
+	for (target = 0; target < RTL8372N_QOS_PROFILES; target++)
+		if (priv->qos_profile_ports[target] &&
+		    priv->qos_profile_sources[target] == sources)
+			break;
+	if (target == RTL8372N_QOS_PROFILES) {
+		for (target = 0; target < RTL8372N_QOS_PROFILES; target++)
+			if (!priv->qos_profile_ports[target] ||
+			    priv->qos_profile_ports[target] == BIT(port))
+				break;
+	}
+	if (target == RTL8372N_QOS_PROFILES) {
+		ret = -ENOSPC;
+		goto out_unlock;
+	}
+	if (!priv->qos_profile_ports[target] || target == old_profile) {
+		ret = rtl8372n_qos_profile_write(priv->switch_mdiodev,
+						  target, sources);
+		if (ret)
+			goto out_unlock;
+		priv->qos_profile_sources[target] = sources;
+	}
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+				 RTL8372N_QOS_PROFILE_SELECT, BIT(port),
+				 target ? BIT(port) : 0);
+	if (ret)
+		goto out_unlock;
+	priv->qos_profile_ports[old_profile] &= ~BIT(port);
+	priv->qos_profile_ports[target] |= BIT(port);
+	priv->qos_port_profile[port] = target;
+
+out_unlock:
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	return ret;
+}
+
+static int zx279133_rtl8372n_port_get_apptrust(struct dsa_switch *ds,
+						int port, u8 *sel,
+						int *nsel)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u8 sources;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return -EINVAL;
+	sources = priv->qos_profile_sources[priv->qos_port_profile[port]];
+	*nsel = 0;
+	if (sources & RTL8372N_QOS_TRUST_PCP)
+		sel[(*nsel)++] = DCB_APP_SEL_PCP;
+	if (sources & RTL8372N_QOS_TRUST_DSCP)
+		sel[(*nsel)++] = IEEE_8021QAZ_APP_SEL_DSCP;
+
+	return 0;
+}
+
+static int rtl8372n_qos_ets_replace(struct zx279133_rtl8372n *priv, int port,
+				     struct tc_ets_qopt_offload *qopt)
+{
+	struct tc_ets_qopt_offload_replace_params *params =
+		&qopt->replace_params;
+	u8 queue_map[RTL8372N_QOS_PRIORITIES];
+	unsigned int band;
+	unsigned int prio;
+	unsigned int queue;
+	u32 value;
+	int ret;
+
+	if (qopt->parent != TC_H_ROOT ||
+	    params->bands != RTL8372N_QOS_QUEUES)
+		return -EOPNOTSUPP;
+	for (prio = 0; prio < RTL8372N_QOS_PRIORITIES; prio++) {
+		band = params->priomap[prio];
+		if (band >= RTL8372N_QOS_QUEUES)
+			return -EINVAL;
+		queue_map[prio] = RTL8372N_QOS_QUEUES - 1 - band;
+	}
+	for (band = 0; band < RTL8372N_QOS_QUEUES; band++) {
+		if (params->quanta[band] &&
+		    (!params->weights[band] ||
+		     params->weights[band] > RTL8372N_QOS_SCHED_WEIGHT_MASK))
+			return -ERANGE;
+	}
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_qos_queue_map_write(priv->switch_mdiodev, port,
+					      queue_map);
+	for (band = 0; !ret && band < RTL8372N_QOS_QUEUES; band++) {
+		queue = RTL8372N_QOS_QUEUES - 1 - band;
+		value = params->quanta[band] ? params->weights[band] :
+			RTL8372N_QOS_SCHED_STRICT;
+		ret = rtl8372n_qos_sched_write(priv->switch_mdiodev, port,
+						 queue, value);
+	}
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (!ret)
+		priv->qos_ets_handle[port] = qopt->handle;
+
+	return ret;
+}
+
+static int rtl8372n_qos_ets_destroy(struct zx279133_rtl8372n *priv, int port)
+{
+	int ret;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_qos_ets_reset(priv->switch_mdiodev, port);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (!ret)
+		priv->qos_ets_handle[port] = 0;
+
+	return ret;
+}
+
+static int rtl8372n_qos_ets(struct zx279133_rtl8372n *priv, int port,
+			    struct tc_ets_qopt_offload *qopt)
+{
+	switch (qopt->command) {
+	case TC_ETS_REPLACE:
+		return rtl8372n_qos_ets_replace(priv, port, qopt);
+	case TC_ETS_DESTROY:
+		return rtl8372n_qos_ets_destroy(priv, port);
+	case TC_ETS_STATS:
+	case TC_ETS_GRAFT:
+		return -EOPNOTSUPP;
+	}
+
+	return -EOPNOTSUPP;
+}
+
+static int rtl8372n_qos_tbf_queue(struct zx279133_rtl8372n *priv, int port,
+				   u32 parent, unsigned int *queue)
+{
+	u32 ets_handle = priv->qos_ets_handle[port];
+	u32 band;
+
+	if (!ets_handle || TC_H_MAJ(parent) != TC_H_MAJ(ets_handle))
+		return -EOPNOTSUPP;
+	band = TC_H_MIN(parent);
+	if (!band || band > RTL8372N_QOS_QUEUES)
+		return -EOPNOTSUPP;
+	*queue = RTL8372N_QOS_QUEUES - band;
+
+	return 0;
+}
+
+static int rtl8372n_qos_tbf_replace(struct zx279133_rtl8372n *priv, int port,
+				     struct tc_tbf_qopt_offload *qopt)
+{
+	struct tc_tbf_qopt_offload_replace_params *params =
+		&qopt->replace_params;
+	u64 rate_kbps;
+	u64 rate_units;
+	unsigned int queue = 0;
+	u16 base;
+	u16 reset;
+	u32 reset_bit;
+	u32 readback;
+	u32 burst_readback;
+	bool root = qopt->parent == TC_H_ROOT;
+	int ret;
+
+	rate_kbps = DIV_ROUND_UP_ULL(params->rate.rate_bytes_ps, 125);
+	rate_units = DIV_ROUND_UP_ULL(rate_kbps,
+				      RTL8372N_QOS_EGBW_PORT_RATE_UNIT_KBPS);
+	if (!rate_units || rate_units > RTL8372N_QOS_EGBW_RATE_MASK ||
+	    !params->max_size ||
+	    params->max_size > RTL8372N_QOS_EGBW_BURST_MASK)
+		return -ERANGE;
+	if (root) {
+		base = RTL8372N_QOS_EGBW_PORT_BASE(port);
+		reset = RTL8372N_QOS_EGBW_PORT_RESET;
+		reset_bit = BIT(port);
+	} else {
+		ret = rtl8372n_qos_tbf_queue(priv, port, qopt->parent, &queue);
+		if (ret)
+			return ret;
+		base = RTL8372N_QOS_EGBW_QUEUE_BASE(port, queue);
+		reset = RTL8372N_QOS_EGBW_QUEUE_RESET(port);
+		reset_bit = BIT(queue);
+	}
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_write_reg(priv->switch_mdiodev, base + 4,
+				 params->max_size);
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev, base,
+					  RTL8372N_QOS_EGBW_ENABLE |
+					  RTL8372N_QOS_EGBW_RATE_MASK,
+					  RTL8372N_QOS_EGBW_ENABLE |
+					  (u32)rate_units);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev, base,
+					&readback);
+	if (!ret && (readback & (RTL8372N_QOS_EGBW_ENABLE |
+				RTL8372N_QOS_EGBW_RATE_MASK)) !=
+		    (RTL8372N_QOS_EGBW_ENABLE | rate_units))
+		ret = -EIO;
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev, base + 4,
+					&burst_readback);
+	if (!ret && (burst_readback & RTL8372N_QOS_EGBW_BURST_MASK) !=
+		    params->max_size)
+		ret = -EIO;
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev, reset,
+					  reset_bit, reset_bit);
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev, reset,
+					  reset_bit, 0);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static int rtl8372n_qos_tbf_destroy(struct zx279133_rtl8372n *priv, int port,
+				     struct tc_tbf_qopt_offload *qopt)
+{
+	unsigned int queue = 0;
+	u16 base;
+	int ret;
+
+	if (qopt->parent == TC_H_ROOT) {
+		base = RTL8372N_QOS_EGBW_PORT_BASE(port);
+	} else {
+		ret = rtl8372n_qos_tbf_queue(priv, port, qopt->parent, &queue);
+		if (ret)
+			return ret;
+		base = RTL8372N_QOS_EGBW_QUEUE_BASE(port, queue);
+	}
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev, base,
+				 RTL8372N_QOS_EGBW_ENABLE, 0);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static int rtl8372n_qos_tbf(struct zx279133_rtl8372n *priv, int port,
+			    struct tc_tbf_qopt_offload *qopt)
+{
+	switch (qopt->command) {
+	case TC_TBF_REPLACE:
+		return rtl8372n_qos_tbf_replace(priv, port, qopt);
+	case TC_TBF_DESTROY:
+		return rtl8372n_qos_tbf_destroy(priv, port, qopt);
+	case TC_TBF_STATS:
+	case TC_TBF_GRAFT:
+		return -EOPNOTSUPP;
+	}
+
+	return -EOPNOTSUPP;
+}
+
+static int zx279133_rtl8372n_port_setup_tc(struct dsa_switch *ds, int port,
+					    enum tc_setup_type type,
+					    void *type_data)
 {
 	struct zx279133_rtl8372n *priv = ds->priv;
 
 	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
-		return;
-
-	clear_bit(port, &priv->vlan_unaware_vid1_mask);
-	dev_info(ds->dev, "port %d left bridge %s\n", port,
-		 bridge.dev->name);
+		return -EINVAL;
+	switch (type) {
+	case TC_SETUP_QDISC_ETS:
+		return rtl8372n_qos_ets(priv, port, type_data);
+	case TC_SETUP_QDISC_TBF:
+		return rtl8372n_qos_tbf(priv, port, type_data);
+	default:
+		return -EOPNOTSUPP;
+	}
 }
 
-static bool
-rtl8372n_port_in_vlan_unaware_bridge(struct dsa_switch *ds, int port)
+static int rtl8372n_commit_pvid(struct dsa_switch *ds, int port)
 {
-	struct net_device *bridge;
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u16 pvid = 1;
 
-	bridge = dsa_port_bridge_dev_get(dsa_to_port(ds, port));
-	return bridge && !br_vlan_enabled(bridge);
+	if (test_bit(port, &priv->vlan_filtering_mask) &&
+	    priv->bridge_pvid_valid[port])
+		pvid = priv->bridge_pvid[port];
+
+	return rtl8372n_port_pvid_write(priv->switch_mdiodev, port, pvid);
+}
+
+static int rtl8372n_flood_port_set(struct zx279133_rtl8372n *priv, u16 reg,
+				   int port, bool enable)
+{
+	u32 readback;
+	int ret;
+
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev, reg, BIT(port),
+				  enable ? BIT(port) : 0);
+	if (ret)
+		return ret;
+	ret = rtl8372n_read_reg(priv->switch_mdiodev, reg, &readback);
+	if (ret)
+		return ret;
+
+	return !!(readback & BIT(port)) == enable ? 0 : -EIO;
+}
+
+static int
+rtl8372n_isolation_program(struct dsa_switch *ds,
+			   unsigned long isolated_mask)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct dsa_port *other_dp;
+	u32 valid = RTL8372N_USER_PORT_MASK | BIT(RTL8372N_CPU_PORT);
+	u32 readback;
+	int port;
+	int ret;
+
+	for (port = RTL8372N_USER_PORT_MIN;
+	     port <= RTL8372N_USER_PORT_MAX; port++) {
+		struct dsa_port *dp = dsa_to_port(ds, port);
+		u32 members = BIT(port) | BIT(RTL8372N_CPU_PORT);
+
+		dsa_switch_for_each_user_port(other_dp, ds) {
+			if (other_dp == dp || !dsa_port_bridge_same(dp, other_dp))
+				continue;
+			if ((isolated_mask & BIT(port)) &&
+			    (isolated_mask & BIT(other_dp->index)))
+				continue;
+			members |= BIT(other_dp->index);
+		}
+		ret = rtl8372n_write_reg(priv->switch_mdiodev,
+					 RTL8372N_PORT_ISOLATION_BASE + port * 4,
+					 members);
+		if (ret)
+			return ret;
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_PORT_ISOLATION_BASE + port * 4,
+					&readback);
+		if (ret)
+			return ret;
+		if ((readback & valid) != members)
+			return -EIO;
+	}
+
+	return rtl8372n_write_reg(priv->switch_mdiodev,
+				    RTL8372N_PORT_ISOLATION_BASE +
+				    RTL8372N_CPU_PORT * 4, valid);
+}
+
+static int
+zx279133_rtl8372n_port_bridge_join(struct dsa_switch *ds, int port,
+				    struct dsa_bridge bridge,
+				    bool *tx_fwd_offload,
+				    struct netlink_ext_ack *extack)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	int ret;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_isolation_program(ds, priv->isolated_mask);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static void
+zx279133_rtl8372n_port_bridge_leave(struct dsa_switch *ds, int port,
+				     struct dsa_bridge bridge)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct mdio_device *mdiodev = priv->switch_mdiodev;
+	u32 entry;
+	u32 readback;
+	u32 members;
+	u32 untag;
+	int ret;
+
+	mutex_lock(&mdiodev->bus->mdio_lock);
+	ret = rtl8372n_isolation_program(ds, priv->isolated_mask);
+	if (ret)
+		goto out_unlock;
+
+	/* The bridge removes its default VID 1 before this callback. Restore
+	 * the untagged standalone path to the external CPU port.
+	 */
+	ret = rtl8372n_vlan_read(mdiodev, 1, &entry);
+	if (ret)
+		goto out_unlock;
+	members = (entry & RTL8372N_VLAN_MBR_MASK) |
+		  BIT(port) | BIT(RTL8372N_CPU_PORT);
+	untag = (entry & RTL8372N_VLAN_UNTAG_MASK) >>
+		RTL8372N_VLAN_UNTAG_SHIFT;
+	untag |= BIT(port) | BIT(RTL8372N_CPU_PORT);
+	entry &= ~(RTL8372N_VLAN_MBR_MASK | RTL8372N_VLAN_UNTAG_MASK);
+	entry |= members | (untag << RTL8372N_VLAN_UNTAG_SHIFT) |
+		 RTL8372N_VLAN_IVL;
+	ret = rtl8372n_vlan_write(mdiodev, 1, entry);
+	if (ret)
+		goto out_unlock;
+	ret = rtl8372n_vlan_read(mdiodev, 1, &readback);
+	if (ret)
+		goto out_unlock;
+	if (readback != entry) {
+		ret = -EIO;
+		goto out_unlock;
+	}
+	priv->bridge_pvid_valid[port] = false;
+	ret = rtl8372n_port_pvid_write(mdiodev, port, 1);
+
+out_unlock:
+	mutex_unlock(&mdiodev->bus->mdio_lock);
+	if (ret)
+		dev_err(ds->dev,
+			"failed to restore standalone port %d: %d\n", port, ret);
+}
+
+static int
+zx279133_rtl8372n_port_pre_bridge_flags(struct dsa_switch *ds, int port,
+					struct switchdev_brport_flags flags,
+					struct netlink_ext_ack *extack)
+{
+	unsigned long supported = BR_LEARNING | BR_FLOOD | BR_MCAST_FLOOD |
+				  BR_BCAST_FLOOD | BR_ISOLATED;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return -EINVAL;
+	if (flags.mask & ~supported) {
+		NL_SET_ERR_MSG_MOD(extack, "unsupported bridge port flag");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int
+zx279133_rtl8372n_port_bridge_flags(struct dsa_switch *ds, int port,
+				    struct switchdev_brport_flags flags,
+				    struct netlink_ext_ack *extack)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	unsigned long isolated_mask;
+	u32 readback;
+	u32 current_limit;
+	u16 target;
+	int ret = 0;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (flags.mask & BR_LEARNING) {
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_L2_LEARN_LIMIT_BASE +
+					port * RTL8372N_L2_LEARN_LIMIT_STRIDE,
+					&current_limit);
+		if (ret)
+			goto out_unlock;
+		current_limit = FIELD_GET(RTL8372N_L2_LEARN_LIMIT_MASK,
+					  current_limit);
+		if (current_limit)
+			priv->learning_limit[port] = current_limit;
+		target = flags.val & BR_LEARNING ?
+			(priv->learning_limit[port] ?: RTL8372N_L2_LEARN_LIMIT_MAX) :
+			0;
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_L2_LEARN_LIMIT_BASE +
+					  port * RTL8372N_L2_LEARN_LIMIT_STRIDE,
+					  RTL8372N_L2_LEARN_LIMIT_MASK, target);
+		if (ret)
+			goto out_unlock;
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_L2_LEARN_LIMIT_BASE +
+					port * RTL8372N_L2_LEARN_LIMIT_STRIDE,
+					&readback);
+		if (ret)
+			goto out_unlock;
+		if (FIELD_GET(RTL8372N_L2_LEARN_LIMIT_MASK, readback) != target) {
+			ret = -EIO;
+			goto out_unlock;
+		}
+	}
+
+	if (flags.mask & BR_FLOOD) {
+		ret = rtl8372n_flood_port_set(priv,
+				RTL8372N_L2_UNKNOWN_UC_FLOOD, port,
+				flags.val & BR_FLOOD);
+		if (ret)
+			goto out_unlock;
+	}
+	if (flags.mask & BR_MCAST_FLOOD) {
+		ret = rtl8372n_flood_port_set(priv,
+				RTL8372N_L2_UNKNOWN_MC_FLOOD, port,
+				flags.val & BR_MCAST_FLOOD);
+		if (!ret)
+			ret = rtl8372n_flood_port_set(priv,
+					RTL8372N_IPV4_UNKNOWN_MC_FLOOD, port,
+					flags.val & BR_MCAST_FLOOD);
+		if (!ret)
+			ret = rtl8372n_flood_port_set(priv,
+					RTL8372N_IPV6_UNKNOWN_MC_FLOOD, port,
+					flags.val & BR_MCAST_FLOOD);
+		if (ret)
+			goto out_unlock;
+	}
+	if (flags.mask & BR_BCAST_FLOOD) {
+		ret = rtl8372n_flood_port_set(priv,
+				RTL8372N_L2_BROADCAST_FLOOD, port,
+				flags.val & BR_BCAST_FLOOD);
+		if (ret)
+			goto out_unlock;
+	}
+	if (flags.mask & BR_ISOLATED) {
+		isolated_mask = priv->isolated_mask;
+		if (flags.val & BR_ISOLATED)
+			set_bit(port, &isolated_mask);
+		else
+			clear_bit(port, &isolated_mask);
+		ret = rtl8372n_isolation_program(ds, isolated_mask);
+		if (!ret)
+			priv->isolated_mask = isolated_mask;
+	}
+
+out_unlock:
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	return ret;
 }
 
 static int
@@ -1824,45 +4324,50 @@ zx279133_rtl8372n_port_vlan_filtering(struct dsa_switch *ds, int port,
 				     struct netlink_ext_ack *extack)
 {
 	struct zx279133_rtl8372n *priv = ds->priv;
+	bool old_filtering;
+	int ret;
 
 	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
 		return -EOPNOTSUPP;
-	if (vlan_filtering &&
-	    test_bit(port, &priv->vlan_unaware_vid1_mask)) {
-		NL_SET_ERR_MSG_MOD(extack,
-				   "VID 1 is reserved; set vlan_default_pvid 0 before enabling VLAN filtering");
-		return -EBUSY;
-	}
 
-	/* Customer VLANs are nested inside the fixed per-port CPU-link VLAN.
-	 * Keep the validated transport PVID and hardware filtering policy intact;
-	 * the Linux bridge applies the customer VLAN policy after the DSA tagger
-	 * removes the private outer tag.
-	 */
+	old_filtering = test_bit(port, &priv->vlan_filtering_mask);
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+				  RTL8372N_VLAN_IGR_FILTER, BIT(port),
+				  vlan_filtering ? BIT(port) : 0);
+	if (ret)
+		goto out_unlock;
 	if (vlan_filtering)
 		set_bit(port, &priv->vlan_filtering_mask);
 	else
 		clear_bit(port, &priv->vlan_filtering_mask);
-	dev_dbg(ds->dev, "software VLAN filtering port %d=%u mask=%#lx\n",
-		port, vlan_filtering, priv->vlan_filtering_mask);
-	return 0;
+	ret = rtl8372n_commit_pvid(ds, port);
+	if (ret) {
+		if (old_filtering)
+			set_bit(port, &priv->vlan_filtering_mask);
+		else
+			clear_bit(port, &priv->vlan_filtering_mask);
+		rtl8372n_modify_reg(priv->switch_mdiodev,
+				    RTL8372N_VLAN_IGR_FILTER, BIT(port),
+				    old_filtering ? BIT(port) : 0);
+	}
+
+out_unlock:
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	return ret;
 }
 
 static int rtl8372n_customer_vlan_check(u16 vid,
 					struct netlink_ext_ack *extack)
 {
-	if (!vid || vid >= VLAN_N_VID) {
+	if (vid >= VLAN_N_VID) {
 		NL_SET_ERR_MSG_MOD(extack, "VLAN ID out of range");
 		return -EINVAL;
 	}
-	if (vid == 1) {
+	if (vid >= RTL8372N_TRANSPORT_VID_BASE + RTL8372N_USER_PORT_MIN &&
+	    vid <= RTL8372N_TRANSPORT_VID_BASE + RTL8372N_USER_PORT_MAX) {
 		NL_SET_ERR_MSG_MOD(extack,
-				   "VID 1 is reserved; create the bridge with vlan_default_pvid 0");
-		return -EBUSY;
-	}
-	if (rtl8372n_is_transport_vid(vid)) {
-		NL_SET_ERR_MSG_MOD(extack,
-				   "VLAN ID reserved by the ZX279133 private DSA transport");
+				   "VLAN ID reserved by the NPPT LAN egress path");
 		return -EBUSY;
 	}
 	return 0;
@@ -1890,27 +4395,9 @@ zx279133_rtl8372n_port_vlan_add(struct dsa_switch *ds, int port,
 	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
 		return -EINVAL;
 
-	/* A VLAN-unaware bridge still publishes its bookkeeping PVID 1 through
-	 * switchdev. It has no data-path meaning until VLAN filtering is enabled,
-	 * so leave the private transport PVID and VLAN table untouched.
-	 */
-	if (vlan->vid == 1 &&
-	    rtl8372n_port_in_vlan_unaware_bridge(ds, port)) {
-		set_bit(port, &priv->vlan_unaware_vid1_mask);
-		dev_dbg(ds->dev, "ignored VLAN-unaware VID 1 add on port %d\n",
-			port);
-		return 0;
-	}
-
 	ret = rtl8372n_customer_vlan_check(vlan->vid, extack);
 	if (ret)
 		return ret;
-	if (!(vlan->flags & BRIDGE_VLAN_INFO_PVID) ||
-	    !(vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED)) {
-		NL_SET_ERR_MSG_MOD(extack,
-				   "only untagged access VLANs are supported over the private CPU-link transport");
-		return -EOPNOTSUPP;
-	}
 
 	mutex_lock(&mdiodev->bus->mdio_lock);
 	ret = rtl8372n_vlan_read(mdiodev, vlan->vid, &old_entry);
@@ -1921,12 +4408,6 @@ zx279133_rtl8372n_port_vlan_add(struct dsa_switch *ds, int port,
 		goto out_unlock;
 	old_pvid_valid = priv->bridge_pvid_valid[port];
 	old_bridge_pvid = priv->bridge_pvid[port];
-	if (old_pvid_valid && old_bridge_pvid != vlan->vid) {
-		NL_SET_ERR_MSG_MOD(extack,
-				   "delete the current access VLAN before selecting another PVID");
-		ret = -EBUSY;
-		goto out_unlock;
-	}
 
 	members = (old_entry & RTL8372N_VLAN_MBR_MASK) |
 		  BIT(port) | BIT(RTL8372N_CPU_PORT);
@@ -1936,7 +4417,10 @@ zx279133_rtl8372n_port_vlan_add(struct dsa_switch *ds, int port,
 		untag |= BIT(port);
 	else
 		untag &= ~BIT(port);
-	untag &= ~BIT(RTL8372N_CPU_PORT);
+	if (test_bit(port, &priv->vlan_filtering_mask))
+		untag &= ~BIT(RTL8372N_CPU_PORT);
+	else
+		untag |= BIT(RTL8372N_CPU_PORT);
 	new_entry = old_entry & ~(RTL8372N_VLAN_MBR_MASK |
 				 RTL8372N_VLAN_UNTAG_MASK);
 	new_entry |= members | (untag << RTL8372N_VLAN_UNTAG_SHIFT) |
@@ -1957,12 +4441,11 @@ zx279133_rtl8372n_port_vlan_add(struct dsa_switch *ds, int port,
 		goto restore;
 	}
 	if (vlan->flags & BRIDGE_VLAN_INFO_PVID) {
-		ret = zx279133_tagger_set_access_vlan(ds, port, vlan->vid,
-						      !!(vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED));
+		ret = rtl8372n_commit_pvid(ds, port);
 		if (ret)
 			goto restore;
 	}
-	dev_dbg(ds->dev, "access VLAN add port %d vid %u entry=%#x\n",
+	dev_dbg(ds->dev, "VLAN add port %d vid %u entry=%#x\n",
 		port, vlan->vid, readback);
 	goto out_unlock;
 
@@ -1997,18 +4480,12 @@ zx279133_rtl8372n_port_vlan_del(struct dsa_switch *ds, int port,
 	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
 		return -EINVAL;
 
-	if (vlan->vid == 1 &&
-	    rtl8372n_port_in_vlan_unaware_bridge(ds, port)) {
-		clear_bit(port, &priv->vlan_unaware_vid1_mask);
-		dev_dbg(ds->dev, "ignored VLAN-unaware VID 1 delete on port %d\n",
-			port);
-		return 0;
-	}
-
-	if (!vlan->vid || vlan->vid >= VLAN_N_VID ||
-	    vlan->vid == 1 || rtl8372n_is_transport_vid(vlan->vid))
+	if (vlan->vid >= VLAN_N_VID ||
+	    (vlan->vid >= RTL8372N_TRANSPORT_VID_BASE +
+			  RTL8372N_USER_PORT_MIN &&
+	     vlan->vid <= RTL8372N_TRANSPORT_VID_BASE +
+			  RTL8372N_USER_PORT_MAX))
 		return -EINVAL;
-
 	mutex_lock(&mdiodev->bus->mdio_lock);
 	ret = rtl8372n_vlan_read(mdiodev, vlan->vid, &old_entry);
 	if (ret)
@@ -2046,7 +4523,7 @@ zx279133_rtl8372n_port_vlan_del(struct dsa_switch *ds, int port,
 		goto restore;
 	}
 	if (old_pvid_valid && old_bridge_pvid == vlan->vid) {
-		ret = zx279133_tagger_set_access_vlan(ds, port, 0, false);
+		ret = rtl8372n_commit_pvid(ds, port);
 		if (ret)
 			goto restore;
 	}
@@ -2062,6 +4539,27 @@ out_unlock:
 	return ret;
 }
 
+static int rtl8372n_stp_state_encode(u8 state, u32 *hw_state)
+{
+	switch (state) {
+	case BR_STATE_DISABLED:
+		*hw_state = 0;
+		return 0;
+	case BR_STATE_BLOCKING:
+	case BR_STATE_LISTENING:
+		*hw_state = 1;
+		return 0;
+	case BR_STATE_LEARNING:
+		*hw_state = 2;
+		return 0;
+	case BR_STATE_FORWARDING:
+		*hw_state = 3;
+		return 0;
+	default:
+		return -EINVAL;
+	}
+}
+
 static void zx279133_rtl8372n_port_stp_state_set(struct dsa_switch *ds,
 						 int port, u8 state)
 {
@@ -2072,22 +4570,8 @@ static void zx279133_rtl8372n_port_stp_state_set(struct dsa_switch *ds,
 
 	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
 		return;
-
-	switch (state) {
-	case BR_STATE_DISABLED:
-		hw_state = 0;
-		break;
-	case BR_STATE_BLOCKING:
-	case BR_STATE_LISTENING:
-		hw_state = 1;
-		break;
-	case BR_STATE_LEARNING:
-		hw_state = 2;
-		break;
-	case BR_STATE_FORWARDING:
-		hw_state = 3;
-		break;
-	default:
+	ret = rtl8372n_stp_state_encode(state, &hw_state);
+	if (ret) {
 		dev_err(ds->dev, "unsupported STP state %u for port %d\n",
 			state, port);
 		return;
@@ -2095,12 +4579,12 @@ static void zx279133_rtl8372n_port_stp_state_set(struct dsa_switch *ds,
 
 	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
 	ret = rtl8372n_modify_reg(priv->switch_mdiodev,
-				  RTL8372N_MSTP0_STATE,
+				  RTL8372N_MSTP_STATE_BASE,
 				  GENMASK(port * 2 + 1, port * 2),
 				  hw_state << (port * 2));
 	if (!ret)
 		ret = rtl8372n_read_reg(priv->switch_mdiodev,
-					RTL8372N_MSTP0_STATE, &value);
+					RTL8372N_MSTP_STATE_BASE, &value);
 	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
 	if (ret) {
 		dev_err(ds->dev, "failed to set STP state %u on port %d: %d\n",
@@ -2113,41 +4597,211 @@ static void zx279133_rtl8372n_port_stp_state_set(struct dsa_switch *ds,
 			port, value, hw_state);
 }
 
-static int zx279133_rtl8372n_port_fdb_add(struct dsa_switch *ds, int port,
-					  const unsigned char *addr,
-					  u16 vid, struct dsa_db db)
+static int
+zx279133_rtl8372n_port_mst_state_set(struct dsa_switch *ds, int port,
+				     const struct switchdev_mst_state *state)
 {
 	struct zx279133_rtl8372n *priv = ds->priv;
+	u32 mask = GENMASK(port * 2 + 1, port * 2);
+	u32 reg;
+	u32 value;
+	u32 hw_state;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return -EINVAL;
+	if (!state->msti || state->msti >= RTL8372N_MSTP_INSTANCES)
+		return -ENOSPC;
+	ret = rtl8372n_stp_state_encode(state->state, &hw_state);
+	if (ret)
+		return ret;
+
+	reg = RTL8372N_MSTP_STATE_BASE +
+	      state->msti * RTL8372N_MSTP_STATE_STRIDE;
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev, reg, mask,
+				 hw_state << (port * 2));
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev, reg, &value);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		return ret;
+
+	return ((value & mask) >> (port * 2)) == hw_state ? 0 : -EIO;
+}
+
+static int
+zx279133_rtl8372n_vlan_msti_set(struct dsa_switch *ds,
+				struct dsa_bridge bridge,
+				const struct switchdev_vlan_msti *msti)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u32 entry;
+	u32 readback;
+	int ret;
+
+	if (!msti->vid || msti->vid >= VLAN_N_VID)
+		return -EINVAL;
+	if (msti->vid >= RTL8372N_TRANSPORT_VID_BASE +
+			RTL8372N_USER_PORT_MIN &&
+	    msti->vid <= RTL8372N_TRANSPORT_VID_BASE +
+			 RTL8372N_USER_PORT_MAX)
+		return -EBUSY;
+	if (!msti->msti || msti->msti >= RTL8372N_MSTP_INSTANCES)
+		return -ENOSPC;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_vlan_read(priv->switch_mdiodev, msti->vid, &entry);
+	if (ret)
+		goto out_unlock;
+	if (!(entry & RTL8372N_VLAN_MBR_MASK)) {
+		ret = -ENOENT;
+		goto out_unlock;
+	}
+	entry &= ~RTL8372N_VLAN_MSTI_MASK;
+	entry |= FIELD_PREP(RTL8372N_VLAN_MSTI_MASK, msti->msti);
+	ret = rtl8372n_vlan_write(priv->switch_mdiodev, msti->vid, entry);
+	if (!ret)
+		ret = rtl8372n_vlan_read(priv->switch_mdiodev, msti->vid,
+					 &readback);
+	if (!ret && readback != entry)
+		ret = -EIO;
+
+out_unlock:
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	return ret;
+}
+
+static int zx279133_rtl8372n_set_ageing_time(struct dsa_switch *ds,
+					     unsigned int msecs)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	unsigned int secs = DIV_ROUND_UP(msecs, MSEC_PER_SEC);
+	u32 age_unit;
+	u32 readback;
+	int ret;
+
+	/* The DAL expresses the requested seconds in 200 ms hardware ticks. */
+	secs = clamp_t(unsigned int, secs, 14, 800);
+	age_unit = secs * 5;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev, RTL8372N_L2_AGE_CTRL,
+				  RTL8372N_L2_AGE_UNIT_MASK, age_unit);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_L2_AGE_CTRL, &readback);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		return ret;
+
+	return FIELD_GET(RTL8372N_L2_AGE_UNIT_MASK, readback) == age_unit ?
+		0 : -EIO;
+}
+
+static int rtl8372n_l2_flush_dynamic(struct zx279133_rtl8372n *priv,
+				     int port, u32 mode, u16 vid)
+{
+	u32 value;
+	int attempt;
+	int ret;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_read_reg(priv->switch_mdiodev,
+				RTL8372N_L2_FLUSH_CMD, &value);
+	if (ret)
+		goto out_unlock;
+	if (value & RTL8372N_L2_FLUSH_BUSY) {
+		ret = -EBUSY;
+		goto out_unlock;
+	}
+
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+				  RTL8372N_L2_FLUSH_MODE,
+				  RTL8372N_L2_FLUSH_MODE_MASK |
+				  RTL8372N_L2_FLUSH_STATIC, mode);
+	if (ret)
+		goto out_unlock;
+	if (mode == RTL8372N_L2_FLUSH_MODE_VID) {
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_L2_FLUSH_XID,
+					  RTL8372N_L2_FLUSH_VID_MASK, vid);
+		if (ret)
+			goto out_unlock;
+	}
+	ret = rtl8372n_write_reg(priv->switch_mdiodev,
+				 RTL8372N_L2_FLUSH_CMD,
+				 RTL8372N_L2_FLUSH_START | BIT(port));
+	if (ret)
+		goto out_unlock;
+
+	for (attempt = 0; attempt < 100; attempt++) {
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					RTL8372N_L2_FLUSH_CMD, &value);
+		if (ret || !(value & RTL8372N_L2_FLUSH_BUSY))
+			break;
+		usleep_range(1000, 1100);
+	}
+	if (!ret && value & RTL8372N_L2_FLUSH_BUSY)
+		ret = -ETIMEDOUT;
+
+out_unlock:
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	return ret;
+}
+
+static void zx279133_rtl8372n_port_fast_age(struct dsa_switch *ds, int port)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return;
+
+	ret = rtl8372n_l2_flush_dynamic(priv, port,
+					RTL8372N_L2_FLUSH_MODE_PORT, 0);
+	if (ret)
+		dev_err(ds->dev, "failed to flush dynamic FDB on port %d: %d\n",
+			port, ret);
+}
+
+static int zx279133_rtl8372n_port_vlan_fast_age(struct dsa_switch *ds,
+						 int port, u16 vid)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX ||
+	    !vid || vid > VLAN_VID_MASK)
+		return -EINVAL;
+
+	return rtl8372n_l2_flush_dynamic(priv, port,
+					 RTL8372N_L2_FLUSH_MODE_VID, vid);
+}
+
+static int rtl8372n_l2_uc_program_locked(struct zx279133_rtl8372n *priv,
+					 int port,
+					 const unsigned char *addr,
+					 u16 vid)
+{
 	u32 words[3];
 	u32 readback[3];
 	u16 fid = vid ? vid : 1;
 	bool ivl = !!vid;
 	int ret;
 
-	if (port == RTL8372N_CPU_PORT)
-		return 0;
-	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
-		return -EINVAL;
-	if (!is_unicast_ether_addr(addr) || vid > 4095)
-		return -EINVAL;
-	if (vid && test_bit(port, &priv->vlan_filtering_mask))
-		return -EOPNOTSUPP;
-
 	rtl8372n_l2_encode_key(addr, fid, ivl, words);
 	words[1] |= (u32)(port & 0x3) << 30;
 	words[2] = (port >> 2) | (6 << 2) | BIT(5) | BIT(16);
 
-	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
 	ret = rtl8372n_l2_write_words(priv->switch_mdiodev, words);
 	if (!ret)
 		ret = rtl8372n_l2_lookup(priv->switch_mdiodev, addr, fid, ivl,
-					 readback);
-	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+					 NULL, readback);
 	if (ret)
 		return ret;
 	if (readback[0] != words[0] || readback[1] != words[1] ||
 	    readback[2] != words[2]) {
-		dev_err(ds->dev,
+		dev_err(priv->ds->dev,
 			"FDB add readback mismatch for %pM vid %u port %d: %08x/%08x/%08x\n",
 			addr, vid, port, readback[0], readback[1], readback[2]);
 		return -EIO;
@@ -2156,14 +4810,39 @@ static int zx279133_rtl8372n_port_fdb_add(struct dsa_switch *ds, int port,
 	return 0;
 }
 
-static int zx279133_rtl8372n_port_fdb_del(struct dsa_switch *ds, int port,
+static int rtl8372n_l2_uc_delete_locked(struct zx279133_rtl8372n *priv,
+					const unsigned char *addr, u16 vid)
+{
+	u32 words[3];
+	u16 fid = vid ? vid : 1;
+	bool ivl = !!vid;
+	int ret;
+
+	ret = rtl8372n_l2_lookup(priv->switch_mdiodev, addr, fid, ivl,
+				 NULL, words);
+	if (ret == -ENOENT)
+		return 0;
+	if (ret)
+		return ret;
+
+	rtl8372n_l2_encode_key(addr, fid, ivl, words);
+	ret = rtl8372n_l2_write_words(priv->switch_mdiodev, words);
+	if (ret)
+		return ret;
+
+	ret = rtl8372n_l2_lookup(priv->switch_mdiodev, addr, fid, ivl,
+				 NULL, words);
+	if (ret == -ENOENT)
+		return 0;
+
+	return ret ? ret : -EIO;
+}
+
+static int zx279133_rtl8372n_port_fdb_add(struct dsa_switch *ds, int port,
 					  const unsigned char *addr,
 					  u16 vid, struct dsa_db db)
 {
 	struct zx279133_rtl8372n *priv = ds->priv;
-	u32 words[3];
-	u16 fid = vid ? vid : 1;
-	bool ivl = !!vid;
 	int ret;
 
 	if (port == RTL8372N_CPU_PORT)
@@ -2172,30 +4851,30 @@ static int zx279133_rtl8372n_port_fdb_del(struct dsa_switch *ds, int port,
 		return -EINVAL;
 	if (!is_unicast_ether_addr(addr) || vid > 4095)
 		return -EINVAL;
-	if (vid && test_bit(port, &priv->vlan_filtering_mask))
-		return -EOPNOTSUPP;
 
 	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
-	ret = rtl8372n_l2_lookup(priv->switch_mdiodev, addr, fid, ivl, words);
-	if (ret == -ENOENT) {
-		ret = 0;
-		goto out_unlock;
-	}
-	if (ret)
-		goto out_unlock;
+	ret = rtl8372n_l2_uc_program_locked(priv, port, addr, vid);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
 
-	rtl8372n_l2_encode_key(addr, fid, ivl, words);
-	ret = rtl8372n_l2_write_words(priv->switch_mdiodev, words);
-	if (!ret) {
-		ret = rtl8372n_l2_lookup(priv->switch_mdiodev, addr, fid, ivl,
-					 words);
-		if (ret == -ENOENT)
-			ret = 0;
-		else if (!ret)
-			ret = -EIO;
-	}
+	return ret;
+}
 
-out_unlock:
+static int zx279133_rtl8372n_port_fdb_del(struct dsa_switch *ds, int port,
+					  const unsigned char *addr,
+					  u16 vid, struct dsa_db db)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	int ret;
+
+	if (port == RTL8372N_CPU_PORT)
+		return 0;
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return -EINVAL;
+	if (!is_unicast_ether_addr(addr) || vid > 4095)
+		return -EINVAL;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_l2_uc_delete_locked(priv, addr, vid);
 	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
 	return ret;
 }
@@ -2218,9 +4897,6 @@ static int zx279133_rtl8372n_port_fdb_dump(struct dsa_switch *ds, int port,
 
 	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
 		return -EINVAL;
-	if (test_bit(port, &priv->vlan_filtering_mask))
-		return 0;
-
 	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
 	for (;;) {
 		ret = rtl8372n_l2_next_uc(priv->switch_mdiodev, start, &entry,
@@ -2258,69 +4934,1935 @@ static int zx279133_rtl8372n_port_fdb_dump(struct dsa_switch *ds, int port,
 	return ret;
 }
 
+static u16 rtl8372n_l2_mc_port_mask(const u32 words[3])
+{
+	return ((words[1] >> 30) & GENMASK(1, 0)) |
+	       ((words[2] & GENMASK(7, 0)) << 2);
+}
+
+static void rtl8372n_l2_encode_mc(const unsigned char *addr, u16 fid,
+				  bool ivl, u16 port_mask, u32 words[3])
+{
+	rtl8372n_l2_encode_key(addr, fid, ivl, words);
+	words[1] |= (u32)(port_mask & GENMASK(1, 0)) << 30;
+	words[2] = (port_mask >> 2) & GENMASK(7, 0);
+}
+
+static int
+zx279133_rtl8372n_port_mdb_add(struct dsa_switch *ds, int port,
+			       const struct switchdev_obj_port_mdb *mdb,
+			       struct dsa_db db)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u32 words[3];
+	u32 readback[3];
+	u16 fid = mdb->vid ? mdb->vid : 1;
+	u16 port_mask;
+	bool ivl = !!mdb->vid;
+	int ret;
+
+	if ((port < RTL8372N_USER_PORT_MIN ||
+	     port > RTL8372N_USER_PORT_MAX) && port != RTL8372N_CPU_PORT)
+		return -EINVAL;
+	if (!is_multicast_ether_addr(mdb->addr) ||
+	    is_broadcast_ether_addr(mdb->addr) || mdb->vid > VLAN_VID_MASK)
+		return -EINVAL;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_l2_lookup(priv->switch_mdiodev, mdb->addr, fid, ivl,
+				 NULL, words);
+	if (ret == -ENOENT)
+		port_mask = 0;
+	else if (ret)
+		goto out_unlock;
+	else
+		port_mask = rtl8372n_l2_mc_port_mask(words);
+
+	port_mask |= BIT(port);
+	port_mask &= RTL8372N_L2_MC_PORT_MASK;
+	rtl8372n_l2_encode_mc(mdb->addr, fid, ivl, port_mask, words);
+	ret = rtl8372n_l2_write_words(priv->switch_mdiodev, words);
+	if (!ret)
+		ret = rtl8372n_l2_lookup(priv->switch_mdiodev, mdb->addr, fid,
+					 ivl, NULL, readback);
+	if (!ret && (readback[0] != words[0] || readback[1] != words[1] ||
+		     readback[2] != words[2]))
+		ret = -EIO;
+
+out_unlock:
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		dev_err(ds->dev,
+			"MDB add failed for %pM vid %u port %d: %d\n",
+			mdb->addr, mdb->vid, port, ret);
+	return ret;
+}
+
+static int
+zx279133_rtl8372n_port_mdb_del(struct dsa_switch *ds, int port,
+			       const struct switchdev_obj_port_mdb *mdb,
+			       struct dsa_db db)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u32 words[3];
+	u32 readback[3];
+	u16 address;
+	u16 fid = mdb->vid ? mdb->vid : 1;
+	u16 port_mask;
+	bool ivl = !!mdb->vid;
+	int ret;
+
+	if ((port < RTL8372N_USER_PORT_MIN ||
+	     port > RTL8372N_USER_PORT_MAX) && port != RTL8372N_CPU_PORT)
+		return -EINVAL;
+	if (!is_multicast_ether_addr(mdb->addr) ||
+	    is_broadcast_ether_addr(mdb->addr) || mdb->vid > VLAN_VID_MASK)
+		return -EINVAL;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_l2_lookup(priv->switch_mdiodev, mdb->addr, fid, ivl,
+				 &address, words);
+	if (ret == -ENOENT) {
+		ret = 0;
+		goto out_unlock;
+	}
+	if (ret)
+		goto out_unlock;
+
+	port_mask = rtl8372n_l2_mc_port_mask(words) & ~BIT(port);
+	if (port_mask) {
+		rtl8372n_l2_encode_mc(mdb->addr, fid, ivl, port_mask, words);
+		ret = rtl8372n_l2_write_words(priv->switch_mdiodev, words);
+	} else {
+		ret = rtl8372n_l2_clear(priv->switch_mdiodev, address);
+	}
+	if (ret)
+		goto out_unlock;
+
+	ret = rtl8372n_l2_lookup(priv->switch_mdiodev, mdb->addr, fid, ivl,
+				 NULL, readback);
+	if (!port_mask) {
+		if (ret == -ENOENT)
+			ret = 0;
+		else if (!ret)
+			ret = -EIO;
+	} else if (!ret &&
+		   (readback[0] != words[0] || readback[1] != words[1] ||
+		    readback[2] != words[2])) {
+		ret = -EIO;
+	}
+
+out_unlock:
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		dev_err(ds->dev,
+			"MDB delete failed for %pM vid %u port %d: %d\n",
+			mdb->addr, mdb->vid, port, ret);
+	return ret;
+}
+
+static int rtl8372n_lag_group_program(struct zx279133_rtl8372n *priv,
+				      unsigned int group, u16 members,
+				      u8 hash)
+{
+	struct mdio_device *mdiodev = priv->switch_mdiodev;
+	u16 member_reg = RTL8372N_TRUNK_MEMBER_BASE +
+			 group * RTL8372N_TRUNK_GROUP_STRIDE;
+	u16 hash_reg = RTL8372N_TRUNK_HASH_BASE +
+		       group * RTL8372N_TRUNK_GROUP_STRIDE;
+	u32 value;
+	int ret;
+
+	ret = rtl8372n_modify_reg(mdiodev, hash_reg,
+				  RTL8372N_TRUNK_HASH_MASK, hash);
+	if (ret)
+		return ret;
+	ret = rtl8372n_modify_reg(mdiodev, member_reg,
+				  RTL8372N_TRUNK_MEMBER_MASK, members);
+	if (ret)
+		return ret;
+	ret = rtl8372n_read_reg(mdiodev, hash_reg, &value);
+	if (ret)
+		return ret;
+	if ((value & RTL8372N_TRUNK_HASH_MASK) != hash)
+		return -EIO;
+	ret = rtl8372n_read_reg(mdiodev, member_reg, &value);
+	if (ret)
+		return ret;
+
+	return (value & RTL8372N_TRUNK_MEMBER_MASK) == members ? 0 : -EIO;
+}
+
+static u16 rtl8372n_lag_tx_mask(struct dsa_switch *ds,
+				const struct dsa_lag *lag)
+{
+	struct dsa_port *dp;
+	u16 mask = 0;
+
+	dsa_lag_foreach_port(dp, ds->dst, lag)
+		if (dp->ds == ds && dp->lag_tx_enabled)
+			mask |= BIT(dp->index);
+
+	return mask;
+}
+
+static int rtl8372n_lag_fdb_port(u16 active_mask)
+{
+	return active_mask ? __ffs(active_mask) : RTL8372N_CPU_PORT;
+}
+
+static int
+rtl8372n_lag_fdb_move_locked(struct zx279133_rtl8372n *priv,
+			     struct dsa_lag *lag, int port)
+{
+	struct dsa_mac_addr *fdb;
+	int ret;
+
+	if (!lag)
+		return 0;
+
+	list_for_each_entry(fdb, &lag->fdbs, list) {
+		ret = rtl8372n_l2_uc_program_locked(priv, port, fdb->addr,
+						    fdb->vid);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int rtl8372n_lag_update_locked(struct zx279133_rtl8372n *priv,
+				      unsigned int group,
+				      u16 new_active, u8 new_hash,
+				      struct dsa_lag *lag)
+{
+	u16 old_active = priv->lag_active_mask[group];
+	u8 old_hash = priv->lag_hash[group];
+	int old_port = rtl8372n_lag_fdb_port(old_active);
+	int new_port = rtl8372n_lag_fdb_port(new_active);
+	int ret;
+
+	if (old_port != new_port) {
+		ret = rtl8372n_lag_fdb_move_locked(priv, lag, new_port);
+		if (ret)
+			return ret;
+	}
+
+	ret = rtl8372n_lag_group_program(priv, group, new_active, new_hash);
+	if (!ret) {
+		priv->lag_active_mask[group] = new_active;
+		return 0;
+	}
+
+	if (old_port != new_port &&
+	    rtl8372n_lag_fdb_move_locked(priv, lag, old_port))
+		dev_err(priv->ds->dev,
+			"failed to restore LAG FDB destination after programming error\n");
+	if (rtl8372n_lag_group_program(priv, group, old_active, old_hash))
+		dev_err(priv->ds->dev,
+			"failed to restore LAG state after programming error\n");
+
+	return ret;
+}
+
+static struct dsa_lag *rtl8372n_lag_find(struct dsa_switch *ds,
+					 const struct dsa_lag *lag)
+{
+	struct dsa_port *dp;
+
+	dsa_switch_for_each_user_port(dp, ds)
+		if (dp->lag && dp->lag->dev == lag->dev)
+			return dp->lag;
+
+	return NULL;
+}
+
+static int rtl8372n_lag_hash(struct netdev_lag_upper_info *info, u8 *hash,
+			     struct netlink_ext_ack *extack)
+{
+	if (info->tx_type != NETDEV_LAG_TX_TYPE_HASH) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "RTL8372N only offloads hash-based LAGs");
+		return -EOPNOTSUPP;
+	}
+
+	switch (info->hash_type) {
+	case NETDEV_LAG_HASH_L2:
+		*hash = RTL8372N_TRUNK_HASH_SMAC |
+			RTL8372N_TRUNK_HASH_DMAC;
+		break;
+	case NETDEV_LAG_HASH_L23:
+		*hash = RTL8372N_TRUNK_HASH_SMAC |
+			RTL8372N_TRUNK_HASH_DMAC |
+			RTL8372N_TRUNK_HASH_SIP |
+			RTL8372N_TRUNK_HASH_DIP;
+		break;
+	case NETDEV_LAG_HASH_L34:
+		*hash = RTL8372N_TRUNK_HASH_SIP |
+			RTL8372N_TRUNK_HASH_DIP |
+			RTL8372N_TRUNK_HASH_L4_SPORT |
+			RTL8372N_TRUNK_HASH_L4_DPORT;
+		break;
+	default:
+		NL_SET_ERR_MSG_MOD(extack,
+				   "unsupported RTL8372N LAG hash policy");
+		return -EOPNOTSUPP;
+	}
+
+	return 0;
+}
+
+static int
+zx279133_rtl8372n_port_lag_join(struct dsa_switch *ds, int port,
+				struct dsa_lag lag,
+				struct netdev_lag_upper_info *info,
+				struct netlink_ext_ack *extack)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct dsa_lag *live_lag;
+	u16 new_members;
+	u16 new_active;
+	unsigned int group;
+	unsigned int i;
+	u8 hash;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return -EOPNOTSUPP;
+	if (!lag.id || lag.id > RTL8372N_TRUNK_GROUPS) {
+		NL_SET_ERR_MSG_MOD(extack, "RTL8372N supports four LAG groups");
+		return -ENOSPC;
+	}
+	ret = rtl8372n_lag_hash(info, &hash, extack);
+	if (ret)
+		return ret;
+
+	group = lag.id - 1;
+	for (i = 0; i < RTL8372N_TRUNK_GROUPS; i++)
+		if (i != group && (priv->lag_port_mask[i] & BIT(port)))
+			return -EBUSY;
+	new_members = priv->lag_port_mask[group] | BIT(port);
+	if (hweight16(new_members) > 4) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "RTL8372N supports four ports per LAG");
+		return -ENOSPC;
+	}
+	live_lag = dsa_to_port(ds, port)->lag;
+	new_active = rtl8372n_lag_tx_mask(ds, &lag) & new_members;
+
+	if (live_lag)
+		mutex_lock(&live_lag->fdb_lock);
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_lag_update_locked(priv, group, new_active, hash,
+					 live_lag);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (live_lag)
+		mutex_unlock(&live_lag->fdb_lock);
+	if (ret)
+		return ret;
+
+	priv->lag_port_mask[group] = new_members;
+	priv->lag_hash[group] = hash;
+	return 0;
+}
+
+static int zx279133_rtl8372n_port_lag_change(struct dsa_switch *ds,
+					      int port)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct dsa_port *dp = dsa_to_port(ds, port);
+	struct dsa_lag *lag = dp->lag;
+	unsigned int group;
+	u16 old_active;
+	u16 new_active;
+	int ret;
+
+	if (!lag || !lag->id || lag->id > RTL8372N_TRUNK_GROUPS)
+		return -EINVAL;
+	group = lag->id - 1;
+	old_active = priv->lag_active_mask[group];
+	new_active = rtl8372n_lag_tx_mask(ds, lag) &
+		     priv->lag_port_mask[group];
+	if (new_active == old_active)
+		return 0;
+
+	if ((old_active & BIT(port)) && !(new_active & BIT(port))) {
+		ret = rtl8372n_l2_flush_dynamic(priv, port,
+						 RTL8372N_L2_FLUSH_MODE_PORT, 0);
+		if (ret)
+			return ret;
+	}
+
+	mutex_lock(&lag->fdb_lock);
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_lag_update_locked(priv, group, new_active,
+					 priv->lag_hash[group], lag);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	mutex_unlock(&lag->fdb_lock);
+
+	return ret;
+}
+
+static int
+zx279133_rtl8372n_port_lag_leave(struct dsa_switch *ds, int port,
+				 struct dsa_lag lag)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct dsa_lag *live_lag;
+	u16 new_members;
+	u16 new_active;
+	unsigned int group;
+	u8 hash;
+	int ret;
+
+	if (!lag.id || lag.id > RTL8372N_TRUNK_GROUPS)
+		return -EINVAL;
+	group = lag.id - 1;
+	if (!(priv->lag_port_mask[group] & BIT(port)))
+		return 0;
+
+	new_members = priv->lag_port_mask[group] & ~BIT(port);
+	hash = new_members ? priv->lag_hash[group] : 0;
+	live_lag = rtl8372n_lag_find(ds, &lag);
+	new_active = rtl8372n_lag_tx_mask(ds, &lag) & new_members;
+	if (priv->lag_active_mask[group] & BIT(port)) {
+		ret = rtl8372n_l2_flush_dynamic(priv, port,
+						 RTL8372N_L2_FLUSH_MODE_PORT, 0);
+		if (ret)
+			return ret;
+	}
+
+	if (live_lag)
+		mutex_lock(&live_lag->fdb_lock);
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_lag_update_locked(priv, group, new_active, hash,
+					 live_lag);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (live_lag)
+		mutex_unlock(&live_lag->fdb_lock);
+	if (ret)
+		return ret;
+
+	priv->lag_port_mask[group] = new_members;
+	priv->lag_hash[group] = hash;
+	return 0;
+}
+
+static int zx279133_rtl8372n_lag_fdb_add(struct dsa_switch *ds,
+					  struct dsa_lag lag,
+					  const unsigned char *addr,
+					  u16 vid, struct dsa_db db)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	unsigned int group;
+	int port;
+	int ret;
+
+	if (!lag.id || lag.id > RTL8372N_TRUNK_GROUPS ||
+	    !is_unicast_ether_addr(addr) || vid > VLAN_VID_MASK)
+		return -EINVAL;
+	group = lag.id - 1;
+	if (!priv->lag_port_mask[group])
+		return -ENODEV;
+	port = rtl8372n_lag_fdb_port(priv->lag_active_mask[group]);
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_l2_uc_program_locked(priv, port, addr, vid);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static int zx279133_rtl8372n_lag_fdb_del(struct dsa_switch *ds,
+					  struct dsa_lag lag,
+					  const unsigned char *addr,
+					  u16 vid, struct dsa_db db)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	int ret;
+
+	if (!lag.id || lag.id > RTL8372N_TRUNK_GROUPS ||
+	    !is_unicast_ether_addr(addr) || vid > VLAN_VID_MASK)
+		return -EINVAL;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_l2_uc_delete_locked(priv, addr, vid);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+
+	return ret;
+}
+
+static int rtl8372n_mirror_program(struct zx279133_rtl8372n *priv,
+				   int monitor_port, u16 rx_mask,
+				   u16 tx_mask)
+{
+	struct mdio_device *mdiodev = priv->switch_mdiodev;
+	const u32 ctrl_mask = RTL8372N_MIRROR_ISOLATE |
+			      RTL8372N_MIRROR_RX_TX_SELECT |
+			      RTL8372N_MIRROR_DEST_MASK |
+			      RTL8372N_MIRROR_ENABLE;
+	const u32 policy_mask = RTL8372N_MIRROR_KEEP_ORIGINAL |
+				RTL8372N_MIRROR_RX_ISOLATION_LEAKY |
+				RTL8372N_MIRROR_TX_ISOLATION_LEAKY |
+				RTL8372N_MIRROR_RX_VLAN_LEAKY |
+				RTL8372N_MIRROR_TX_VLAN_LEAKY;
+	u32 ctrl = 0;
+	u32 policy = 0;
+	u32 port_mask;
+	u32 readback;
+	bool enable = rx_mask || tx_mask;
+	int ret;
+
+	rx_mask &= RTL8372N_L2_MC_PORT_MASK;
+	tx_mask &= RTL8372N_L2_MC_PORT_MASK;
+	port_mask = FIELD_PREP(RTL8372N_MIRROR_RX_MASK, rx_mask) |
+		    FIELD_PREP(RTL8372N_MIRROR_TX_MASK, tx_mask);
+
+	if (enable) {
+		ctrl = FIELD_PREP(RTL8372N_MIRROR_DEST_MASK, monitor_port) |
+		       RTL8372N_MIRROR_ENABLE;
+		if (rx_mask && !tx_mask)
+			ctrl |= RTL8372N_MIRROR_RX_TX_SELECT;
+		policy = RTL8372N_MIRROR_KEEP_ORIGINAL;
+		if (rx_mask)
+			policy |= RTL8372N_MIRROR_RX_ISOLATION_LEAKY |
+				  RTL8372N_MIRROR_RX_VLAN_LEAKY;
+		if (tx_mask)
+			policy |= RTL8372N_MIRROR_TX_ISOLATION_LEAKY |
+				  RTL8372N_MIRROR_TX_VLAN_LEAKY;
+	} else {
+		ret = rtl8372n_modify_reg(mdiodev, RTL8372N_MIRROR_CTRL,
+					  ctrl_mask, 0);
+		if (ret)
+			return ret;
+	}
+
+	ret = rtl8372n_write_reg(mdiodev, RTL8372N_MIRROR_PORT_MASK,
+				 port_mask);
+	if (ret)
+		return ret;
+	ret = rtl8372n_modify_reg(mdiodev, RTL8372N_MIRROR_POLICY,
+				  policy_mask, policy);
+	if (ret)
+		return ret;
+	if (enable) {
+		ret = rtl8372n_modify_reg(mdiodev, RTL8372N_MIRROR_CTRL,
+					  ctrl_mask, ctrl);
+		if (ret)
+			return ret;
+	}
+
+	ret = rtl8372n_read_reg(mdiodev, RTL8372N_MIRROR_PORT_MASK,
+				&readback);
+	if (ret)
+		return ret;
+	if ((readback & (RTL8372N_MIRROR_RX_MASK |
+			 RTL8372N_MIRROR_TX_MASK)) != port_mask)
+		return -EIO;
+	ret = rtl8372n_read_reg(mdiodev, RTL8372N_MIRROR_POLICY, &readback);
+	if (ret)
+		return ret;
+	if ((readback & policy_mask) != policy)
+		return -EIO;
+	ret = rtl8372n_read_reg(mdiodev, RTL8372N_MIRROR_CTRL, &readback);
+	if (ret)
+		return ret;
+	if ((readback & ctrl_mask) != ctrl)
+		return -EIO;
+
+	return 0;
+}
+
+static int
+zx279133_rtl8372n_port_mirror_add(struct dsa_switch *ds, int port,
+				  struct dsa_mall_mirror_tc_entry *mirror,
+				  bool ingress,
+				  struct netlink_ext_ack *extack)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u16 old_rx = priv->mirror_rx_mask;
+	u16 old_tx = priv->mirror_tx_mask;
+	u16 new_rx = old_rx;
+	u16 new_tx = old_tx;
+	int old_port = priv->mirror_port_valid ? priv->mirror_port : 0;
+	int monitor_port = mirror->to_local_port;
+	int restore_ret;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX ||
+	    monitor_port < RTL8372N_USER_PORT_MIN ||
+	    monitor_port > RTL8372N_USER_PORT_MAX)
+		return -EOPNOTSUPP;
+	if (port == monitor_port) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "mirror source and monitor port must differ");
+		return -EINVAL;
+	}
+	if (priv->mirror_port_valid && priv->mirror_port != monitor_port) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "RTL8372N supports one monitor port");
+		return -EBUSY;
+	}
+	if ((ingress ? old_rx : old_tx) & BIT(port))
+		return -EEXIST;
+
+	if (ingress)
+		new_rx |= BIT(port);
+	else
+		new_tx |= BIT(port);
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_mirror_program(priv, monitor_port, new_rx, new_tx);
+	if (ret) {
+		restore_ret = rtl8372n_mirror_program(priv, old_port,
+						       old_rx, old_tx);
+		if (restore_ret)
+			dev_err(ds->dev,
+				"failed to restore mirror state after add error: %d\n",
+				restore_ret);
+	}
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		return ret;
+
+	priv->mirror_rx_mask = new_rx;
+	priv->mirror_tx_mask = new_tx;
+	priv->mirror_port = monitor_port;
+	priv->mirror_port_valid = true;
+	return 0;
+}
+
+static void
+zx279133_rtl8372n_port_mirror_del(struct dsa_switch *ds, int port,
+				  struct dsa_mall_mirror_tc_entry *mirror)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u16 new_rx = priv->mirror_rx_mask;
+	u16 new_tx = priv->mirror_tx_mask;
+	int monitor_port;
+	int ret;
+
+	if (!priv->mirror_port_valid || priv->mirror_port != mirror->to_local_port)
+		return;
+	if (mirror->ingress)
+		new_rx &= ~BIT(port);
+	else
+		new_tx &= ~BIT(port);
+	monitor_port = (new_rx || new_tx) ? priv->mirror_port : 0;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_mirror_program(priv, monitor_port, new_rx, new_tx);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret) {
+		dev_err(ds->dev, "mirror delete failed for port %d: %d\n",
+			port, ret);
+		return;
+	}
+
+	priv->mirror_rx_mask = new_rx;
+	priv->mirror_tx_mask = new_tx;
+	if (!new_rx && !new_tx)
+		priv->mirror_port_valid = false;
+}
+
+static int
+zx279133_rtl8372n_port_policer_add(struct dsa_switch *ds, int port,
+				   struct dsa_mall_policer_tc_entry *policer)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u64 rate_kbps;
+	u32 burst_high;
+	u32 burst_low;
+	u32 rate_units;
+	u32 readback;
+	u16 burst_reg;
+	u16 drop_reg;
+	u16 port_reg;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return -EINVAL;
+
+	rate_kbps = div_u64(policer->rate_bytes_per_sec * BITS_PER_BYTE, 1000);
+	rate_units = DIV_ROUND_UP_ULL(rate_kbps,
+				      RTL8372N_IGBW_RATE_UNIT_KBPS);
+	if (!rate_units || rate_units > RTL8372N_IGBW_RATE_MASK ||
+	    policer->burst < 2 || policer->burst > RTL8372N_IGBW_BURST_MASK)
+		return -ERANGE;
+
+	port_reg = RTL8372N_IGBW_PORT_BASE +
+		   port * RTL8372N_IGBW_PORT_STRIDE;
+	drop_reg = RTL8372N_IGBW_DROP_BASE +
+		   port * RTL8372N_IGBW_DROP_STRIDE;
+	burst_reg = RTL8372N_IGBW_BURST_BASE +
+		    port * RTL8372N_IGBW_BURST_STRIDE;
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	/* tc police accounts bytes, so exclude preamble and IFG and drop excess. */
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev, RTL8372N_IGBW_CTRL,
+				  RTL8372N_IGBW_INCLUDE_IFG, 0);
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_IGBW_FC_CTRL, BIT(port), 0);
+	if (!ret)
+		ret = rtl8372n_write_reg(priv->switch_mdiodev, drop_reg,
+					 policer->burst);
+	if (!ret)
+		ret = rtl8372n_write_reg(priv->switch_mdiodev, burst_reg,
+					 policer->burst);
+	if (!ret)
+		ret = rtl8372n_write_reg(priv->switch_mdiodev, burst_reg + 4,
+					 policer->burst / 2);
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev, port_reg,
+					  RTL8372N_IGBW_ENABLE |
+					  RTL8372N_IGBW_RATE_MASK,
+					  RTL8372N_IGBW_ENABLE | rate_units);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev, port_reg,
+					&readback);
+	if (!ret && (readback & (RTL8372N_IGBW_ENABLE |
+				RTL8372N_IGBW_RATE_MASK)) !=
+		    (RTL8372N_IGBW_ENABLE | rate_units))
+		ret = -EIO;
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev, drop_reg,
+					&readback);
+	if (!ret && readback != policer->burst)
+		ret = -EIO;
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					burst_reg, &burst_low);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev,
+					burst_reg + 4, &burst_high);
+	if (!ret && (burst_low != policer->burst ||
+		     burst_high != policer->burst / 2))
+		ret = -EIO;
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_IGBW_LB_RESET,
+					  BIT(port), BIT(port));
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_IGBW_LB_RESET,
+					  BIT(port), 0);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	return ret;
+}
+
+static void zx279133_rtl8372n_port_policer_del(struct dsa_switch *ds, int port)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u16 port_reg;
+	int ret;
+
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return;
+
+	port_reg = RTL8372N_IGBW_PORT_BASE +
+		   port * RTL8372N_IGBW_PORT_STRIDE;
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_modify_reg(priv->switch_mdiodev, port_reg,
+				  RTL8372N_IGBW_ENABLE, 0);
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_IGBW_LB_RESET,
+					  BIT(port), BIT(port));
+	if (!ret)
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev,
+					  RTL8372N_IGBW_LB_RESET,
+					  BIT(port), 0);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		dev_err(ds->dev, "failed to disable ingress policer on port %d: %d\n",
+			port, ret);
+}
+
+static int rtl8372n_acl_sync(struct zx279133_rtl8372n *priv)
+{
+	unsigned int old_count = priv->acl_hw_count;
+	unsigned int template;
+	unsigned int hw_index = 0;
+	unsigned int index;
+	bool first;
+	int ret;
+
+	ret = rtl8372n_acl_port_ranges_sync(priv);
+	if (ret)
+		return ret;
+
+	for (index = 0; index < priv->acl_count; index++) {
+		first = true;
+		for_each_set_bit(template, &priv->acl[index].templates,
+				 RTL8372N_ACL_TEMPLATES) {
+			ret = rtl8372n_acl_rule_write(priv->switch_mdiodev,
+						      hw_index++,
+						      &priv->acl[index],
+						      &priv->acl[index].match[template],
+						      first);
+			if (ret)
+				return ret;
+			first = false;
+		}
+	}
+	for (index = hw_index; index < old_count; index++) {
+		ret = rtl8372n_acl_rule_clear(priv->switch_mdiodev, index);
+		if (ret)
+			return ret;
+	}
+	priv->acl_hw_count = hw_index;
+
+	return 0;
+}
+
+static unsigned int
+rtl8372n_acl_hw_rules(const struct zx279133_rtl8372n *priv)
+{
+	unsigned int count = 0;
+	unsigned int index;
+
+	for (index = 0; index < priv->acl_count; index++)
+		count += hweight_long(priv->acl[index].templates);
+
+	return count;
+}
+
+static struct rtl8372n_acl_match *
+rtl8372n_acl_match_get(struct rtl8372n_acl_entry *entry,
+			unsigned int template)
+{
+	struct rtl8372n_acl_match *match = &entry->match[template];
+
+	if (!(entry->templates & BIT(template))) {
+		entry->templates |= BIT(template);
+		match->info_data = template |
+			BIT(entry->port) << RTL8372N_ACL_ACTIVE_PORT_SHIFT;
+		match->info_mask = RTL8372N_ACL_TEMPLATE_MASK |
+			RTL8372N_ALL_PORT_MASK <<
+			RTL8372N_ACL_ACTIVE_PORT_SHIFT;
+	}
+
+	return match;
+}
+
+static void rtl8372n_acl_port_ranges_encode(struct rtl8372n_acl_entry *entry)
+{
+	struct rtl8372n_acl_match *match;
+	unsigned int index;
+
+	if (!entry->port_range_count)
+		return;
+
+	match = rtl8372n_acl_match_get(entry, 4);
+	match->data[2] = 0;
+	match->mask[2] = 0;
+	for (index = 0; index < entry->port_range_count; index++) {
+		match->data[2] |= BIT(entry->port_range[index].index);
+		match->mask[2] |= BIT(entry->port_range[index].index);
+	}
+}
+
+static int
+rtl8372n_acl_port_range_get(struct zx279133_rtl8372n *priv,
+			    struct rtl8372n_acl_port_range *range)
+{
+	struct rtl8372n_acl_port_range_state *state;
+	int free = -1;
+	unsigned int index;
+
+	for (index = 0; index < RTL8372N_ACL_RANGES; index++) {
+		state = &priv->acl_port_range[index];
+		if (state->type == range->type && state->lower == range->lower &&
+		    state->upper == range->upper) {
+			state->refs++;
+			range->index = index;
+			return 0;
+		}
+		if (!state->refs && free < 0)
+			free = index;
+	}
+	if (free < 0)
+		return -ENOSPC;
+
+	state = &priv->acl_port_range[free];
+	state->lower = range->lower;
+	state->upper = range->upper;
+	state->type = range->type;
+	state->refs = 1;
+	range->index = free;
+	return 0;
+}
+
+static void
+rtl8372n_acl_port_ranges_put(struct zx279133_rtl8372n *priv,
+			     const struct rtl8372n_acl_entry *entry)
+{
+	unsigned int index;
+
+	for (index = 0; index < entry->port_range_count; index++)
+		priv->acl_port_range[entry->port_range[index].index].refs--;
+}
+
+static int
+rtl8372n_acl_port_ranges_get(struct zx279133_rtl8372n *priv,
+			     struct rtl8372n_acl_entry *entry)
+{
+	unsigned int index;
+	int ret;
+
+	for (index = 0; index < entry->port_range_count; index++) {
+		ret = rtl8372n_acl_port_range_get(priv,
+						  &entry->port_range[index]);
+		if (ret) {
+			while (index--)
+				priv->acl_port_range[
+					entry->port_range[index].index].refs--;
+			return ret;
+		}
+	}
+	rtl8372n_acl_port_ranges_encode(entry);
+
+	return 0;
+}
+
+static int rtl8372n_acl_find(struct zx279133_rtl8372n *priv, int port,
+			      unsigned long cookie)
+{
+	unsigned int index;
+
+	for (index = 0; index < priv->acl_count; index++)
+		if (priv->acl[index].port == port &&
+		    priv->acl[index].cookie == cookie)
+			return index;
+
+	return -ENOENT;
+}
+
+static int
+rtl8372n_acl_parse_dscp(const struct flow_action_entry *act,
+			struct rtl8372n_acl_entry *entry, bool *ipv4,
+			struct netlink_ext_ack *extack)
+{
+	u32 mask = be32_to_cpu((__force __be32)act->mangle.mask);
+	u32 value = be32_to_cpu((__force __be32)act->mangle.val);
+	u32 dscp;
+
+	if (act->mangle.offset) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "RTL8372N DSCP remark requires the first IP word");
+		return -EOPNOTSUPP;
+	}
+
+	switch (act->mangle.htype) {
+	case FLOW_ACT_MANGLE_HDR_TYPE_IP4:
+		if (mask != 0xff03ffff || value & ~GENMASK(23, 18))
+			goto invalid;
+		dscp = FIELD_GET(GENMASK(23, 18), value);
+		*ipv4 = true;
+		break;
+	case FLOW_ACT_MANGLE_HDR_TYPE_IP6:
+		if (mask != 0xf03fffff || value & ~GENMASK(27, 22))
+			goto invalid;
+		dscp = FIELD_GET(GENMASK(27, 22), value);
+		*ipv4 = false;
+		break;
+	default:
+		goto invalid;
+	}
+
+	entry->action_ctrl |= RTL8372N_ACL_ACTION_REMARK;
+	entry->action[1] |= RTL8372N_ACL_REMARK_DSCP |
+		FIELD_PREP(RTL8372N_ACL_REMARK_VALUE_MASK, dscp);
+	return 0;
+
+invalid:
+	NL_SET_ERR_MSG_MOD(extack,
+			   "RTL8372N pedit supports DSCP set with ECN retained only");
+	return -EOPNOTSUPP;
+}
+
+static int
+rtl8372n_acl_parse_vlan_action(const struct flow_action_entry *act,
+			       struct rtl8372n_acl_entry *entry,
+			       bool *remark,
+			       struct netlink_ext_ack *extack)
+{
+	if (act->id == FLOW_ACTION_VLAN_POP) {
+		entry->action_ctrl |= RTL8372N_ACL_ACTION_CVLAN;
+		entry->action[0] |= FIELD_PREP(RTL8372N_ACL_CACT_EXT_MASK,
+					      RTL8372N_ACL_CACT_EXT_TAG_ONLY);
+		return 0;
+	}
+
+	if (act->vlan.proto != htons(ETH_P_8021Q) ||
+	    act->vlan.vid > VLAN_VID_MASK || act->vlan.prio > 7) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "RTL8372N ACL supports 802.1Q C-VLAN actions only");
+		return -EOPNOTSUPP;
+	}
+	if (*remark) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "RTL8372N has one shared PCP/DSCP remark action");
+		return -EOPNOTSUPP;
+	}
+
+	entry->action_ctrl |= RTL8372N_ACL_ACTION_CVLAN;
+	entry->action[0] |= RTL8372N_ACL_CACT_EGRESS |
+		FIELD_PREP(RTL8372N_ACL_CACT_EXT_MASK,
+			   RTL8372N_ACL_CACT_EXT_BOTH) |
+		FIELD_PREP(RTL8372N_ACL_CVID_MASK, act->vlan.vid) |
+		FIELD_PREP(RTL8372N_ACL_CTAG_FORMAT_MASK,
+			   RTL8372N_ACL_CTAG_FORMAT_TAG);
+	entry->action_ctrl |= RTL8372N_ACL_ACTION_REMARK;
+	entry->action[1] |= FIELD_PREP(RTL8372N_ACL_REMARK_VALUE_MASK,
+					act->vlan.prio);
+	*remark = true;
+	return 0;
+}
+
+static int
+rtl8372n_acl_parse_action(struct dsa_switch *ds, int port,
+			  struct flow_rule *rule,
+			  struct rtl8372n_acl_entry *entry,
+			  struct netlink_ext_ack *extack)
+{
+	const struct flow_action_entry *act;
+	struct dsa_port *to_dp;
+	unsigned int actions = 0;
+	bool forwarding = false;
+	bool priority = false;
+	bool remark = false;
+	bool remark_ipv4 = false;
+	bool vlan_action = false;
+	u32 csum_flags = 0;
+	u32 fwd_mask = 0;
+	u32 fwd_action = 0;
+	int index;
+
+	if (flow_action_has_entries(&rule->action)) {
+		act = flow_action_first_entry_get(&rule->action);
+		if (act->hw_stats == FLOW_ACTION_HW_STATS_DISABLED) {
+			if (!flow_action_mixed_hw_stats_check(&rule->action,
+						      extack))
+				return -EOPNOTSUPP;
+		} else {
+			if (!flow_action_hw_stats_check(
+					&rule->action, extack,
+					FLOW_ACTION_HW_STATS_DELAYED_BIT))
+				return -EOPNOTSUPP;
+			entry->stats_enabled = true;
+		}
+	}
+
+	flow_action_for_each(index, act, &rule->action) {
+		actions++;
+		switch (act->id) {
+		case FLOW_ACTION_POLICE:
+			if (entry->meter_valid) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "multiple RTL8372N meters are unsupported");
+				return -EOPNOTSUPP;
+			}
+			if (act->police.exceed.act_id != FLOW_ACTION_DROP ||
+			    (act->police.notexceed.act_id != FLOW_ACTION_PIPE &&
+			     act->police.notexceed.act_id != FLOW_ACTION_ACCEPT)) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "RTL8372N meter requires conform pass and exceed drop");
+				return -EOPNOTSUPP;
+			}
+			if (act->police.peakrate_bytes_ps || act->police.avrate ||
+			    act->police.overhead || act->police.rate_pkt_ps ||
+			    act->police.burst_pkt) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "RTL8372N meter supports byte rate and burst only");
+				return -EOPNOTSUPP;
+			}
+			entry->meter_rate_kbps = DIV_ROUND_UP_ULL(
+				act->police.rate_bytes_ps * BITS_PER_BYTE, 1000);
+			entry->meter_burst = act->police.burst;
+			if (!entry->meter_rate_kbps ||
+			    entry->meter_rate_kbps > RTL8372N_ACL_METER_RATE_MAX ||
+			    !entry->meter_burst ||
+			    entry->meter_burst > RTL8372N_ACL_METER_BURST_MAX) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "RTL8372N meter rate or burst is out of range");
+				return -ERANGE;
+			}
+			entry->meter_valid = true;
+			break;
+		case FLOW_ACTION_DROP:
+			if (forwarding) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "multiple RTL8372N forwarding actions are unsupported");
+				return -EOPNOTSUPP;
+			}
+			forwarding = true;
+			fwd_action = RTL8372N_ACL_FWD_REDIRECT;
+			break;
+		case FLOW_ACTION_REDIRECT:
+		case FLOW_ACTION_MIRRED:
+			if (forwarding) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "multiple RTL8372N forwarding actions are unsupported");
+				return -EOPNOTSUPP;
+			}
+			to_dp = dsa_port_from_netdev(act->dev);
+			if (IS_ERR(to_dp) || to_dp->ds != ds ||
+			    !dsa_port_is_user(to_dp)) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "destination is not an RTL8372N user port");
+				return -EOPNOTSUPP;
+			}
+			forwarding = true;
+			fwd_mask = BIT(to_dp->index);
+			fwd_action = act->id == FLOW_ACTION_REDIRECT ?
+				RTL8372N_ACL_FWD_REDIRECT :
+				RTL8372N_ACL_FWD_MIRROR;
+			break;
+		case FLOW_ACTION_ACCEPT:
+			if (forwarding) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "multiple RTL8372N forwarding actions are unsupported");
+				return -EOPNOTSUPP;
+			}
+			forwarding = true;
+			break;
+		case FLOW_ACTION_TRAP:
+			if (forwarding) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "multiple RTL8372N forwarding actions are unsupported");
+				return -EOPNOTSUPP;
+			}
+			forwarding = true;
+			/* Preserve DSA source identity by assigning the ingress SVID,
+			 * then use normal service-port egress instead of the tagless
+			 * external-CPU exception path.
+			 */
+			entry->action_ctrl |= RTL8372N_ACL_ACTION_SVLAN;
+			entry->action[0] |=
+				FIELD_PREP(RTL8372N_ACL_SACT_MASK,
+					   RTL8372N_ACL_SACT_INGRESS) |
+				FIELD_PREP(RTL8372N_ACL_SVID_MASK,
+					   RTL8372N_TRANSPORT_VID_BASE + port);
+			fwd_action = RTL8372N_ACL_FWD_REDIRECT;
+			fwd_mask = BIT(RTL8372N_CPU_PORT);
+			break;
+		case FLOW_ACTION_PRIORITY:
+			if (priority || act->priority > 7) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "RTL8372N priority must be a single value from 0 to 7");
+				return -EOPNOTSUPP;
+			}
+			priority = true;
+			entry->action_ctrl |= RTL8372N_ACL_ACTION_PRIORITY;
+			entry->action[1] |= FIELD_PREP(RTL8372N_ACL_PRIORITY_MASK,
+							act->priority);
+			break;
+		case FLOW_ACTION_MANGLE:
+			if (remark) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "multiple RTL8372N remark actions are unsupported");
+				return -EOPNOTSUPP;
+			}
+			if (rtl8372n_acl_parse_dscp(act, entry, &remark_ipv4,
+						     extack))
+				return -EOPNOTSUPP;
+			remark = true;
+			break;
+		case FLOW_ACTION_CSUM:
+			if (csum_flags) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "multiple RTL8372N checksum actions are unsupported");
+				return -EOPNOTSUPP;
+			}
+			csum_flags = act->csum_flags;
+			break;
+		case FLOW_ACTION_VLAN_PUSH:
+		case FLOW_ACTION_VLAN_POP:
+		case FLOW_ACTION_VLAN_MANGLE:
+			if (vlan_action) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "multiple RTL8372N VLAN actions are unsupported");
+				return -EOPNOTSUPP;
+			}
+			if (rtl8372n_acl_parse_vlan_action(act, entry, &remark,
+							    extack))
+				return -EOPNOTSUPP;
+			vlan_action = true;
+			break;
+		default:
+			NL_SET_ERR_MSG_MOD(extack, "unsupported RTL8372N ACL action");
+			return -EOPNOTSUPP;
+		}
+	}
+	if (!actions) {
+		NL_SET_ERR_MSG_MOD(extack, "RTL8372N ACL requires an action");
+		return -EOPNOTSUPP;
+	}
+	if (csum_flags &&
+	    (!remark || !remark_ipv4 ||
+	     csum_flags != TCA_CSUM_UPDATE_FLAG_IPV4HDR)) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "RTL8372N checksum action is valid only for IPv4 DSCP remark");
+		return -EOPNOTSUPP;
+	}
+
+	if (entry->meter_valid)
+		entry->action_ctrl |= RTL8372N_ACL_ACTION_POLICE;
+	if (fwd_action) {
+		entry->action_ctrl |= RTL8372N_ACL_ACTION_FWD;
+		entry->action[1] |= fwd_action << 17 | fwd_mask << 21;
+	}
+
+	return 0;
+}
+
+static int
+rtl8372n_acl_parse_l2(struct flow_rule *rule,
+		      struct rtl8372n_acl_entry *entry)
+{
+	struct rtl8372n_acl_match *match;
+	struct flow_match_eth_addrs eth;
+	struct flow_match_basic basic;
+	unsigned int i;
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC)) {
+		flow_rule_match_basic(rule, &basic);
+		if (basic.mask->n_proto) {
+			bool vlan_proto;
+
+			vlan_proto = basic.mask->n_proto == htons(0xffff) &&
+				(basic.key->n_proto == htons(ETH_P_8021Q) ||
+				 basic.key->n_proto == htons(ETH_P_8021AD)) &&
+				(flow_rule_match_key(rule,
+						     FLOW_DISSECTOR_KEY_VLAN) ||
+				 flow_rule_match_key(rule,
+						     FLOW_DISSECTOR_KEY_CVLAN));
+			/* The parsed EtherType is after any recognized VLAN tags. */
+			if (!vlan_proto) {
+				match = rtl8372n_acl_match_get(entry, 0);
+				match->data[6] = be16_to_cpu(basic.key->n_proto);
+				match->mask[6] = be16_to_cpu(basic.mask->n_proto);
+			}
+		}
+	}
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_ETH_ADDRS)) {
+		flow_rule_match_eth_addrs(rule, &eth);
+		match = rtl8372n_acl_match_get(entry, 0);
+		for (i = 0; i < ETH_ALEN / 2; i++) {
+			match->data[i] = eth.key->dst[5 - i * 2] |
+				(u16)eth.key->dst[4 - i * 2] << 8;
+			match->mask[i] = eth.mask->dst[5 - i * 2] |
+				(u16)eth.mask->dst[4 - i * 2] << 8;
+			match->data[i + 3] = eth.key->src[5 - i * 2] |
+				(u16)eth.key->src[4 - i * 2] << 8;
+			match->mask[i + 3] = eth.mask->src[5 - i * 2] |
+				(u16)eth.mask->src[4 - i * 2] << 8;
+		}
+	}
+
+	return 0;
+}
+
+static int
+rtl8372n_acl_field_set(struct rtl8372n_acl_match *match, unsigned int field,
+		       u16 data, u16 mask, struct netlink_ext_ack *extack)
+{
+	if ((match->data[field] ^ data) & match->mask[field] & mask) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "flower keys require conflicting RTL8372N ACL fields");
+		return -EOPNOTSUPP;
+	}
+
+	match->data[field] = (match->data[field] & ~mask) | (data & mask);
+	match->mask[field] |= mask;
+	return 0;
+}
+
+static int
+rtl8372n_acl_parse_vlan_one(struct rtl8372n_acl_entry *entry,
+			    const struct flow_match_vlan *vlan, bool inner,
+			    bool next_is_vlan,
+			    __be16 outer_proto,
+			    struct netlink_ext_ack *extack)
+{
+	struct rtl8372n_acl_match *match;
+	u16 data;
+	u16 mask;
+	u32 tag;
+	int field;
+	int ret;
+
+	if (vlan->mask->vlan_tpid &&
+	    vlan->mask->vlan_tpid != htons(0xffff)) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "RTL8372N requires an exact VLAN TPID");
+		return -EOPNOTSUPP;
+	}
+
+	if (inner) {
+		if (vlan->mask->vlan_tpid &&
+		    vlan->key->vlan_tpid != htons(ETH_P_8021Q)) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "RTL8372N inner VLAN key must be an 802.1Q C-tag");
+			return -EOPNOTSUPP;
+		}
+		field = 3;
+		tag = RTL8372N_ACL_TAG_CTAG;
+	} else {
+		if (outer_proto != htons(ETH_P_8021Q) &&
+		    outer_proto != htons(ETH_P_8021AD)) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "VLAN keys require an 802.1Q or 802.1ad protocol");
+			return -EOPNOTSUPP;
+		}
+		if (vlan->mask->vlan_tpid &&
+		    vlan->key->vlan_tpid != outer_proto) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "flower VLAN TPID conflicts with its protocol");
+			return -EOPNOTSUPP;
+		}
+		field = outer_proto == htons(ETH_P_8021AD) ? 4 : 3;
+		tag = outer_proto == htons(ETH_P_8021AD) ?
+			RTL8372N_ACL_TAG_STAG : RTL8372N_ACL_TAG_CTAG;
+	}
+
+	match = rtl8372n_acl_match_get(entry, 4);
+	match->info_data |= tag;
+	match->info_mask |= tag;
+	data = vlan->key->vlan_id |
+		vlan->key->vlan_dei << 12 |
+		vlan->key->vlan_priority << 13;
+	mask = vlan->mask->vlan_id |
+		vlan->mask->vlan_dei << 12 |
+		vlan->mask->vlan_priority << 13;
+	ret = rtl8372n_acl_field_set(match, field, data, mask, extack);
+	if (ret || next_is_vlan || !vlan->mask->vlan_eth_type)
+		return ret;
+
+	match = rtl8372n_acl_match_get(entry, 0);
+	return rtl8372n_acl_field_set(match, 6,
+				      be16_to_cpu(vlan->key->vlan_eth_type),
+				      be16_to_cpu(vlan->mask->vlan_eth_type),
+				      extack);
+}
+
+static int
+rtl8372n_acl_parse_vlan(struct flow_rule *rule,
+			struct rtl8372n_acl_entry *entry,
+			__be16 protocol,
+			struct netlink_ext_ack *extack)
+{
+	struct flow_match_vlan outer;
+	struct flow_match_vlan inner;
+	int ret;
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN) &&
+	    flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN)) {
+		flow_rule_match_vlan(rule, &outer);
+		if (protocol != htons(ETH_P_8021AD) ||
+		    outer.mask->vlan_eth_type != htons(0xffff) ||
+		    outer.key->vlan_eth_type != htons(ETH_P_8021Q)) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "stacked RTL8372N VLAN matching requires an outer 802.1ad S-tag");
+			return -EOPNOTSUPP;
+		}
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
+		flow_rule_match_vlan(rule, &outer);
+		ret = rtl8372n_acl_parse_vlan_one(entry, &outer, false,
+						  flow_rule_match_key(rule,
+						      FLOW_DISSECTOR_KEY_CVLAN),
+						  protocol, extack);
+		if (ret)
+			return ret;
+	}
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN)) {
+		flow_rule_match_cvlan(rule, &inner);
+		ret = rtl8372n_acl_parse_vlan_one(entry, &inner, true, false,
+						  protocol,
+						  extack);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int
+rtl8372n_acl_parse_port_ranges(struct flow_rule *rule,
+			       struct rtl8372n_acl_entry *entry,
+			       const struct flow_match_basic *basic,
+			       struct netlink_ext_ack *extack)
+{
+	struct flow_match_ports_range ports;
+	struct rtl8372n_acl_port_range *range;
+	u16 lower;
+	u16 upper;
+
+	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS_RANGE))
+		return 0;
+	if (basic->mask->ip_proto != 0xff ||
+	    (basic->key->ip_proto != IPPROTO_TCP &&
+	     basic->key->ip_proto != IPPROTO_UDP)) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "L4 port ranges require exact TCP or UDP matching");
+		return -EOPNOTSUPP;
+	}
+
+	flow_rule_match_ports_range(rule, &ports);
+	if (ports.mask->tp_min.src || ports.mask->tp_max.src) {
+		if (ports.mask->tp_min.src != htons(0xffff) ||
+		    ports.mask->tp_max.src != htons(0xffff)) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "RTL8372N requires exact source range bounds");
+			return -EOPNOTSUPP;
+		}
+		lower = be16_to_cpu(ports.key->tp_min.src);
+		upper = be16_to_cpu(ports.key->tp_max.src);
+		if (lower > upper)
+			return -EINVAL;
+		range = &entry->port_range[entry->port_range_count++];
+		range->type = RTL8372N_ACL_PORT_RANGE_SRC;
+		range->lower = lower;
+		range->upper = upper;
+	}
+	if (ports.mask->tp_min.dst || ports.mask->tp_max.dst) {
+		if (ports.mask->tp_min.dst != htons(0xffff) ||
+		    ports.mask->tp_max.dst != htons(0xffff)) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "RTL8372N requires exact destination range bounds");
+			return -EOPNOTSUPP;
+		}
+		lower = be16_to_cpu(ports.key->tp_min.dst);
+		upper = be16_to_cpu(ports.key->tp_max.dst);
+		if (lower > upper)
+			return -EINVAL;
+		range = &entry->port_range[entry->port_range_count++];
+		range->type = RTL8372N_ACL_PORT_RANGE_DST;
+		range->lower = lower;
+		range->upper = upper;
+	}
+	if (!entry->port_range_count) {
+		NL_SET_ERR_MSG_MOD(extack, "empty L4 port range");
+		return -EOPNOTSUPP;
+	}
+	rtl8372n_acl_match_get(entry, 4);
+
+	return 0;
+}
+
+static int
+rtl8372n_acl_parse_ipv4(struct flow_rule *rule,
+			struct rtl8372n_acl_entry *entry,
+			struct netlink_ext_ack *extack)
+{
+	struct rtl8372n_acl_match *match;
+	struct flow_match_ipv4_addrs addrs;
+	struct flow_match_ports ports;
+	struct flow_match_basic basic;
+	struct flow_match_ip ip;
+	u32 value;
+	u32 mask;
+
+	flow_rule_match_basic(rule, &basic);
+	if (basic.mask->n_proto != htons(0xffff) ||
+	    basic.key->n_proto != htons(ETH_P_IP)) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "IPv4 ACL keys require an exact IPv4 protocol");
+		return -EOPNOTSUPP;
+	}
+	if (basic.mask->ip_proto) {
+		match = rtl8372n_acl_match_get(entry, 1);
+		match->data[4] = basic.key->ip_proto;
+		match->mask[4] = basic.mask->ip_proto;
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV4_ADDRS)) {
+		flow_rule_match_ipv4_addrs(rule, &addrs);
+		match = rtl8372n_acl_match_get(entry, 1);
+		value = be32_to_cpu(addrs.key->src);
+		mask = be32_to_cpu(addrs.mask->src);
+		match->data[0] = value;
+		match->data[1] = value >> 16;
+		match->mask[0] = mask;
+		match->mask[1] = mask >> 16;
+
+		value = be32_to_cpu(addrs.key->dst);
+		mask = be32_to_cpu(addrs.mask->dst);
+		match->data[2] = value;
+		match->data[3] = value >> 16;
+		match->mask[2] = mask;
+		match->mask[3] = mask >> 16;
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS)) {
+		flow_rule_match_ports(rule, &ports);
+		if ((ports.mask->src || ports.mask->dst) &&
+		    (basic.mask->ip_proto != 0xff ||
+		     (basic.key->ip_proto != IPPROTO_TCP &&
+		      basic.key->ip_proto != IPPROTO_UDP))) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "L4 ports require exact TCP or UDP matching");
+			return -EOPNOTSUPP;
+		}
+		match = rtl8372n_acl_match_get(entry, 1);
+		match->data[5] = be16_to_cpu(ports.key->src);
+		match->mask[5] = be16_to_cpu(ports.mask->src);
+		match->data[6] = be16_to_cpu(ports.key->dst);
+		match->mask[6] = be16_to_cpu(ports.mask->dst);
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IP)) {
+		flow_rule_match_ip(rule, &ip);
+		if (ip.mask->ttl) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "RTL8372N template 1 cannot match IPv4 TTL");
+			return -EOPNOTSUPP;
+		}
+		if (ip.mask->tos) {
+			match = rtl8372n_acl_match_get(entry, 1);
+			match->data[4] |= (u16)ip.key->tos << 8;
+			match->mask[4] |= (u16)ip.mask->tos << 8;
+		}
+	}
+
+	return rtl8372n_acl_parse_port_ranges(rule, entry, &basic, extack);
+}
+
+static int
+rtl8372n_acl_parse_ipv6(struct flow_rule *rule,
+			struct rtl8372n_acl_entry *entry,
+			struct netlink_ext_ack *extack)
+{
+	struct rtl8372n_acl_match *match;
+	struct flow_match_ipv6_addrs addrs;
+	struct flow_match_ports ports;
+	struct flow_match_basic basic;
+	struct flow_match_ip ip;
+	unsigned int i;
+	u32 value;
+	u32 mask;
+
+	flow_rule_match_basic(rule, &basic);
+	if (basic.mask->n_proto != htons(0xffff) ||
+	    basic.key->n_proto != htons(ETH_P_IPV6)) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "IPv6 ACL keys require an exact IPv6 protocol");
+		return -EOPNOTSUPP;
+	}
+	if (basic.mask->ip_proto) {
+		match = rtl8372n_acl_match_get(entry, 1);
+		match->data[4] = basic.key->ip_proto;
+		match->mask[4] = basic.mask->ip_proto;
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV6_ADDRS)) {
+		flow_rule_match_ipv6_addrs(rule, &addrs);
+		if (memchr_inv(&addrs.mask->src, 0, sizeof(addrs.mask->src))) {
+			match = rtl8372n_acl_match_get(entry, 3);
+			value = be32_to_cpu(addrs.key->src.s6_addr32[3]);
+			mask = be32_to_cpu(addrs.mask->src.s6_addr32[3]);
+			match->data[0] = value;
+			match->data[1] = value >> 16;
+			match->mask[0] = mask;
+			match->mask[1] = mask >> 16;
+			for (i = 0; i < 6; i++) {
+				match->data[i + 2] = get_unaligned_be16(
+					&addrs.key->src.s6_addr[i * 2]);
+				match->mask[i + 2] = get_unaligned_be16(
+					&addrs.mask->src.s6_addr[i * 2]);
+			}
+		}
+
+		if (memchr_inv(&addrs.mask->dst, 0, sizeof(addrs.mask->dst))) {
+			match = rtl8372n_acl_match_get(entry, 2);
+			value = be32_to_cpu(addrs.key->dst.s6_addr32[3]);
+			mask = be32_to_cpu(addrs.mask->dst.s6_addr32[3]);
+			match->data[0] = value;
+			match->data[1] = value >> 16;
+			match->mask[0] = mask;
+			match->mask[1] = mask >> 16;
+			for (i = 0; i < 6; i++) {
+				match->data[i + 2] = get_unaligned_be16(
+					&addrs.key->dst.s6_addr[i * 2]);
+				match->mask[i + 2] = get_unaligned_be16(
+					&addrs.mask->dst.s6_addr[i * 2]);
+			}
+		}
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS)) {
+		flow_rule_match_ports(rule, &ports);
+		if ((ports.mask->src || ports.mask->dst) &&
+		    (basic.mask->ip_proto != 0xff ||
+		     (basic.key->ip_proto != IPPROTO_TCP &&
+		      basic.key->ip_proto != IPPROTO_UDP))) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "L4 ports require exact TCP or UDP matching");
+			return -EOPNOTSUPP;
+		}
+		match = rtl8372n_acl_match_get(entry, 1);
+		match->data[5] = be16_to_cpu(ports.key->src);
+		match->mask[5] = be16_to_cpu(ports.mask->src);
+		match->data[6] = be16_to_cpu(ports.key->dst);
+		match->mask[6] = be16_to_cpu(ports.mask->dst);
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IP)) {
+		flow_rule_match_ip(rule, &ip);
+		if (ip.mask->ttl) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "RTL8372N templates cannot match IPv6 hop limit");
+			return -EOPNOTSUPP;
+		}
+		if (ip.mask->tos) {
+			match = rtl8372n_acl_match_get(entry, 1);
+			match->data[4] |= (u16)ip.key->tos << 8;
+			match->mask[4] |= (u16)ip.mask->tos << 8;
+		}
+	}
+
+	return rtl8372n_acl_parse_port_ranges(rule, entry, &basic, extack);
+}
+
+static int
+rtl8372n_acl_parse_match(struct flow_rule *rule,
+				struct rtl8372n_acl_entry *entry,
+				__be16 protocol,
+				struct netlink_ext_ack *extack)
+{
+	struct flow_dissector *dissector = rule->match.dissector;
+	struct flow_match_basic basic;
+	u64 ip_keys;
+	u64 supported_keys;
+	int ret;
+
+	supported_keys = BIT_ULL(FLOW_DISSECTOR_KEY_CONTROL) |
+			 BIT_ULL(FLOW_DISSECTOR_KEY_BASIC) |
+			 BIT_ULL(FLOW_DISSECTOR_KEY_ETH_ADDRS) |
+			 BIT_ULL(FLOW_DISSECTOR_KEY_VLAN) |
+			 BIT_ULL(FLOW_DISSECTOR_KEY_CVLAN) |
+			 BIT_ULL(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |
+			 BIT_ULL(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
+			 BIT_ULL(FLOW_DISSECTOR_KEY_PORTS) |
+			 BIT_ULL(FLOW_DISSECTOR_KEY_PORTS_RANGE) |
+			 BIT_ULL(FLOW_DISSECTOR_KEY_IP);
+	if (dissector->used_keys & ~supported_keys) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "flower keys are not represented by RTL8372N ACL templates");
+		return -EOPNOTSUPP;
+	}
+	if (flow_rule_match_has_control_flags(rule, extack))
+		return -EOPNOTSUPP;
+	ret = rtl8372n_acl_parse_l2(rule, entry);
+	if (ret)
+		return ret;
+	ret = rtl8372n_acl_parse_vlan(rule, entry, protocol, extack);
+	if (ret)
+		return ret;
+
+	ip_keys = BIT_ULL(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |
+		  BIT_ULL(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
+		  BIT_ULL(FLOW_DISSECTOR_KEY_PORTS) |
+		  BIT_ULL(FLOW_DISSECTOR_KEY_PORTS_RANGE) |
+		  BIT_ULL(FLOW_DISSECTOR_KEY_IP);
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC)) {
+		flow_rule_match_basic(rule, &basic);
+		if (basic.mask->ip_proto)
+			ip_keys |= BIT_ULL(FLOW_DISSECTOR_KEY_BASIC);
+	}
+	if (dissector->used_keys & ip_keys) {
+		if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_BASIC)) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "IP flower keys require an exact network protocol");
+			return -EOPNOTSUPP;
+		}
+		if (basic.mask->n_proto == htons(0xffff) &&
+		    basic.key->n_proto == htons(ETH_P_IP))
+			ret = rtl8372n_acl_parse_ipv4(rule, entry, extack);
+		else if (basic.mask->n_proto == htons(0xffff) &&
+			 basic.key->n_proto == htons(ETH_P_IPV6))
+			ret = rtl8372n_acl_parse_ipv6(rule, entry, extack);
+		else {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "IP flower keys require exact IPv4 or IPv6 protocol");
+			return -EOPNOTSUPP;
+		}
+		if (ret)
+			return ret;
+	}
+
+	if (!entry->templates) {
+		NL_SET_ERR_MSG_MOD(extack, "empty flower key belongs in matchall");
+		return -EOPNOTSUPP;
+	}
+
+	return 0;
+}
+
+static int
+zx279133_rtl8372n_cls_flower_add(struct dsa_switch *ds, int port,
+				 struct flow_cls_offload *cls, bool ingress)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct netlink_ext_ack *extack = cls->common.extack;
+	struct flow_rule *rule = flow_cls_offload_flow_rule(cls);
+	struct rtl8372n_acl_entry entry = {};
+	struct rtl8372n_acl_entry old = {};
+	int old_position;
+	unsigned int counter;
+	unsigned int meter;
+	unsigned int position;
+	bool counter_allocated = false;
+	bool meter_allocated = false;
+	bool ranges_allocated = false;
+	bool old_ranges_released = false;
+	bool replacing;
+	int ret;
+
+	if (!ingress || cls->common.chain_index) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "RTL8372N ACL supports ingress chain 0 only");
+		return -EOPNOTSUPP;
+	}
+	if (port < RTL8372N_USER_PORT_MIN || port > RTL8372N_USER_PORT_MAX)
+		return -EINVAL;
+
+	entry.cookie = cls->cookie;
+	entry.priority = cls->common.prio;
+	entry.port = port;
+	ret = rtl8372n_acl_parse_match(rule, &entry, cls->common.protocol,
+				       extack);
+	if (ret)
+		return ret;
+	ret = rtl8372n_acl_parse_action(ds, port, rule, &entry, extack);
+	if (ret)
+		return ret;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	old_position = rtl8372n_acl_find(priv, port, cls->cookie);
+	replacing = old_position >= 0;
+	if (replacing)
+		old = priv->acl[old_position];
+	if (!replacing && priv->acl_count == RTL8372N_ACL_RULES) {
+		ret = -ENOSPC;
+		goto out_unlock;
+	}
+	if (rtl8372n_acl_hw_rules(priv) -
+	    (replacing ? hweight_long(old.templates) : 0) +
+	    hweight_long(entry.templates) > RTL8372N_ACL_RULES) {
+		NL_SET_ERR_MSG_MOD(extack, "RTL8372N ACL TCAM is full");
+		ret = -ENOSPC;
+		goto out_unlock;
+	}
+	if (replacing && old.port_range_count) {
+		rtl8372n_acl_port_ranges_put(priv, &old);
+		old_ranges_released = true;
+	}
+	ret = rtl8372n_acl_port_ranges_get(priv, &entry);
+	if (ret) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "RTL8372N L4 port-range table is full");
+		goto out_unlock;
+	}
+	ranges_allocated = entry.port_range_count;
+	if (entry.meter_valid) {
+		if (replacing && old.meter_valid) {
+			entry.meter = old.meter;
+		} else {
+			meter = find_first_zero_bit(priv->acl_meter_used,
+						    RTL8372N_ACL_METERS);
+			if (meter == RTL8372N_ACL_METERS) {
+				ret = -ENOSPC;
+				goto out_unlock;
+			}
+			entry.meter = meter;
+			__set_bit(meter, priv->acl_meter_used);
+			meter_allocated = true;
+		}
+		entry.action[1] |= FIELD_PREP(RTL8372N_ACL_METER_INDEX_MASK,
+					      entry.meter);
+	} else if (entry.stats_enabled) {
+		if (replacing && old.counter_valid) {
+			entry.counter = old.counter;
+			entry.counter_last = old.counter_last;
+			entry.lastused = old.lastused;
+		} else {
+			counter = find_first_zero_bit(priv->acl_counter_used,
+						      RTL8372N_ACL_COUNTERS);
+			if (counter == RTL8372N_ACL_COUNTERS) {
+				NL_SET_ERR_MSG_MOD(extack,
+						   "RTL8372N ACL logging counters are full; use hw_stats disabled");
+				ret = -ENOSPC;
+				goto out_unlock;
+			}
+			entry.counter = counter;
+			__set_bit(counter, priv->acl_counter_used);
+			counter_allocated = true;
+			ret = rtl8372n_acl_counter_reset(priv->switch_mdiodev,
+							 counter,
+							 &entry.counter_last);
+			if (ret)
+				goto out_unlock;
+		}
+		entry.counter_valid = true;
+		entry.action_ctrl |= RTL8372N_ACL_ACTION_POLICE;
+		entry.action[1] |= FIELD_PREP(RTL8372N_ACL_METER_INDEX_MASK,
+						      entry.counter) |
+				   RTL8372N_ACL_LOG_SELECT;
+	}
+	if (replacing) {
+		priv->acl_count--;
+		memmove(&priv->acl[old_position], &priv->acl[old_position + 1],
+			(priv->acl_count - old_position) * sizeof(priv->acl[0]));
+	}
+	for (position = 0; position < priv->acl_count; position++)
+		if (entry.priority < priv->acl[position].priority)
+			break;
+	memmove(&priv->acl[position + 1], &priv->acl[position],
+		(priv->acl_count - position) * sizeof(priv->acl[0]));
+	priv->acl[position] = entry;
+	priv->acl_count++;
+	ret = rtl8372n_acl_sync(priv);
+	if (ret) {
+		priv->acl_count--;
+		memmove(&priv->acl[position], &priv->acl[position + 1],
+			(priv->acl_count - position) * sizeof(priv->acl[0]));
+		if (replacing) {
+			memmove(&priv->acl[old_position + 1],
+				&priv->acl[old_position],
+				(priv->acl_count - old_position) *
+				sizeof(priv->acl[0]));
+			priv->acl[old_position] = old;
+			priv->acl_count++;
+		}
+		if (meter_allocated) {
+			__clear_bit(entry.meter, priv->acl_meter_used);
+			meter_allocated = false;
+		}
+		if (counter_allocated) {
+			__clear_bit(entry.counter, priv->acl_counter_used);
+			counter_allocated = false;
+		}
+	} else if (replacing && old.meter_valid && !entry.meter_valid) {
+		__clear_bit(old.meter, priv->acl_meter_used);
+	}
+	if (!ret && replacing && old.counter_valid && !entry.counter_valid)
+		__clear_bit(old.counter, priv->acl_counter_used);
+
+out_unlock:
+	if (ret && meter_allocated)
+		__clear_bit(entry.meter, priv->acl_meter_used);
+	if (ret && counter_allocated)
+		__clear_bit(entry.counter, priv->acl_counter_used);
+	if (ret && ranges_allocated)
+		rtl8372n_acl_port_ranges_put(priv, &entry);
+	if (ret && old_ranges_released) {
+		rtl8372n_acl_port_ranges_get(priv, &old);
+		priv->acl[old_position] = old;
+	}
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	return ret;
+}
+
+static int
+zx279133_rtl8372n_cls_flower_del(struct dsa_switch *ds, int port,
+				 struct flow_cls_offload *cls, bool ingress)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct rtl8372n_acl_entry old;
+	int position;
+	int ret;
+
+	if (!ingress)
+		return -EOPNOTSUPP;
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	position = rtl8372n_acl_find(priv, port, cls->cookie);
+	if (position < 0) {
+		ret = position;
+		goto out_unlock;
+	}
+	old = priv->acl[position];
+	if (old.port_range_count)
+		rtl8372n_acl_port_ranges_put(priv, &old);
+	priv->acl_count--;
+	memmove(&priv->acl[position], &priv->acl[position + 1],
+		(priv->acl_count - position) * sizeof(priv->acl[0]));
+	ret = rtl8372n_acl_sync(priv);
+	if (ret) {
+		memmove(&priv->acl[position + 1], &priv->acl[position],
+			(priv->acl_count - position) * sizeof(priv->acl[0]));
+		priv->acl[position] = old;
+		priv->acl_count++;
+		if (old.port_range_count)
+			rtl8372n_acl_port_ranges_get(priv, &priv->acl[position]);
+	} else {
+		if (old.meter_valid)
+			__clear_bit(old.meter, priv->acl_meter_used);
+		if (old.counter_valid)
+			__clear_bit(old.counter, priv->acl_counter_used);
+	}
+
+out_unlock:
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	return ret;
+}
+
+static int
+zx279133_rtl8372n_cls_flower_stats(struct dsa_switch *ds, int port,
+				   struct flow_cls_offload *cls, bool ingress)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct rtl8372n_acl_entry *entry;
+	unsigned long lastused;
+	u32 packets;
+	u32 delta;
+	int position;
+	int ret = 0;
+
+	if (!ingress)
+		return -EOPNOTSUPP;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	position = rtl8372n_acl_find(priv, port, cls->cookie);
+	if (position < 0) {
+		ret = position;
+		goto out_unlock;
+	}
+	entry = &priv->acl[position];
+	if (!entry->counter_valid)
+		goto out_unlock;
+
+	ret = rtl8372n_acl_counter_read(priv->switch_mdiodev,
+					entry->counter, &packets);
+	if (ret)
+		goto out_unlock;
+	delta = packets - entry->counter_last;
+	if (delta)
+		entry->lastused = jiffies;
+	entry->counter_last = packets;
+	lastused = entry->lastused;
+	flow_stats_update(&cls->stats, 0, delta, 0, lastused,
+			  FLOW_ACTION_HW_STATS_DELAYED);
+
+out_unlock:
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	return ret;
+}
+
 static void
 zx279133_rtl8372n_phylink_fixed_state(struct dsa_switch *ds, int port,
 				      struct phylink_link_state *state)
 {
-	struct zx279133_rtl8372n *priv = ds->priv;
-	u32 link;
-	u32 speed;
-	u32 duplex;
-	int ret;
-
 	if (port == 8) {
 		state->link = true;
 		state->speed = SPEED_10000;
 		state->duplex = DUPLEX_FULL;
 		return;
 	}
-	if (port < RTL8372N_USER_PORT_MIN ||
-	    port > RTL8372N_USER_PORT_MAX || !priv->switch_mdiodev) {
-		state->link = false;
-		return;
-	}
-
-	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
-	ret = rtl8372n_read_reg(priv->switch_mdiodev,
-				RTL8372N_LINK_STATUS, &link);
-	if (!ret)
-		ret = rtl8372n_read_reg(priv->switch_mdiodev,
-					RTL8372N_SPEED_STATUS0, &speed);
-	if (!ret)
-		ret = rtl8372n_read_reg(priv->switch_mdiodev,
-					RTL8372N_DUPLEX_STATUS, &duplex);
-	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
-	if (ret) {
-		state->link = false;
-		return;
-	}
-
-	state->link = !!(link & BIT(port));
-	state->duplex = duplex & BIT(port) ? DUPLEX_FULL : DUPLEX_HALF;
-	switch ((speed >> ((port & 7) * 4)) & 0xf) {
-	case 0:
-		state->speed = SPEED_10;
-		break;
-	case 1:
-		state->speed = SPEED_100;
-		break;
-	case 2:
-		state->speed = SPEED_1000;
-		break;
-	case 4:
-		state->speed = SPEED_10000;
-		break;
-	case 5:
-		state->speed = SPEED_2500;
-		break;
-	case 6:
-		state->speed = SPEED_5000;
-		break;
-	default:
-		state->link = false;
-		state->speed = SPEED_UNKNOWN;
-		break;
-	}
+	state->link = false;
 }
 
 static void zx279133_rtl8372n_phylink_get_caps(struct dsa_switch *ds,
@@ -2331,8 +6873,11 @@ static void zx279133_rtl8372n_phylink_get_caps(struct dsa_switch *ds,
 	    port <= RTL8372N_USER_PORT_MAX) {
 		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
 			  config->supported_interfaces);
-		config->mac_capabilities = MAC_2500FD | MAC_SYM_PAUSE |
+		config->mac_capabilities = MAC_10 | MAC_100 | MAC_1000FD |
+					   MAC_2500FD | MAC_SYM_PAUSE |
 					   MAC_ASYM_PAUSE;
+		config->lpi_capabilities = MAC_100FD | MAC_1000FD |
+					   MAC_2500FD;
 	} else if (port == 8) {
 		__set_bit(PHY_INTERFACE_MODE_10GBASER,
 			  config->supported_interfaces);
@@ -2341,25 +6886,129 @@ static void zx279133_rtl8372n_phylink_get_caps(struct dsa_switch *ds,
 	}
 }
 
+static bool zx279133_rtl8372n_support_eee(struct dsa_switch *ds, int port)
+{
+	return port >= RTL8372N_USER_PORT_MIN &&
+	       port <= RTL8372N_USER_PORT_MAX;
+}
+
+static int zx279133_rtl8372n_set_mac_eee(struct dsa_switch *ds, int port,
+					  struct ethtool_keee *eee)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u32 force_reg = RTL8372N_MAC_FORCE_MODE_CTRL1_BASE +
+			port * RTL8372N_MAC_FORCE_MODE_CTRL1_STRIDE;
+	u32 eee_reg = RTL8372N_EEE_CTRL_BASE + port * RTL8372N_EEE_CTRL_STRIDE;
+	u32 eee_mask = RTL8372N_EEE_RX_ENABLE | RTL8372N_EEE_TX_ENABLE;
+	u32 force;
+	u32 ctrl;
+	int ret;
+
+	if (!eee || !zx279133_rtl8372n_support_eee(ds, port))
+		return -EINVAL;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (eee->eee_enabled) {
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev, force_reg,
+					  RTL8372N_MAC_FORCE_EEE_MASK,
+					  RTL8372N_MAC_FORCE_EEE_MASK);
+		if (!ret)
+			ret = rtl8372n_modify_reg(priv->switch_mdiodev, eee_reg,
+						  eee_mask, eee_mask);
+	} else {
+		ret = rtl8372n_modify_reg(priv->switch_mdiodev, eee_reg,
+					  eee_mask, 0);
+		if (!ret)
+			ret = rtl8372n_modify_reg(priv->switch_mdiodev, force_reg,
+						  RTL8372N_MAC_FORCE_EEE_MASK, 0);
+	}
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev, force_reg, &force);
+	if (!ret)
+		ret = rtl8372n_read_reg(priv->switch_mdiodev, eee_reg, &ctrl);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		return ret;
+
+	if (eee->eee_enabled)
+		return (force & RTL8372N_MAC_FORCE_EEE_MASK) ==
+			RTL8372N_MAC_FORCE_EEE_MASK && (ctrl & eee_mask) == eee_mask ?
+			0 : -EIO;
+
+	return !(force & RTL8372N_MAC_FORCE_EEE_MASK) && !(ctrl & eee_mask) ?
+		0 : -EIO;
+}
+
 struct zx279133_rtl8372n_stat {
 	char name[ETH_GSTRING_LEN];
 	unsigned int counter;
 };
 
 static const struct zx279133_rtl8372n_stat zx279133_rtl8372n_stats[] = {
+	{ "rx_octets", RTL8372N_MIB_RX_OCTETS },
+	{ "tx_octets", RTL8372N_MIB_TX_OCTETS },
+	{ "rx_unicast_frames", RTL8372N_MIB_RX_UCAST },
+	{ "rx_multicast_frames", RTL8372N_MIB_RX_MCAST },
+	{ "rx_broadcast_frames", RTL8372N_MIB_RX_BCAST },
+	{ "tx_unicast_frames", RTL8372N_MIB_TX_UCAST },
+	{ "tx_multicast_frames", RTL8372N_MIB_TX_MCAST },
+	{ "tx_broadcast_frames", RTL8372N_MIB_TX_BCAST },
+	{ "tx_discarded_frames", RTL8372N_MIB_TX_DISCARDS },
+	{ "rx_discarded_frames", RTL8372N_MIB_RX_DISCARDS },
+	{ "tx_single_collisions", RTL8372N_MIB_TX_SINGLE_COLLISION },
+	{ "tx_multiple_collisions", RTL8372N_MIB_TX_MULTI_COLLISION },
+	{ "tx_deferred_frames", RTL8372N_MIB_TX_DEFERRED },
+	{ "tx_late_collisions", RTL8372N_MIB_TX_LATE_COLLISION },
+	{ "tx_excessive_collisions", RTL8372N_MIB_TX_EXCESS_COLLISION },
+	{ "rx_symbol_errors", RTL8372N_MIB_RX_SYMBOL_ERRORS },
+	{ "rx_unknown_opcodes", RTL8372N_MIB_RX_UNKNOWN_OPCODE },
+	{ "rx_pause_frames", RTL8372N_MIB_RX_PAUSE },
+	{ "tx_pause_frames", RTL8372N_MIB_TX_PAUSE },
+	{ "rx_crc_align_errors", RTL8372N_MIB_RX_CRC_ALIGN },
+	{ "rx_undersize_frames", RTL8372N_MIB_RX_UNDERSIZE },
+	{ "rx_oversize_frames", RTL8372N_MIB_RX_OVERSIZE },
+	{ "rx_fragments", RTL8372N_MIB_RX_FRAGMENTS },
+	{ "rx_jabbers", RTL8372N_MIB_RX_JABBERS },
+	{ "tx_collisions", RTL8372N_MIB_TX_COLLISIONS },
+	{ "tx_64_octet_frames", RTL8372N_MIB_TX_64 },
+	{ "rx_64_octet_frames", RTL8372N_MIB_RX_64 },
+	{ "tx_65_127_octet_frames", RTL8372N_MIB_TX_65_127 },
+	{ "rx_65_127_octet_frames", RTL8372N_MIB_RX_65_127 },
+	{ "tx_128_255_octet_frames", RTL8372N_MIB_TX_128_255 },
+	{ "rx_128_255_octet_frames", RTL8372N_MIB_RX_128_255 },
+	{ "tx_256_511_octet_frames", RTL8372N_MIB_TX_256_511 },
+	{ "rx_256_511_octet_frames", RTL8372N_MIB_RX_256_511 },
+	{ "tx_512_1023_octet_frames", RTL8372N_MIB_TX_512_1023 },
+	{ "rx_512_1023_octet_frames", RTL8372N_MIB_RX_512_1023 },
+	{ "tx_1024_1518_octet_frames", RTL8372N_MIB_TX_1024_1518 },
+	{ "rx_1024_1518_octet_frames", RTL8372N_MIB_RX_1024_1518 },
 	{ "hw_tx_good_frames", RTL8372N_MIB_TX_GOOD_HIGH },
 	{ "hw_rx_good_frames", RTL8372N_MIB_RX_GOOD_HIGH },
 	{ "phy_tx_good_frames", RTL8372N_MIB_TX_GOOD_PHY_HIGH },
 	{ "phy_rx_good_frames", RTL8372N_MIB_RX_GOOD_PHY_HIGH },
 };
 
+static const char * const zx279133_rtl8372n_mirror_stats[] = {
+	"mirror_matched_frames",
+	"mirror_sampled_frames",
+};
+
+static const char * const zx279133_rtl8372n_selftests[] = {
+	"Switch register access",
+	"Internal PHY register access",
+	"MAC local loopback 64-byte",
+	"MAC local loopback 1518-byte",
+};
+
 static int zx279133_rtl8372n_get_sset_count(struct dsa_switch *ds, int port,
 					    int sset)
 {
 	if (sset != ETH_SS_STATS)
-		return 0;
+		return sset == ETH_SS_TEST ?
+			ARRAY_SIZE(zx279133_rtl8372n_selftests) : 0;
 
-	return ARRAY_SIZE(zx279133_rtl8372n_stats);
+	return ARRAY_SIZE(zx279133_rtl8372n_stats) +
+	       ARRAY_SIZE(zx279133_rtl8372n_mirror_stats);
 }
 
 static void zx279133_rtl8372n_get_strings(struct dsa_switch *ds, int port,
@@ -2367,22 +7016,177 @@ static void zx279133_rtl8372n_get_strings(struct dsa_switch *ds, int port,
 {
 	unsigned int i;
 
+	if (stringset == ETH_SS_TEST) {
+		for (i = 0; i < ARRAY_SIZE(zx279133_rtl8372n_selftests); i++)
+			ethtool_puts(&data, zx279133_rtl8372n_selftests[i]);
+		return;
+	}
 	if (stringset != ETH_SS_STATS)
 		return;
 
 	for (i = 0; i < ARRAY_SIZE(zx279133_rtl8372n_stats); i++)
 		ethtool_puts(&data, zx279133_rtl8372n_stats[i].name);
+	for (i = 0; i < ARRAY_SIZE(zx279133_rtl8372n_mirror_stats); i++)
+		ethtool_puts(&data, zx279133_rtl8372n_mirror_stats[i]);
+}
+
+static int rtl8372n_selftest_xmit(struct net_device *dev,
+				   unsigned int frame_len)
+{
+	struct ethhdr *eth;
+	struct sk_buff *skb;
+	int ret;
+
+	skb = netdev_alloc_skb(dev, frame_len + NET_IP_ALIGN);
+	if (!skb)
+		return -ENOMEM;
+	skb_reserve(skb, NET_IP_ALIGN);
+	eth = skb_put_zero(skb, frame_len);
+	eth_broadcast_addr(eth->h_dest);
+	ether_addr_copy(eth->h_source, dev->dev_addr);
+	eth->h_proto = htons(ETH_P_IP);
+	skb->dev = dev;
+	skb->protocol = eth->h_proto;
+	skb->ip_summed = CHECKSUM_NONE;
+
+	ret = dev_direct_xmit(skb, 0);
+	if (ret < 0)
+		return ret;
+	return ret ? -ENETUNREACH : 0;
+}
+
+static int rtl8372n_selftest_loopback(struct dsa_switch *ds, int port,
+				       unsigned int frame_len)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct mdio_device *mdiodev = priv->switch_mdiodev;
+	struct net_device *user = dsa_to_port(ds, port)->user;
+	u64 rx_after = 0, rx_before = 0;
+	u64 tx_after = 0, tx_before = 0;
+	u32 old_ctrl = 0, readback;
+	unsigned int sent = 0;
+	int restore_ret;
+	int ret;
+
+	if (!user || !netif_running(user))
+		return -ENETDOWN;
+
+	mutex_lock(&mdiodev->bus->mdio_lock);
+	ret = rtl8372n_read_reg(mdiodev, RTL8372N_MAC_PORT_CTRL(port),
+				&old_ctrl);
+	if (!ret)
+		ret = rtl8372n_mib_read(mdiodev, port,
+					 RTL8372N_MIB_TX_BCAST, &tx_before);
+	if (!ret)
+		ret = rtl8372n_mib_read(mdiodev, port,
+					 RTL8372N_MIB_RX_BCAST, &rx_before);
+	if (!ret)
+		ret = rtl8372n_modify_reg(mdiodev,
+					  RTL8372N_MAC_PORT_CTRL(port),
+					  RTL8372N_MAC_PORT_LOCAL_LOOPBACK,
+					  RTL8372N_MAC_PORT_LOCAL_LOOPBACK);
+	if (!ret)
+		ret = rtl8372n_read_reg(mdiodev, RTL8372N_MAC_PORT_CTRL(port),
+					&readback);
+	if (!ret && !(readback & RTL8372N_MAC_PORT_LOCAL_LOOPBACK))
+		ret = -EIO;
+	mutex_unlock(&mdiodev->bus->mdio_lock);
+	if (ret)
+		return ret;
+
+	usleep_range(1000, 2000);
+	while (sent < 4) {
+		ret = rtl8372n_selftest_xmit(user, frame_len);
+		if (ret)
+			break;
+		sent++;
+	}
+	msleep(50);
+
+	mutex_lock(&mdiodev->bus->mdio_lock);
+	if (!ret)
+		ret = rtl8372n_mib_read(mdiodev, port,
+					 RTL8372N_MIB_TX_BCAST, &tx_after);
+	if (!ret)
+		ret = rtl8372n_mib_read(mdiodev, port,
+					 RTL8372N_MIB_RX_BCAST, &rx_after);
+	restore_ret = rtl8372n_modify_reg(
+		mdiodev, RTL8372N_MAC_PORT_CTRL(port),
+		RTL8372N_MAC_PORT_LOCAL_LOOPBACK,
+		old_ctrl & RTL8372N_MAC_PORT_LOCAL_LOOPBACK);
+	if (!restore_ret)
+		restore_ret = rtl8372n_read_reg(mdiodev,
+						 RTL8372N_MAC_PORT_CTRL(port),
+						 &readback);
+	if (!restore_ret &&
+	    ((readback ^ old_ctrl) & RTL8372N_MAC_PORT_LOCAL_LOOPBACK))
+		restore_ret = -EIO;
+	mutex_unlock(&mdiodev->bus->mdio_lock);
+	if (!restore_ret)
+		restore_ret = rtl8372n_l2_flush_dynamic(
+			priv, port, RTL8372N_L2_FLUSH_MODE_PORT, 0);
+	if (restore_ret)
+		return restore_ret;
+	if (ret)
+		return ret;
+
+	if (tx_after - tx_before >= sent && rx_after - rx_before >= sent)
+		return 0;
+
+	dev_err(ds->dev,
+		"port %d MAC loopback counters: tx %llu->%llu rx %llu->%llu\n",
+		port, tx_before, tx_after, rx_before, rx_after);
+	return -EIO;
+}
+
+static void zx279133_rtl8372n_self_test(struct dsa_switch *ds, int port,
+					struct ethtool_test *etest, u64 *data)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct mdio_device *mdiodev = priv->switch_mdiodev;
+	u16 phy_id;
+	u32 chip_id;
+	unsigned int i;
+	int ret;
+
+	memset(data, 0, sizeof(*data) *
+	       ARRAY_SIZE(zx279133_rtl8372n_selftests));
+	if (!(etest->flags & ETH_TEST_FL_OFFLINE)) {
+		etest->flags |= ETH_TEST_FL_FAILED;
+		return;
+	}
+
+	mutex_lock(&mdiodev->bus->mdio_lock);
+	ret = rtl8372n_read_reg(mdiodev, RTL8372N_CHIP_ID, &chip_id);
+	if (!ret && chip_id >> 8 != 0x837270)
+		ret = -ENODEV;
+	data[0] = ret;
+	ret = rtl8372n_phy_read(mdiodev, port, MDIO_MMD_PMAPMD,
+				 MDIO_DEVID1, &phy_id);
+	if (!ret && (!phy_id || phy_id == 0xffff))
+		ret = -ENODEV;
+	data[1] = ret;
+	mutex_unlock(&mdiodev->bus->mdio_lock);
+
+	data[2] = rtl8372n_selftest_loopback(ds, port, ETH_ZLEN);
+	data[3] = rtl8372n_selftest_loopback(ds, port, ETH_FRAME_LEN);
+	for (i = 0; i < ARRAY_SIZE(zx279133_rtl8372n_selftests); i++)
+		if (data[i])
+			etest->flags |= ETH_TEST_FL_FAILED;
 }
 
 static void zx279133_rtl8372n_get_ethtool_stats(struct dsa_switch *ds,
 						int port, u64 *data)
 {
 	struct zx279133_rtl8372n *priv = ds->priv;
+	u32 mirror_counter;
 	unsigned int i;
 	int first_error = 0;
 	int ret;
 
-	memset(data, 0, sizeof(*data) * ARRAY_SIZE(zx279133_rtl8372n_stats));
+	memset(data, 0, sizeof(*data) *
+	       (ARRAY_SIZE(zx279133_rtl8372n_stats) +
+		ARRAY_SIZE(zx279133_rtl8372n_mirror_stats)));
 	if (!priv->switch_mdiodev || port > 8)
 		return;
 
@@ -2394,12 +7198,328 @@ static void zx279133_rtl8372n_get_ethtool_stats(struct dsa_switch *ds,
 		if (ret && !first_error)
 			first_error = ret;
 	}
+	ret = rtl8372n_read_reg(priv->switch_mdiodev,
+				RTL8372N_MIRROR_COUNTER, &mirror_counter);
+	if (ret) {
+		if (!first_error)
+			first_error = ret;
+	} else {
+		data[i++] = FIELD_GET(RTL8372N_MIRROR_MATCHED_MASK,
+				      mirror_counter);
+		data[i] = FIELD_GET(RTL8372N_MIRROR_SAMPLED_MASK,
+				    mirror_counter);
+	}
 	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
 
 	if (first_error)
 		dev_warn_ratelimited(ds->dev,
 				     "failed to read port %d MIB counters: %d\n",
 				     port, first_error);
+}
+
+static void zx279133_rtl8372n_get_stats64(struct dsa_switch *ds, int port,
+					   struct rtnl_link_stats64 *stats)
+{
+	static const unsigned int counters[] = {
+		RTL8372N_MIB_RX_OCTETS,
+		RTL8372N_MIB_TX_OCTETS,
+		RTL8372N_MIB_RX_UCAST,
+		RTL8372N_MIB_RX_MCAST,
+		RTL8372N_MIB_RX_BCAST,
+		RTL8372N_MIB_TX_UCAST,
+		RTL8372N_MIB_TX_MCAST,
+		RTL8372N_MIB_TX_BCAST,
+		RTL8372N_MIB_RX_DISCARDS,
+		RTL8372N_MIB_TX_DISCARDS,
+		RTL8372N_MIB_RX_ERROR,
+		RTL8372N_MIB_TX_ERROR,
+		RTL8372N_MIB_RX_UNDERSIZE,
+		RTL8372N_MIB_RX_OVERSIZE,
+		RTL8372N_MIB_RX_FRAGMENTS,
+		RTL8372N_MIB_RX_JABBERS,
+		RTL8372N_MIB_RX_CRC_ALIGN,
+		RTL8372N_MIB_TX_COLLISIONS,
+		RTL8372N_MIB_TX_LATE_COLLISION,
+		RTL8372N_MIB_TX_EXCESS_COLLISION,
+	};
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u64 value[ARRAY_SIZE(counters)];
+
+	if (rtl8372n_mib_snapshot(priv, port, counters, value,
+				   ARRAY_SIZE(counters)))
+		return;
+
+	stats->rx_bytes = value[0];
+	stats->tx_bytes = value[1];
+	stats->rx_packets = value[2] + value[3] + value[4];
+	stats->tx_packets = value[5] + value[6] + value[7];
+	stats->multicast = value[3];
+	stats->rx_dropped = value[8];
+	stats->tx_dropped = value[9];
+	stats->rx_errors = value[10];
+	stats->tx_errors = value[11];
+	stats->rx_length_errors = value[12] + value[13] + value[14] +
+				  value[15];
+	stats->rx_crc_errors = value[16];
+	stats->collisions = value[17];
+	stats->tx_window_errors = value[18];
+	stats->tx_aborted_errors = value[19];
+}
+
+static void
+zx279133_rtl8372n_get_eth_phy_stats(struct dsa_switch *ds, int port,
+				     struct ethtool_eth_phy_stats *phy_stats)
+{
+	static const unsigned int counter = RTL8372N_MIB_RX_SYMBOL_ERRORS;
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u64 value;
+
+	if (!rtl8372n_mib_snapshot(priv, port, &counter, &value, 1))
+		phy_stats->SymbolErrorDuringCarrier = value;
+}
+
+static void
+zx279133_rtl8372n_get_eth_mac_stats(struct dsa_switch *ds, int port,
+				     struct ethtool_eth_mac_stats *mac_stats)
+{
+	static const unsigned int counters[] = {
+		RTL8372N_MIB_RX_UCAST,
+		RTL8372N_MIB_RX_MCAST,
+		RTL8372N_MIB_RX_BCAST,
+		RTL8372N_MIB_TX_UCAST,
+		RTL8372N_MIB_TX_MCAST,
+		RTL8372N_MIB_TX_BCAST,
+		RTL8372N_MIB_RX_OCTETS,
+		RTL8372N_MIB_TX_OCTETS,
+		RTL8372N_MIB_TX_SINGLE_COLLISION,
+		RTL8372N_MIB_TX_MULTI_COLLISION,
+		RTL8372N_MIB_TX_DEFERRED,
+		RTL8372N_MIB_TX_LATE_COLLISION,
+		RTL8372N_MIB_TX_EXCESS_COLLISION,
+		RTL8372N_MIB_RX_OVERSIZE,
+		RTL8372N_MIB_RX_ERROR,
+		RTL8372N_MIB_TX_ERROR,
+	};
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u64 value[ARRAY_SIZE(counters)];
+
+	if (rtl8372n_mib_snapshot(priv, port, counters, value,
+				   ARRAY_SIZE(counters)))
+		return;
+
+	mac_stats->FramesReceivedOK = value[0] + value[1] + value[2];
+	mac_stats->FramesTransmittedOK = value[3] + value[4] + value[5];
+	mac_stats->MulticastFramesReceivedOK = value[1];
+	mac_stats->BroadcastFramesReceivedOK = value[2];
+	mac_stats->MulticastFramesXmittedOK = value[4];
+	mac_stats->BroadcastFramesXmittedOK = value[5];
+	mac_stats->OctetsReceivedOK = value[6];
+	mac_stats->OctetsTransmittedOK = value[7];
+	mac_stats->SingleCollisionFrames = value[8];
+	mac_stats->MultipleCollisionFrames = value[9];
+	mac_stats->FramesWithDeferredXmissions = value[10];
+	mac_stats->LateCollisions = value[11];
+	mac_stats->FramesAbortedDueToXSColls = value[12];
+	mac_stats->FrameTooLongErrors = value[13];
+	mac_stats->FramesLostDueToIntMACRcvError = value[14];
+	mac_stats->FramesLostDueToIntMACXmitError = value[15];
+}
+
+static void
+zx279133_rtl8372n_get_eth_ctrl_stats(struct dsa_switch *ds, int port,
+				      struct ethtool_eth_ctrl_stats *ctrl_stats)
+{
+	static const unsigned int counter = RTL8372N_MIB_RX_UNKNOWN_OPCODE;
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u64 value;
+
+	if (!rtl8372n_mib_snapshot(priv, port, &counter, &value, 1))
+		ctrl_stats->UnsupportedOpcodesReceived = value;
+}
+
+static const struct ethtool_rmon_hist_range rtl8372n_rmon_ranges[] = {
+	{ 0, 64 },
+	{ 65, 127 },
+	{ 128, 255 },
+	{ 256, 511 },
+	{ 512, 1023 },
+	{ 1024, 1518 },
+	{}
+};
+
+static void
+zx279133_rtl8372n_get_rmon_stats(struct dsa_switch *ds, int port,
+				  struct ethtool_rmon_stats *rmon_stats,
+				  const struct ethtool_rmon_hist_range **ranges)
+{
+	static const unsigned int counters[] = {
+		RTL8372N_MIB_RX_UNDERSIZE,
+		RTL8372N_MIB_RX_OVERSIZE,
+		RTL8372N_MIB_RX_FRAGMENTS,
+		RTL8372N_MIB_RX_JABBERS,
+		RTL8372N_MIB_RX_64,
+		RTL8372N_MIB_RX_65_127,
+		RTL8372N_MIB_RX_128_255,
+		RTL8372N_MIB_RX_256_511,
+		RTL8372N_MIB_RX_512_1023,
+		RTL8372N_MIB_RX_1024_1518,
+		RTL8372N_MIB_TX_64,
+		RTL8372N_MIB_TX_65_127,
+		RTL8372N_MIB_TX_128_255,
+		RTL8372N_MIB_TX_256_511,
+		RTL8372N_MIB_TX_512_1023,
+		RTL8372N_MIB_TX_1024_1518,
+	};
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u64 value[ARRAY_SIZE(counters)];
+	unsigned int i;
+
+	*ranges = rtl8372n_rmon_ranges;
+	if (rtl8372n_mib_snapshot(priv, port, counters, value,
+				   ARRAY_SIZE(counters)))
+		return;
+
+	rmon_stats->undersize_pkts = value[0];
+	rmon_stats->oversize_pkts = value[1];
+	rmon_stats->fragments = value[2];
+	rmon_stats->jabbers = value[3];
+	for (i = 0; i < 6; i++) {
+		rmon_stats->hist[i] = value[4 + i];
+		rmon_stats->hist_tx[i] = value[10 + i];
+	}
+}
+
+static void
+zx279133_rtl8372n_get_pause_stats(struct dsa_switch *ds, int port,
+				   struct ethtool_pause_stats *pause_stats)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	u64 rx_pause;
+	u64 tx_pause;
+	int ret;
+
+	if (!priv->switch_mdiodev || port > RTL8372N_CPU_PORT)
+		return;
+
+	mutex_lock(&priv->switch_mdiodev->bus->mdio_lock);
+	ret = rtl8372n_mib_read(priv->switch_mdiodev, port,
+				RTL8372N_MIB_RX_PAUSE, &rx_pause);
+	if (!ret)
+		ret = rtl8372n_mib_read(priv->switch_mdiodev, port,
+					RTL8372N_MIB_TX_PAUSE, &tx_pause);
+	mutex_unlock(&priv->switch_mdiodev->bus->mdio_lock);
+	if (ret)
+		return;
+
+	pause_stats->rx_pause_frames = rx_pause;
+	pause_stats->tx_pause_frames = tx_pause;
+}
+
+static int zx279133_rtl8372n_get_regs_len(struct dsa_switch *ds, int port)
+{
+	return RTL8372N_REG_DUMP_WORDS * sizeof(u32);
+}
+
+static void zx279133_rtl8372n_get_regs(struct dsa_switch *ds, int port,
+				       struct ethtool_regs *regs, void *data)
+{
+	struct zx279133_rtl8372n *priv = ds->priv;
+	struct mdio_device *mdiodev = priv->switch_mdiodev;
+	u32 *dump = data;
+	unsigned int index;
+	unsigned int word = 0;
+
+	regs->version = 0x8372;
+	memset(dump, 0xff, RTL8372N_REG_DUMP_WORDS * sizeof(*dump));
+	mutex_lock(&mdiodev->bus->mdio_lock);
+	rtl8372n_read_reg(mdiodev, RTL8372N_CHIP_ID, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_VERSION, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_LINK_STATUS, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_MEDIA_STATUS, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_SPEED_STATUS0, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_DUPLEX_STATUS, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_CPU_TAG_TPID, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_CPU_TAG_CTRL, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_EXTERNAL_CPU_PORT, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_CPU_TAG_AWARE, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_VLAN_CTRL, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PORT_PVID_4_5, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PORT_PVID_6_7, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PORT_PVID_8_9, &dump[word++]);
+	rtl8372n_read_reg(mdiodev,
+			    RTL8372N_PORT_ISOLATION_BASE + 7 * 4,
+			    &dump[word++]);
+	rtl8372n_read_reg(mdiodev,
+			    RTL8372N_PORT_ISOLATION_BASE +
+			    RTL8372N_CPU_PORT * 4,
+			    &dump[word++]);
+	rtl8372n_vlan_read(mdiodev, 1, &dump[word++]);
+	rtl8372n_vlan_read(mdiodev, 62, &dump[word++]);
+	for (index = 0; index < RTL8372N_TRUNK_GROUPS; index++) {
+		rtl8372n_read_reg(mdiodev, RTL8372N_TRUNK_MEMBER_BASE +
+				   index * RTL8372N_TRUNK_GROUP_STRIDE,
+				   &dump[word++]);
+		rtl8372n_read_reg(mdiodev, RTL8372N_TRUNK_HASH_BASE +
+				   index * RTL8372N_TRUNK_GROUP_STRIDE,
+				   &dump[word++]);
+	}
+	rtl8372n_read_reg(mdiodev, RTL8372N_PTP_CLK_SRC_CTRL, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PTP_APPLY_FREQ, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PTP_TIME_FREQ0, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PTP_TIME_FREQ1, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PTP_CUR_TIME_FREQ0, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PTP_CUR_TIME_FREQ1, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PTP_TIME_CTRL, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PTP_PORT_CTRL(port), &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PTP_PORT_MISC(port), &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_PTP_PORT_ID(port), &dump[word++]);
+	for (index = 0; index < RTL8372N_ACL_TEMPLATES * 2; index++)
+		rtl8372n_read_reg(mdiodev, RTL8372N_ACL_TEMPLATE_BASE +
+				   index * sizeof(u32), &dump[word++]);
+	for (index = 0; index < ARRAY_SIZE(rtl8372n_acl_field_selectors);
+	     index++)
+		rtl8372n_read_reg(mdiodev,
+				   RTL8372N_ACL_FIELD_SELECTOR_BASE +
+				   index * RTL8372N_ACL_FIELD_SELECTOR_STRIDE,
+				   &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_ACL_COUNTER_RESET, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_ACL_COUNTER_RESET_VALUE,
+			   &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_ACL_COUNTER_TYPE, &dump[word++]);
+	rtl8372n_read_reg(mdiodev, RTL8372N_ACL_COUNTER_MODE, &dump[word++]);
+	for (index = 0; index < RTL8372N_ACL_COUNTERS; index++)
+		rtl8372n_acl_counter_read(mdiodev, index, &dump[word++]);
+	if (!rtl8372n_write_reg(mdiodev, RTL8372N_HSAB_CTRL,
+				RTL8372N_HSAB_LATCH_FIRST |
+				RTL8372N_HSAB_SPA_ENABLE |
+				port << RTL8372N_HSAB_SPA_SHIFT)) {
+		msleep(20);
+		for (index = 0; index < RTL8372N_HSB_DATA_WORDS / 5;
+		     index++)
+			rtl8372n_table_access(mdiodev,
+					      RTL8372N_HSAB_TABLE_TARGET,
+					      index, false, &dump[word + index * 5],
+					      5);
+		rtl8372n_write_reg(mdiodev, RTL8372N_HSAB_CTRL, 0);
+		word += RTL8372N_HSB_DATA_WORDS;
+	}
+	if (!rtl8372n_write_reg(mdiodev, RTL8372N_HSAB_CTRL,
+				RTL8372N_HSAB_LATCH_ALWAYS)) {
+		msleep(50);
+		for (index = 0; index < RTL8372N_HSB_DATA_WORDS / 5;
+		     index++)
+			rtl8372n_table_access(mdiodev,
+					      RTL8372N_HSAB_TABLE_TARGET,
+					      index, false, &dump[word + index * 5],
+					      5);
+		rtl8372n_write_reg(mdiodev, RTL8372N_HSAB_CTRL, 0);
+		word += RTL8372N_HSB_DATA_WORDS;
+		for (index = 0; index < RTL8372N_HSB_DATA_WORDS / 5;
+		     index++)
+			rtl8372n_table_access(mdiodev, 6, index, false,
+					      &dump[word + index * 5], 5);
+	}
+	mutex_unlock(&mdiodev->bus->mdio_lock);
 }
 
 static int zx279133_rtl8372n_port_change_mtu(struct dsa_switch *ds, int port,
@@ -2416,23 +7536,66 @@ static int zx279133_rtl8372n_port_max_mtu(struct dsa_switch *ds, int port)
 
 static const struct dsa_switch_ops zx279133_rtl8372n_dsa_ops = {
 	.get_tag_protocol = zx279133_rtl8372n_get_tag_protocol,
+	.devlink_info_get = zx279133_rtl8372n_devlink_info_get,
 	.setup = zx279133_rtl8372n_setup,
+	.teardown = zx279133_rtl8372n_teardown,
+	.set_ageing_time = zx279133_rtl8372n_set_ageing_time,
 	.port_bridge_join = zx279133_rtl8372n_port_bridge_join,
 	.port_bridge_leave = zx279133_rtl8372n_port_bridge_leave,
+	.port_pre_bridge_flags = zx279133_rtl8372n_port_pre_bridge_flags,
+	.port_bridge_flags = zx279133_rtl8372n_port_bridge_flags,
 	.port_vlan_filtering = zx279133_rtl8372n_port_vlan_filtering,
 	.port_vlan_add = zx279133_rtl8372n_port_vlan_add,
 	.port_vlan_del = zx279133_rtl8372n_port_vlan_del,
+	.vlan_msti_set = zx279133_rtl8372n_vlan_msti_set,
+	.port_vlan_fast_age = zx279133_rtl8372n_port_vlan_fast_age,
 	.port_stp_state_set = zx279133_rtl8372n_port_stp_state_set,
+	.port_mst_state_set = zx279133_rtl8372n_port_mst_state_set,
+	.port_fast_age = zx279133_rtl8372n_port_fast_age,
 	.port_fdb_add = zx279133_rtl8372n_port_fdb_add,
 	.port_fdb_del = zx279133_rtl8372n_port_fdb_del,
 	.port_fdb_dump = zx279133_rtl8372n_port_fdb_dump,
+	.lag_fdb_add = zx279133_rtl8372n_lag_fdb_add,
+	.lag_fdb_del = zx279133_rtl8372n_lag_fdb_del,
+	.port_mdb_add = zx279133_rtl8372n_port_mdb_add,
+	.port_mdb_del = zx279133_rtl8372n_port_mdb_del,
+	.port_mirror_add = zx279133_rtl8372n_port_mirror_add,
+	.port_mirror_del = zx279133_rtl8372n_port_mirror_del,
+	.port_policer_add = zx279133_rtl8372n_port_policer_add,
+	.port_policer_del = zx279133_rtl8372n_port_policer_del,
+	.port_setup_tc = zx279133_rtl8372n_port_setup_tc,
+	.port_get_default_prio = zx279133_rtl8372n_port_get_default_prio,
+	.port_set_default_prio = zx279133_rtl8372n_port_set_default_prio,
+	.port_get_dscp_prio = zx279133_rtl8372n_port_get_dscp_prio,
+	.port_add_dscp_prio = zx279133_rtl8372n_port_add_dscp_prio,
+	.port_del_dscp_prio = zx279133_rtl8372n_port_del_dscp_prio,
+	.port_set_apptrust = zx279133_rtl8372n_port_set_apptrust,
+	.port_get_apptrust = zx279133_rtl8372n_port_get_apptrust,
+	.cls_flower_add = zx279133_rtl8372n_cls_flower_add,
+	.cls_flower_del = zx279133_rtl8372n_cls_flower_del,
+	.cls_flower_stats = zx279133_rtl8372n_cls_flower_stats,
+	.port_lag_change = zx279133_rtl8372n_port_lag_change,
+	.port_lag_join = zx279133_rtl8372n_port_lag_join,
+	.port_lag_leave = zx279133_rtl8372n_port_lag_leave,
 	.port_change_mtu = zx279133_rtl8372n_port_change_mtu,
 	.port_max_mtu = zx279133_rtl8372n_port_max_mtu,
 	.phylink_get_caps = zx279133_rtl8372n_phylink_get_caps,
 	.phylink_fixed_state = zx279133_rtl8372n_phylink_fixed_state,
+	.support_eee = zx279133_rtl8372n_support_eee,
+	.set_mac_eee = zx279133_rtl8372n_set_mac_eee,
 	.get_sset_count = zx279133_rtl8372n_get_sset_count,
 	.get_strings = zx279133_rtl8372n_get_strings,
 	.get_ethtool_stats = zx279133_rtl8372n_get_ethtool_stats,
+	.get_stats64 = zx279133_rtl8372n_get_stats64,
+	.get_eth_phy_stats = zx279133_rtl8372n_get_eth_phy_stats,
+	.get_eth_mac_stats = zx279133_rtl8372n_get_eth_mac_stats,
+	.get_eth_ctrl_stats = zx279133_rtl8372n_get_eth_ctrl_stats,
+	.get_rmon_stats = zx279133_rtl8372n_get_rmon_stats,
+	.get_pause_stats = zx279133_rtl8372n_get_pause_stats,
+	.self_test = zx279133_rtl8372n_self_test,
+	.get_ts_info = zx279133_rtl8372n_get_ts_info,
+	.get_regs_len = zx279133_rtl8372n_get_regs_len,
+	.get_regs = zx279133_rtl8372n_get_regs,
 };
 
 static int zx279133_rtl8372n_dsa_register(struct device *dev,
@@ -2447,15 +7610,23 @@ static int zx279133_rtl8372n_dsa_register(struct device *dev,
 
 	ds->dev = dev;
 	ds->num_ports = 9;
+	ds->num_lag_ids = RTL8372N_TRUNK_GROUPS;
+	ds->configure_vlan_while_not_filtering = true;
+	ds->fdb_isolation = true;
+	ds->dscp_prio_mapping_is_global = true;
+	ds->max_num_bridges = RTL8372N_USER_PORT_MAX -
+			      RTL8372N_USER_PORT_MIN + 1;
 	ds->ops = &zx279133_rtl8372n_dsa_ops;
 	ds->priv = priv;
+	priv->ds = ds;
 
 	ret = dsa_register_switch(ds);
-	if (ret)
+	if (ret) {
+		priv->ds = NULL;
 		return dev_err_probe(dev, ret,
 				     "failed to register RTL8372N DSA switch\n");
+	}
 
-	priv->ds = ds;
 	priv->dsa_registered = true;
 	dev_info(dev, "registered RTL8372N DSA switch\n");
 
@@ -2618,7 +7789,7 @@ static int zx279133_rtl8372n_probe(struct platform_device *pdev)
 	}
 	msleep(1000);
 
-	ret = rtl8372n_port7_vlan_init(dev, priv);
+	ret = rtl8372n_svlan_transport_init(dev, priv);
 	if (ret)
 		goto err_datapath_restore;
 	zx279133_lan_service_datapath_set_ready(priv->service, true);
@@ -2644,10 +7815,6 @@ err_datapath_restore:
 			dev_err(dev,
 				"LAN probe unwind is not quiescent; forcing hardware reset and cleanup: %d\n",
 				quiesce_ret);
-	}
-	if (priv->vlan62_tx_active) {
-		zx279133_lan_service_set_vlan62_active(priv->service, false);
-		priv->vlan62_tx_active = false;
 	}
 	zx279133_lan_datapath_restore(priv);
 err_xmac_restore:
@@ -2706,10 +7873,6 @@ static void zx279133_rtl8372n_remove(struct platform_device *pdev)
 			dev_err(&pdev->dev,
 				"LAN teardown is not quiescent; forcing hardware reset and cleanup: %d\n",
 				ret);
-	}
-	if (priv->vlan62_tx_active) {
-		zx279133_lan_service_set_vlan62_active(priv->service, false);
-		priv->vlan62_tx_active = false;
 	}
 	rtl8372n_reset_assert(priv);
 	msleep(RTL8372N_RESET_ASSERT_MS);

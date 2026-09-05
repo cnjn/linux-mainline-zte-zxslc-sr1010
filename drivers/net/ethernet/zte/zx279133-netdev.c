@@ -261,33 +261,6 @@ static bool zx279133_tx_csum_supported(struct sk_buff *skb)
 		iph->protocol == IPPROTO_TCP;
 }
 
-static u8 zx279133_tx_destination_port(struct zx279133_eth *eth,
-				       struct sk_buff *skb,
-					bool lan_tx)
-{
-	u16 vid;
-
-	if (lan_tx)
-		return ZX279133_LAN_TX_PORT;
-	if (!READ_ONCE(eth->lan_vlan62_active))
-		return zx279133_tx_port;
-	if (skb_vlan_tag_present(skb)) {
-		vid = skb_vlan_tag_get_id(skb);
-	} else if (skb->protocol == htons(ETH_P_8021Q)) {
-		const struct vlan_ethhdr *vhdr;
-
-		if (!pskb_may_pull(skb, sizeof(*vhdr)))
-			return zx279133_tx_port;
-		vhdr = vlan_eth_hdr(skb);
-		vid = ntohs(vhdr->h_vlan_TCI) & VLAN_VID_MASK;
-	} else {
-		return zx279133_tx_port;
-	}
-
-	return vid == ZX279133_LAN_VID ? ZX279133_LAN_TX_PORT :
-		zx279133_tx_port;
-}
-
 static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 					      struct net_device *hw_ndev,
 					      struct net_device *ndev)
@@ -337,7 +310,7 @@ static netdev_tx_t zx279133_start_xmit_common(struct sk_buff *skb,
 		zx279133_stats_tx_dropped(eth, ndev);
 		return NETDEV_TX_OK;
 	}
-	tx_port = zx279133_tx_destination_port(eth, skb, ndev != hw_ndev);
+	tx_port = ndev != hw_ndev ? ZX279133_LAN_TX_PORT : zx279133_tx_port;
 
 	dma = dma_map_single(eth->dev, skb->data, skb->len, DMA_TO_DEVICE);
 	if (dma_mapping_error(eth->dev, dma))
@@ -1626,15 +1599,6 @@ out_unlock:
 }
 
 static void
-zx279133_lan_set_vlan62_active(struct zx279133_lan_service *service,
-			       bool active)
-{
-	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
-
-	WRITE_ONCE(eth->lan_vlan62_active, active);
-}
-
-static void
 zx279133_lan_set_dsa_active(struct zx279133_lan_service *service, bool active)
 {
 	struct zx279133_eth *eth = zx279133_lan_service_to_eth(service);
@@ -1681,7 +1645,6 @@ const struct zx279133_lan_service_ops zx279133_lan_service_ops = {
 	.datapath_set_ready = zx279133_lan_datapath_set_ready,
 	.datapath_quiesce = zx279133_lan_datapath_quiesce,
 	.datapath_put = zx279133_lan_datapath_put,
-	.set_vlan62_active = zx279133_lan_set_vlan62_active,
 	.set_dsa_active = zx279133_lan_set_dsa_active,
 	.netdev_setup = zx279133_lan_netdev_setup,
 	.netdev_teardown = zx279133_lan_netdev_teardown,

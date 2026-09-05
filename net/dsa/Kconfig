@@ -187,10 +187,10 @@ config NET_DSA_TAG_VSC73XX_8021Q
 config NET_DSA_TAG_ZX279133_RTL8372N
 	tristate "Tag driver for ZX279133 connected RTL8372N switches"
 	help
-	  Say Y or M to use the private VLAN 59 through 62 CPU-port transport
-	  between the ZX279133 LAN conduit and an RTL8372N switch. This is
-	  specific to the SR1010 XMAC0/CPU-port-8 topology. The transport VLAN
-	  remains private to the conduit and DSA tagger.
+	  Say Y or M to use the RTL8372N 8-byte protocol-4 CPU tag between the
+	  ZX279133 LAN conduit and external CPU port 8. This tagger completes
+	  partial checksums in software because the ZX279133 TX parser cannot
+	  locate the network header behind EtherType 0x8899.
 
 config NET_DSA_TAG_XRS700X
 	tristate "Tag driver for XRS700x switches"

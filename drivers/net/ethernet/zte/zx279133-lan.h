@@ -33,7 +33,6 @@ struct zx279133_lan_service_ops {
 	void (*datapath_set_ready)(struct zx279133_lan_service *service, bool ready);
 	int (*datapath_quiesce)(struct zx279133_lan_service *service);
 	void (*datapath_put)(struct zx279133_lan_service *service);
-	void (*set_vlan62_active)(struct zx279133_lan_service *service, bool active);
 	void (*set_dsa_active)(struct zx279133_lan_service *service, bool active);
 	int (*netdev_setup)(struct zx279133_lan_service *service,
 			    struct net_device *ndev);
@@ -70,7 +69,7 @@ zx279133_lan_service_valid(const struct zx279133_lan_service *service)
 	       service->ops->xmac_unlock && service->ops->datapath_get &&
 	       service->ops->datapath_set_ready &&
 	       service->ops->datapath_quiesce && service->ops->datapath_put &&
-	       service->ops->set_vlan62_active && service->ops->set_dsa_active &&
+	       service->ops->set_dsa_active &&
 	       service->ops->netdev_setup && service->ops->netdev_teardown &&
 	       service->ops->netdev_open && service->ops->netdev_stop &&
 	       service->ops->netdev_xmit && service->ops->netdev_tx_timeout &&
@@ -126,13 +125,6 @@ static inline void
 zx279133_lan_service_datapath_put(struct zx279133_lan_service *service)
 {
 	service->ops->datapath_put(service);
-}
-
-static inline void
-zx279133_lan_service_set_vlan62_active(struct zx279133_lan_service *service,
-				       bool active)
-{
-	service->ops->set_vlan62_active(service, active);
 }
 
 static inline void
