@@ -910,6 +910,7 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 	snat = !ipv6 && xlate.src_addr != data.tuple.src_addr;
 	entry->snat = snat;
 
+	mutex_lock(&offload->eth->datapath_lock);
 	mutex_lock(&offload->lock);
 	if (!READ_ONCE(offload->eth->hardware_prepared)) {
 		ret = -ENETDOWN;
@@ -1015,6 +1016,7 @@ static int zx279133_flow_replace(struct zx279133_flow_offload *offload,
 		goto out_clear_ikey;
 	}
 	mutex_unlock(&offload->lock);
+	mutex_unlock(&offload->eth->datapath_lock);
 	return 0;
 
 out_clear_ikey:
@@ -1040,6 +1042,7 @@ out_release_slot:
 	zx279133_flow_slot_release(offload, entry);
 out_free:
 	mutex_unlock(&offload->lock);
+	mutex_unlock(&offload->eth->datapath_lock);
 	kfree(entry);
 	return ret;
 }
@@ -1275,6 +1278,17 @@ int zx279133_flow_offload_setup_tc(struct zx279133_eth *eth,
 	if (type != TC_SETUP_BLOCK && type != TC_SETUP_FT)
 		return -EOPNOTSUPP;
 	return zx279133_flow_setup_block(eth->flow_offload, ndev, type_data);
+}
+
+bool zx279133_flow_offload_active(struct zx279133_eth *eth)
+{
+	struct zx279133_flow_offload *offload = eth->flow_offload;
+	bool active;
+
+	mutex_lock(&offload->lock);
+	active = !xa_empty(&offload->flows);
+	mutex_unlock(&offload->lock);
+	return active;
 }
 
 void zx279133_flow_offload_flush(struct zx279133_eth *eth)

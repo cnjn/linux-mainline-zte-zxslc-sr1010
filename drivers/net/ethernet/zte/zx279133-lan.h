@@ -8,6 +8,8 @@
 #include "zx279133-stats.h"
 
 #define ZX279133_LAN_USER_MAX_MTU	1970
+#define ZX279133_CPU_TX_QUEUES	2
+#define ZX279133_CPU_RX_QUEUES	2
 
 /*
  * Service boundary between the NPPT parent and the LAN switch child.
@@ -17,6 +19,8 @@
  * parent implementation details remain private to the NPPT driver.
  */
 struct zx279133_lan_service;
+struct ethtool_rxfh_param;
+struct ethtool_rxfh_fields;
 
 struct zx279133_lan_netdev_priv {
 	struct zx279133_lan_service *service;
@@ -24,6 +28,12 @@ struct zx279133_lan_netdev_priv {
 };
 
 struct zx279133_lan_service_ops {
+	int (*get_rxfh)(struct zx279133_lan_service *service,
+			struct ethtool_rxfh_param *rxfh);
+	int (*set_rxfh)(struct zx279133_lan_service *service,
+			struct ethtool_rxfh_param *rxfh, struct netlink_ext_ack *extack);
+	int (*get_rxfh_fields)(struct zx279133_lan_service *service,
+			       struct ethtool_rxfh_fields *fields);
 	u32 (*nppt_read)(struct zx279133_lan_service *service, u32 offset);
 	void (*nppt_write)(struct zx279133_lan_service *service, u32 offset,
 			   u32 value);
@@ -74,7 +84,9 @@ zx279133_lan_service_valid(const struct zx279133_lan_service *service)
 	       service->ops->netdev_open && service->ops->netdev_stop &&
 	       service->ops->netdev_xmit && service->ops->netdev_tx_timeout &&
 	       service->ops->netdev_get_stats64 &&
-	       service->ops->netdev_change_mtu && service->ops->netdev_setup_tc;
+	       service->ops->netdev_change_mtu && service->ops->netdev_setup_tc &&
+	       service->ops->get_rxfh && service->ops->set_rxfh &&
+	       service->ops->get_rxfh_fields;
 }
 
 static inline u32

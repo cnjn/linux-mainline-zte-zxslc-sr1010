@@ -40,6 +40,7 @@
 #define ZX279133_XMAC0_BASE		0x140000
 #define ZX279133_XMAC_TX_CTRL		0x0000
 #define ZX279133_XMAC_RX_CTRL		0x0010
+#define ZX279133_XMAC_RX_IPC		BIT(9)
 #define ZX279133_XMAC_FRAME_CFG		0x0020
 #define ZX279133_XMAC_MODE_CFG		0x0280
 #define ZX279133_XMAC_DUPLEX		0x0500
@@ -2686,7 +2687,7 @@ static void zx279133_lan_xmac_configure(struct zx279133_rtl8372n *priv)
 	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_TX_CTRL,
 				0x00010000);
 	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_RX_CTRL,
-				0x3e800086);
+				0x3e800086 | ZX279133_XMAC_RX_IPC);
 	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_FRAME_CFG,
 				0x80000001);
 	zx279133_lan_nppt_write(priv, xmac + ZX279133_XMAC_MODE_CFG,

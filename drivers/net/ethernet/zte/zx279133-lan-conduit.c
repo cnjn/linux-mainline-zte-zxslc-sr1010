@@ -7,6 +7,7 @@
  */
 
 #include <linux/etherdevice.h>
+#include <linux/ethtool.h>
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/of.h>
@@ -86,6 +87,64 @@ static const struct net_device_ops zx279133_lan_conduit_netdev_ops = {
 	.ndo_validate_addr = eth_validate_addr,
 };
 
+static void zx279133_lan_conduit_get_channels(struct net_device *ndev,
+					      struct ethtool_channels *channels)
+{
+	channels->max_rx = ZX279133_CPU_RX_QUEUES;
+	channels->max_tx = ZX279133_CPU_TX_QUEUES;
+	channels->rx_count = ndev->real_num_rx_queues;
+	channels->tx_count = ndev->real_num_tx_queues;
+}
+
+static u32 zx279133_lan_conduit_get_rxfh_indir_size(struct net_device *ndev)
+{
+	return 8;
+}
+
+static int zx279133_lan_conduit_get_rxfh(struct net_device *ndev,
+					 struct ethtool_rxfh_param *rxfh)
+{
+	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
+
+	return priv->service->ops->get_rxfh(priv->service, rxfh);
+}
+
+static int zx279133_lan_conduit_set_rxfh(struct net_device *ndev,
+					 struct ethtool_rxfh_param *rxfh,
+					 struct netlink_ext_ack *extack)
+{
+	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
+
+	return priv->service->ops->set_rxfh(priv->service, rxfh, extack);
+}
+
+static int zx279133_lan_conduit_get_rxfh_fields(struct net_device *ndev,
+						struct ethtool_rxfh_fields *fields)
+{
+	struct zx279133_lan_conduit_priv *priv = netdev_priv(ndev);
+
+	return priv->service->ops->get_rxfh_fields(priv->service, fields);
+}
+
+static int zx279133_lan_conduit_get_rxnfc(struct net_device *ndev,
+					  struct ethtool_rxnfc *info, u32 *rules)
+{
+	if (info->cmd != ETHTOOL_GRXRINGS)
+		return -EOPNOTSUPP;
+	info->data = ndev->real_num_rx_queues;
+	return 0;
+}
+
+static const struct ethtool_ops zx279133_lan_conduit_ethtool_ops = {
+	.get_rxnfc = zx279133_lan_conduit_get_rxnfc,
+	.get_rxfh_indir_size = zx279133_lan_conduit_get_rxfh_indir_size,
+	.get_rxfh = zx279133_lan_conduit_get_rxfh,
+	.set_rxfh = zx279133_lan_conduit_set_rxfh,
+	.get_rxfh_fields = zx279133_lan_conduit_get_rxfh_fields,
+	.get_link = ethtool_op_get_link,
+	.get_channels = zx279133_lan_conduit_get_channels,
+};
+
 static void zx279133_lan_conduit_teardown(void *data)
 {
 	struct net_device *ndev = data;
@@ -107,13 +166,15 @@ static int zx279133_lan_conduit_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, -EPROBE_DEFER,
 				     "NPPT LAN service is unavailable\n");
 
-	ndev = devm_alloc_etherdev(dev, sizeof(*priv));
+	ndev = devm_alloc_etherdev_mqs(dev, sizeof(*priv),
+				       ZX279133_CPU_TX_QUEUES, ZX279133_CPU_RX_QUEUES);
 	if (!ndev)
 		return -ENOMEM;
 
 	SET_NETDEV_DEV(ndev, dev);
 	strscpy(ndev->name, "lan-cpu%d", IFNAMSIZ);
 	ndev->netdev_ops = &zx279133_lan_conduit_netdev_ops;
+	ndev->ethtool_ops = &zx279133_lan_conduit_ethtool_ops;
 	ndev->tstats = devm_netdev_alloc_pcpu_stats(dev,
 						    struct pcpu_sw_netstats);
 	if (!ndev->tstats)

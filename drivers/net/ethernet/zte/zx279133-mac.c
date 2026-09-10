@@ -426,7 +426,8 @@ static void zx279133_xmac_program(struct zx279133_eth *eth, u32 speed_code,
 	else
 		writel(value & ~ZX279133_XMAC_HALF_DUPLEX,
 		       xmac + ZX279133_XMAC_DUPLEX);
-	writel(0x3e800086, xmac + ZX279133_XMAC_RX_CTRL);
+	writel(0x3e800086 | ZX279133_XMAC_RX_IPC,
+	       xmac + ZX279133_XMAC_RX_CTRL);
 	writel(0x80000001, xmac + ZX279133_XMAC_FRAME_CFG);
 	writel(2, xmac + ZX279133_XMAC_MODE_CFG);
 

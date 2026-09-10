@@ -2,6 +2,7 @@
 
 #include <linux/bitfield.h>
 #include <linux/clk.h>
+#include <linux/cpumask.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
@@ -66,20 +67,33 @@ static void zx279133_napi_del(void *data)
 	netif_napi_del(data);
 }
 
+static void zx279133_rx_affinity_clear(void *data)
+{
+	struct zx279133_eth *eth = data;
+
+	irq_update_affinity_hint(eth->irqs[1], NULL);
+	irq_update_affinity_hint(eth->irqs[4], NULL);
+}
+
 static void zx279133_rx_page_pool_destroy(void *data)
 {
 	struct zx279133_eth *eth = data;
 
 	WARN_ON(eth->rx_page_map_count);
+	page_pool_destroy(eth->lan_rx_page_pool);
 	page_pool_destroy(eth->rx_page_pool);
 }
 
 static void zx279133_xdp_rxq_unreg(void *data)
 {
 	struct zx279133_eth *eth = data;
+	unsigned int i;
 
-	xdp_rxq_info_unreg(&eth->xsk_rxq);
-	xdp_rxq_info_unreg(&eth->xdp_rxq);
+	if (xdp_rxq_info_is_reg(&eth->xsk_rxq))
+		xdp_rxq_info_unreg(&eth->xsk_rxq);
+	for (i = 0; i < ZX279133_CPU_RX_QUEUES; i++)
+		if (xdp_rxq_info_is_reg(&eth->xdp_rxq[i]))
+			xdp_rxq_info_unreg(&eth->xdp_rxq[i]);
 }
 
 static void zx279133_mdio_device_put(void *data)
@@ -226,7 +240,8 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 	unsigned int i;
 	int ret;
 
-	ndev = devm_alloc_etherdev(dev, sizeof(*eth));
+	ndev = devm_alloc_etherdev_mqs(dev, sizeof(*eth),
+				       ZX279133_CPU_TX_QUEUES, ZX279133_CPU_RX_QUEUES);
 	if (!ndev)
 		return -ENOMEM;
 
@@ -246,7 +261,10 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 	atomic64_set(&eth->rx_irq_count, 0);
 	atomic64_set(&eth->idm_local_irq_count, 0);
 	atomic64_set(&eth->rx_refill_retry_work_runs, 0);
-	u64_stats_init(&eth->rx_stats_sync);
+	u64_stats_init(&eth->rx_stats[0].syncp);
+	u64_stats_init(&eth->rx_stats[1].syncp);
+	spin_lock_init(&eth->rx_buffer_lock);
+	atomic_set(&eth->rx_poll_active, 0);
 	spin_lock_init(&eth->tx_lock);
 	spin_lock_init(&eth->irq_lock);
 	spin_lock_init(&eth->ptp_lock);
@@ -257,10 +275,13 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 			  zx279133_idm_rx_refill_work);
 	mutex_init(&eth->xmac_lock);
 	mutex_init(&eth->datapath_lock);
-	eth->tx_slots = devm_kcalloc(dev, ZX279133_IDM_TX_DEPTH,
-				     sizeof(*eth->tx_slots), GFP_KERNEL);
-	if (!eth->tx_slots)
-		return -ENOMEM;
+	for (i = 0; i < ZX279133_CPU_TX_QUEUES; i++) {
+		eth->tx[i].slots = devm_kcalloc(dev, ZX279133_IDM_TX_DEPTH,
+						sizeof(*eth->tx[i].slots),
+					      GFP_KERNEL);
+		if (!eth->tx[i].slots)
+			return -ENOMEM;
+	}
 
 	eth->base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(eth->base))
@@ -493,6 +514,11 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 	}
 	ndev->hw_features |= NETIF_F_HW_TC;
 	ndev->features |= NETIF_F_HW_TC;
+	ndev->hw_features |= NETIF_F_RXCSUM;
+	ndev->features |= NETIF_F_RXCSUM;
+	ndev->vlan_features |= NETIF_F_RXCSUM;
+	ndev->hw_features |= NETIF_F_RXHASH;
+	ndev->features |= NETIF_F_RXHASH;
 	ndev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
 			     NETDEV_XDP_ACT_NDO_XMIT |
 			     NETDEV_XDP_ACT_XSK_ZEROCOPY;
@@ -504,6 +530,11 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 
 	netif_napi_add(ndev, &eth->napi, zx279133_idm_rx_poll);
 	ret = devm_add_action_or_reset(dev, zx279133_napi_del, &eth->napi);
+	if (ret)
+		return ret;
+
+	netif_napi_add(ndev, &eth->lan_napi, zx279133_idm_lan_rx_poll);
+	ret = devm_add_action_or_reset(dev, zx279133_napi_del, &eth->lan_napi);
 	if (ret)
 		return ret;
 
@@ -534,32 +565,41 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 			return dev_err_probe(dev, ret,
 					     "failed to create RX page pool\n");
 		}
+		params.napi = &eth->lan_napi;
+		eth->lan_rx_page_pool = page_pool_create(&params);
+		if (IS_ERR(eth->lan_rx_page_pool)) {
+			ret = PTR_ERR(eth->lan_rx_page_pool);
+			page_pool_destroy(eth->rx_page_pool);
+			return dev_err_probe(dev, ret, "failed to create LAN RX pool\n");
+		}
 		ret = devm_add_action_or_reset(dev,
 					       zx279133_rx_page_pool_destroy, eth);
 		if (ret)
 			return ret;
 	}
-	ret = xdp_rxq_info_reg(&eth->xdp_rxq, ndev, 0, eth->napi.napi_id);
-	if (ret)
-		return dev_err_probe(dev, ret, "failed to register XDP RX queue\n");
-	ret = xdp_rxq_info_reg_mem_model(&eth->xdp_rxq, MEM_TYPE_PAGE_POOL,
-					 eth->rx_page_pool);
-	if (ret) {
-		xdp_rxq_info_unreg(&eth->xdp_rxq);
-		return dev_err_probe(dev, ret,
-				     "failed to register XDP page pool\n");
+	for (i = 0; i < ZX279133_CPU_RX_QUEUES; i++) {
+		struct napi_struct *napi = i ? &eth->lan_napi : &eth->napi;
+		struct page_pool *pool = i ? eth->lan_rx_page_pool : eth->rx_page_pool;
+
+		ret = xdp_rxq_info_reg(&eth->xdp_rxq[i], ndev, i, napi->napi_id);
+		if (!ret)
+			ret = xdp_rxq_info_reg_mem_model(&eth->xdp_rxq[i],
+							 MEM_TYPE_PAGE_POOL, pool);
+		if (ret) {
+			zx279133_xdp_rxq_unreg(eth);
+			return dev_err_probe(dev, ret, "failed to register XDP RX queue\n");
+		}
 	}
 	ret = xdp_rxq_info_reg(&eth->xsk_rxq, ndev, 0, eth->napi.napi_id);
 	if (ret) {
-		xdp_rxq_info_unreg(&eth->xdp_rxq);
+		zx279133_xdp_rxq_unreg(eth);
 		return dev_err_probe(dev, ret,
 				     "failed to register AF_XDP RX queue\n");
 	}
 	ret = xdp_rxq_info_reg_mem_model(&eth->xsk_rxq,
 					 MEM_TYPE_XSK_BUFF_POOL, NULL);
 	if (ret) {
-		xdp_rxq_info_unreg(&eth->xsk_rxq);
-		xdp_rxq_info_unreg(&eth->xdp_rxq);
+		zx279133_xdp_rxq_unreg(eth);
 		return dev_err_probe(dev, ret,
 				     "failed to register AF_XDP buffer pool\n");
 	}
@@ -568,8 +608,8 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 		return ret;
 
 	/*
-	 * Source 0 (direct CPU RX) and source 2 (vendor "localtest") share
-	 * this driver's NAPI instance. The NPPT aggregate source has no
+	 * Source 0 and source 2 (vendor "localtest") each serve half of WAN/LAN
+	 * through separate NAPI instances. The NPPT aggregate source has no
 	 * recovered acknowledge contract, source 1 belongs to the unused
 	 * companion/Wi-Fi path, and source 3 belongs to the vendor buffer
 	 * release callback, so those three DT IRQs remain masked/unrequested.
@@ -585,6 +625,19 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, ret,
 				     "failed to request IDM local-test IRQ\n");
 
+	/* Start the independent RX workers on separate online CPUs.
+	 * These are initial affinities; userspace may override them later.
+	 */
+	irq_set_affinity_and_hint(eth->irqs[1],
+				  cpumask_of(cpumask_local_spread(0, dev_to_node(dev))));
+	irq_set_affinity_and_hint(eth->irqs[4],
+				  cpumask_of(cpumask_local_spread(1, dev_to_node(dev))));
+	ret = devm_add_action_or_reset(dev, zx279133_rx_affinity_clear, eth);
+	if (ret)
+		return ret;
+
+	eth->rx_rss_map[0] = 0xf0;
+	eth->rx_rss_map[1] = 0xf0;
 	ret = devm_register_netdev(dev, ndev);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to register netdev\n");

@@ -21,7 +21,7 @@
 #define ZX279133_NUM_IRQS	5
 
 /* Validated WAN/LAN hardware constants. */
-#define zx279133_tx_queue		1
+#define ZX279133_IDM_CPU_TX_FIRST	1
 #define zx279133_tx_port		6
 #define ZX279133_LAN_TX_PORT		5
 #define ZX279133_LAN_RX_QUEUE_COUNT	8
@@ -262,7 +262,8 @@
 #define ZX279133_ISU_SPA_SP_EN		BIT(1)
 #define ZX279133_ISU_INIT_REQ_MASK	GENMASK(2, 0)
 #define ZX279133_ISU_INIT_REQ_VALUE	0x7
-#define ZX279133_ISU_DWRR_WEIGHT_VALUE	0x00010202
+/* Factory PON/ETH/protocol/new-input weights; zero starves the WOE NP1 path. */
+#define ZX279133_ISU_DWRR_WEIGHT_VALUE	0x01010202
 #define ZX279133_ISU_RING_GAP_MASK	GENMASK(11, 0)
 #define ZX279133_ISU_RING_GAP_VALUE	3
 #define ZX279133_ODMA_ISU_SP_EN_BIT	BIT(0)
@@ -369,13 +370,16 @@
 #define ZX279133_IDM_INT_CPU		0x0044
 #define ZX279133_IDM_RX_RELEASE		0x0088
 #define ZX279133_IDM_BP_REFILL		0x0100
-#define ZX279133_IDM_LOCAL_MASK		BIT(9)
+/* Route half of each interface's queues to each RX interrupt source. */
+/* Worker 0 retains native WAN queue 8; worker 1 retains native LAN queue 0. */
+#define ZX279133_IDM_LOCAL_MASK		(GENMASK(11, 8) | GENMASK(7, 4))
 #define ZX279133_IDM_DIRECT_RX_MASK	(GENMASK(15, 0) & \
 					 ~ZX279133_IDM_LOCAL_MASK)
 #define ZX279133_IDM_NAPI_MASK		(ZX279133_IDM_DIRECT_RX_MASK | \
 					 ZX279133_IDM_LOCAL_MASK)
 #define ZX279133_IDM_RX_QUEUE		0
 #define ZX279133_IDM_RX_QUEUES		24
+#define ZX279133_IDM_CPU_RX_QUEUES	16
 #define ZX279133_IDM_RX_RING_SIZE	2048
 #define ZX279133_IDM_BP_RING_SIZE	4096
 #define ZX279133_IDM_RX_BUFFER_COUNT	2048
@@ -437,6 +441,7 @@ static inline u32 zx279133_idm_tx_done_reg(unsigned int queue)
 #define ZX279133_XMAC1_BASE	0x180000
 #define ZX279133_XMAC_TX_CTRL	0x0000
 #define ZX279133_XMAC_RX_CTRL	0x0010
+#define ZX279133_XMAC_RX_IPC	BIT(9)
 #define ZX279133_XMAC_FRAME_CFG	0x0020
 #define ZX279133_XMAC_MODE_CFG	0x0280
 #define ZX279133_XMAC_DUPLEX	0x0500
@@ -506,6 +511,17 @@ struct zx279133_tx_slot {
 	bool xsk_tx;
 };
 
+struct zx279133_tx_ring {
+	struct zx279133_tx_slot *slots;
+	u16 done;
+	u16 producer;
+	u16 consumer;
+	u16 pending;
+	u16 notify_pending;
+	u64 submitted;
+	u64 completed;
+};
+
 struct zx279133_rx_page_entry {
 	union {
 		struct page *page;
@@ -523,6 +539,39 @@ static_assert(ZX279133_BMU_BPPE_SIZE +
 
 struct zx279133_eth;
 struct zx279133_flow_offload;
+
+struct zx279133_rx_stats {
+	struct u64_stats_sync syncp;
+	u64_stats_t rx_napi_polls;
+	u64_stats_t rx_napi_work;
+	u64_stats_t rx_queue_descs[ZX279133_IDM_CPU_RX_QUEUES];
+	u64_stats_t rx_napi_budget_exhaustions;
+	u64_stats_t rx_desc_not_ready;
+	u64_stats_t rx_invalid_dma;
+	u64_stats_t rx_page_lookup_misses;
+	u64_stats_t rx_jumbo_drops;
+	u64_stats_t rx_descriptor_flag_drops;
+	u64_stats_t rx_page_alloc_failures;
+	u64_stats_t rx_copy_fallbacks;
+	u64_stats_t rx_skb_alloc_failures;
+	u64_stats_t rx_hw_csum_packets;
+	u64_stats_t rx_hw_hash_packets;
+	u64_stats_t rx_refill_post_failures;
+	u64_stats_t rx_refill_shortfalls;
+	u64_stats_t rx_refill_published;
+	u64_stats_t rx_release_published;
+	u64_stats_t rx_refill_recovery_attempts;
+	u64_stats_t rx_refill_recovery_pages;
+	u64_stats_t rx_refill_recovery_failures;
+	u64_stats_t xdp_pass;
+	u64_stats_t xdp_drop;
+	u64_stats_t xdp_tx;
+	u64_stats_t xdp_redirect;
+	u64_stats_t xdp_aborted;
+	u64_stats_t cpu_polls[2];
+	u64_stats_t overlaps;
+	u64_stats_t foreign_pages;
+};
 
 struct zx279133_eth {
 	struct device *dev;
@@ -545,7 +594,8 @@ struct zx279133_eth {
 	phys_addr_t idm_size;
 	void __iomem *idm_mem;
 	struct page_pool *rx_page_pool;
-	struct xdp_rxq_info xdp_rxq;
+	struct page_pool *lan_rx_page_pool;
+	struct xdp_rxq_info xdp_rxq[ZX279133_CPU_RX_QUEUES];
 	struct xdp_rxq_info xsk_rxq;
 	struct xsk_buff_pool *xsk_pool;
 	struct bpf_prog __rcu *xdp_prog;
@@ -596,14 +646,13 @@ struct zx279133_eth {
 	dma_addr_t tx_descs_dma;
 	u16 rx_cons[ZX279133_IDM_RX_QUEUES];
 	u16 rx_bp_prod;
-	u8 rx_poll_cursor;
-	struct zx279133_tx_slot *tx_slots;
+	u8 rx_poll_cursor[2];
+	u16 rx_refill_pending;
+	/* Serializes the shared DMA map, supply ring and refill credits. */
+	spinlock_t rx_buffer_lock;
+	atomic_t rx_poll_active;
+	struct zx279133_tx_ring tx[ZX279133_CPU_TX_QUEUES];
 	u32 idm_tx_base_saved;
-	u16 tx_done;
-	u16 tx_producer;
-	u16 tx_consumer;
-	u16 tx_pending;
-	u16 tx_notify_pending;
 	u64 tx_doorbell_writes;
 	u64 tx_doorbell_descs;
 	u64 tx_reclaim_polls;
@@ -616,30 +665,7 @@ struct zx279133_eth {
 	u64 tx_sw_csum_packets;
 	atomic64_t rx_irq_count;
 	atomic64_t idm_local_irq_count;
-	struct u64_stats_sync rx_stats_sync;
-	u64_stats_t rx_napi_polls;
-	u64_stats_t rx_napi_work;
-	u64_stats_t rx_napi_budget_exhaustions;
-	u64_stats_t rx_desc_not_ready;
-	u64_stats_t rx_invalid_dma;
-	u64_stats_t rx_page_lookup_misses;
-	u64_stats_t rx_jumbo_drops;
-	u64_stats_t rx_descriptor_flag_drops;
-	u64_stats_t rx_page_alloc_failures;
-	u64_stats_t rx_copy_fallbacks;
-	u64_stats_t rx_skb_alloc_failures;
-	u64_stats_t rx_refill_post_failures;
-	u64_stats_t rx_refill_shortfalls;
-	u64_stats_t rx_refill_published;
-	u64_stats_t rx_release_published;
-	u64_stats_t rx_refill_recovery_attempts;
-	u64_stats_t rx_refill_recovery_pages;
-	u64_stats_t rx_refill_recovery_failures;
-	u64_stats_t xdp_pass;
-	u64_stats_t xdp_drop;
-	u64_stats_t xdp_tx;
-	u64_stats_t xdp_redirect;
-	u64_stats_t xdp_aborted;
+	struct zx279133_rx_stats rx_stats[2];
 	atomic64_t rx_refill_retry_work_runs;
 	u16 rx_refill_deficit;
 	u16 rx_refill_deficit_high_water;
@@ -653,6 +679,7 @@ struct zx279133_eth {
 	/* Serializes ownership of the shared NPPT/IDM datapath. */
 	struct mutex datapath_lock;
 	struct napi_struct napi;
+	struct napi_struct lan_napi;
 	struct delayed_work tx_reclaim_work;
 	struct delayed_work rx_refill_work;
 	struct ptp_clock_info ptp_info;
@@ -664,6 +691,9 @@ struct zx279133_eth {
 	struct mutex ptp_cmd_lock;
 	unsigned long datapath_users;
 	bool hardware_prepared;
+	bool rx_hash_active;
+	u32 rx_hash_loads;
+	u8 rx_rss_map[2]; /* WAN, LAN: each bit selects one Linux RX queue. */
 	bool lan_datapath_ready;
 	bool lan_dsa_active;
 	bool serdes_powered;
@@ -765,6 +795,7 @@ int zx279133_fast_age_read_clear(struct zx279133_eth *eth, u32 age,
 				 bool *used);
 int zx279133_flow_offload_init(struct zx279133_eth *eth);
 void zx279133_flow_offload_flush(struct zx279133_eth *eth);
+bool zx279133_flow_offload_active(struct zx279133_eth *eth);
 int zx279133_flow_offload_setup_tc(struct zx279133_eth *eth,
 				   struct net_device *ndev,
 				   enum tc_setup_type type, void *type_data);
@@ -777,6 +808,7 @@ void zx279133_xdp_flush(struct zx279133_eth *eth);
 void zx279133_xsk_tx(struct zx279133_eth *eth);
 void zx279133_idm_rx_refill_work(struct work_struct *work);
 int zx279133_idm_rx_poll(struct napi_struct *napi, int budget);
+int zx279133_idm_lan_rx_poll(struct napi_struct *napi, int budget);
 irqreturn_t zx279133_idm_rx_irq(int irq, void *data);
 irqreturn_t zx279133_idm_local_irq(int irq, void *data);
 int zx279133_idm_rx_prepare(struct zx279133_eth *eth);
@@ -787,6 +819,20 @@ bool zx279133_idm_tx_drain(struct zx279133_eth *eth);
 int zx279133_idm_tx_prepare(struct zx279133_eth *eth);
 void zx279133_idm_tx_deactivate(struct zx279133_eth *eth);
 void zx279133_idm_tx_release(struct zx279133_eth *eth, bool hardware_alive);
+void zx279133_idm_tx_flush_queue_locked(struct zx279133_eth *eth,
+					unsigned int queue);
+unsigned int zx279133_idm_tx_reclaim_queue_locked(struct zx279133_eth *eth,
+						  unsigned int queue);
+
+static inline unsigned int zx279133_idm_tx_pending(struct zx279133_eth *eth)
+{
+	unsigned int pending = 0;
+	int i;
+
+	for (i = 0; i < ZX279133_CPU_TX_QUEUES; i++)
+		pending += eth->tx[i].pending;
+	return pending;
+}
 
 void zx279133_xmac_set_enabled(struct zx279133_eth *eth, bool enabled);
 int zx279133_xpcs_set_bypass(struct zx279133_eth *eth, bool enabled);

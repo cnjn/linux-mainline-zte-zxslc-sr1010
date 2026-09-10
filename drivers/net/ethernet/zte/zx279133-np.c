@@ -1,16 +1,23 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 #include <linux/bitfield.h>
+#include <linux/crc32.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/etherdevice.h>
 #include <linux/firmware.h>
 #include <linux/io.h>
 #include <linux/iopoll.h>
+#include <linux/module.h>
 #include <linux/regmap.h>
 #include <linux/unaligned.h>
 
 #include "zx279133.h"
+#include "zx279133-rx-hash.h"
+
+static bool rx_hash = true;
+module_param(rx_hash, bool, 0444);
+MODULE_PARM_DESC(rx_hash, "Enable guarded IPv4 RX flow hashing for the calibrated PPU firmware");
 
 void zx279133_route_set(struct zx279133_eth *eth, bool enabled)
 {
@@ -1488,6 +1495,88 @@ out_gate:
 	return ret;
 }
 
+static int zx279133_ppu_hash_write(struct zx279133_eth *eth, u32 pc,
+				   const u64 *inst)
+{
+	u32 lo[4], hi[4], value;
+	int i, ret;
+
+	for (i = 0; i < 4; i++) {
+		lo[i] = lower_32_bits(inst[i]);
+		hi[i] = upper_32_bits(inst[i]);
+	}
+	ret = zx279133_ppu_inst_block(eth, pc, lo, hi);
+	if (ret)
+		return ret;
+	ret = readl_poll_timeout_atomic(eth->pps_base + ZX279133_PPU_CLUSTER_RDY,
+					value, value & BIT(0), 1, 1000);
+	if (ret)
+		return ret;
+	/* Read command and result window calibrated against all loaded words. */
+	writel((readl(eth->pps_base + ZX279133_PPU_CLUSTER_PC) &
+		~ZX279133_PPU_CLUSTER_PC_MASK) | BIT(12) | pc >> 2,
+	       eth->pps_base + ZX279133_PPU_CLUSTER_PC);
+	ret = readl_poll_timeout_atomic(eth->pps_base + ZX279133_PPU_CLUSTER_PC,
+					value, value & BIT(0), 1, 1000);
+	if (ret)
+		return ret;
+	for (i = 0; i < 4; i++) {
+		u64 actual = (u64)(readl(eth->pps_base + 0x90d5c + i * 8) &
+				  ZX279133_PPU_CLUSTER_HI_MASK) << 32 |
+			     readl(eth->pps_base + 0x90d58 + i * 8);
+
+		if (actual != inst[i])
+			return -EIO;
+	}
+	return 0;
+}
+
+static int zx279133_ppu_rx_hash_prepare(struct zx279133_eth *eth,
+					const struct firmware *fw)
+{
+	unsigned int which, i;
+	int ret;
+
+	/* The fingerprinted firmware leaves these ranges outside its loaded code.
+	 * Publish and verify all bodies before any hook, before route/RX start.
+	 */
+	for (which = 0; which < ARRAY_SIZE(zx279133_rx_hash_programs); which++) {
+		const struct zx279133_rx_hash_program *p = &zx279133_rx_hash_programs[which];
+		u64 block[4];
+		unsigned int j;
+
+		for (i = 0; i < p->count; i += 4) {
+			memcpy(block, p->inst + i, sizeof(block));
+			for (j = 0; j < p->map_count; j++) {
+				unsigned int offset = p->map[j].offset;
+				u8 map = eth->rx_rss_map[p->map[j].port];
+
+				if (offset < i || offset >= i + 4)
+					continue;
+				block[offset - i] &= ~BIT_ULL(27);
+				block[offset - i] |=
+					(u64)((map >> p->map[j].bucket) & 1) << 27;
+			}
+			ret = zx279133_ppu_hash_write(eth, p->start + i, block);
+			if (ret)
+				return ret;
+		}
+	}
+	for (which = 0; which < ARRAY_SIZE(zx279133_rx_hash_programs); which++) {
+		const struct zx279133_rx_hash_program *p = &zx279133_rx_hash_programs[which];
+		u64 block[4];
+
+		for (i = 0; i < 4; i++)
+			block[i] = get_unaligned_be64(fw->data + 16 + ((p->hook & ~3) + i) * 8);
+		block[p->hook & 3] = 0x0108000000000520ULL |
+				    (u64)(p->hook + 1) << 31 | (u64)p->start << 15;
+		ret = zx279133_ppu_hash_write(eth, p->hook & ~3, block);
+		if (ret)
+			return ret;
+	}
+	return 0;
+}
+
 static int zx279133_ppu_mcode_prepare(struct zx279133_eth *eth)
 {
 	const struct firmware *fw;
@@ -1496,8 +1585,10 @@ static int zx279133_ppu_mcode_prepare(struct zx279133_eth *eth)
 	u32 lo[4], hi[4];
 	u32 first, inst_num, tag, value, entry, pkt_type, i;
 	u32 agclk;
+	bool hash;
 	int ret;
 
+	WRITE_ONCE(eth->rx_hash_active, false);
 	ret = request_firmware(&fw, "zte/zx279133/mcode_intel.bin", eth->dev);
 	if (ret)
 		return dev_err_probe(eth->dev, ret,
@@ -1515,6 +1606,10 @@ static int zx279133_ppu_mcode_prepare(struct zx279133_eth *eth)
 	    inst_num * 8 + 16 > fw->size)
 		goto err_fw;
 	first = ALIGN(first, 4);
+	hash = rx_hash && fw->size == 103456 &&
+	       (crc32_le(~0U, fw->data, fw->size) ^ ~0U) == 0xef1d7647;
+	if (rx_hash && !hash)
+		dev_warn(eth->dev, "uncalibrated PPU firmware; retaining native RX queues\n");
 
 	agclk = readl(eth->pps_base + ZX279133_PPU_AGCLK_CFG);
 	if (agclk & ZX279133_PPU_CORE_AGCLK)
@@ -1550,6 +1645,11 @@ static int zx279133_ppu_mcode_prepare(struct zx279133_eth *eth)
 		p += 32;
 	}
 
+	if (hash) {
+		ret = zx279133_ppu_rx_hash_prepare(eth, fw);
+		if (ret)
+			goto out_gate;
+	}
 	p = fw->data + 8 * inst_num + 16;
 	end = fw->data + fw->size;
 	pkt_type = 0;
@@ -1629,6 +1729,12 @@ static int zx279133_ppu_mcode_prepare(struct zx279133_eth *eth)
 		goto err_layout;
 	ret = 0;
 	eth->ppu_mcode_prepared = true;
+	WRITE_ONCE(eth->rx_hash_active, hash);
+	if (hash) {
+		eth->rx_hash_loads++;
+		dev_info(eth->dev, "guarded IPv4 RX hash installed, generation=%u\n",
+			 eth->rx_hash_loads);
+	}
 
 out_gate:
 	writel(agclk, eth->pps_base + ZX279133_PPU_AGCLK_CFG);
@@ -1648,6 +1754,7 @@ err_fw:
 static void zx279133_ppu_mcode_restore(struct zx279133_eth *eth)
 {
 	eth->ppu_mcode_prepared = false;
+	WRITE_ONCE(eth->rx_hash_active, false);
 }
 
 static const u32 zx279133_spa_tpid_values[] = {

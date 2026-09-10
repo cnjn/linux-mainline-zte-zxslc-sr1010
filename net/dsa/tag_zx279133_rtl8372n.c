@@ -65,6 +65,8 @@ zx279133_rtl8372n_rcv(struct sk_buff *skb, struct net_device *netdev)
 	skb->dev = dsa_conduit_find_user(netdev, 0, port);
 	if (!skb->dev)
 		return NULL;
+	/* DSA user ports expose one RX queue, independently of conduit workers. */
+	skb_record_rx_queue(skb, 0);
 
 	if (inline_tag) {
 		skb_pull_rcsum(skb, VLAN_HLEN);
