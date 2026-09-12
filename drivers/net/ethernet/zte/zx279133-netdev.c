@@ -1462,6 +1462,11 @@ static int zx279133_get_rxfh_fields_common(struct zx279133_eth *eth,
 		return -EOPNOTSUPP;
 	fields->data = 0;
 	switch (fields->flow_type) {
+	case TCP_V6_FLOW:
+	case UDP_V6_FLOW:
+		if (!READ_ONCE(eth->rx_hash_ipv6_active))
+			return 0;
+		fallthrough;
 	case TCP_V4_FLOW:
 	case UDP_V4_FLOW:
 		if (READ_ONCE(eth->rx_hash_active))
@@ -1473,8 +1478,6 @@ static int zx279133_get_rxfh_fields_common(struct zx279133_eth *eth,
 	case AH_V4_FLOW:
 	case ESP_V4_FLOW:
 	case IPV4_FLOW:
-	case TCP_V6_FLOW:
-	case UDP_V6_FLOW:
 	case SCTP_V6_FLOW:
 	case AH_ESP_V6_FLOW:
 	case AH_V6_FLOW:

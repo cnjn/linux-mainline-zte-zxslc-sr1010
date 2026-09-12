@@ -777,7 +777,7 @@ deliver_skb:
 				skb->ip_summed = CHECKSUM_UNNECESSARY;
 				u64_stats_inc(&stats->rx_hw_csum_packets);
 			}
-			/* The terminal PPU program marks only complete IPv4 tuples.
+			/* The terminal PPU program marks only parsed transport tuples.
 			 * XDP may have changed that tuple before XDP_PASS delivery.
 			 */
 			if (!xdp_ran && eth->rx_hash_active &&

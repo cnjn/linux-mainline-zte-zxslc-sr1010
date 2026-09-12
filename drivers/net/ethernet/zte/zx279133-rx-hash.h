@@ -15,7 +15,7 @@ struct zx279133_rx_hash_program {
 		u8 bucket;
 		u8 port; /* 0: WAN, 1: LAN */
 	} map[16];
-	u64 inst[212];
+	u64 inst[288];
 };
 
 static const struct zx279133_rx_hash_program zx279133_rx_hash_programs[] = {

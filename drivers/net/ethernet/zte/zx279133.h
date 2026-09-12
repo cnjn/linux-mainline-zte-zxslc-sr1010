@@ -692,6 +692,7 @@ struct zx279133_eth {
 	unsigned long datapath_users;
 	bool hardware_prepared;
 	bool rx_hash_active;
+	bool rx_hash_ipv6_active;
 	u32 rx_hash_loads;
 	u8 rx_rss_map[2]; /* WAN, LAN: each bit selects one Linux RX queue. */
 	bool lan_datapath_ready;

@@ -14,10 +14,14 @@
 
 #include "zx279133.h"
 #include "zx279133-rx-hash.h"
+#include "zx279133-rx-hash-ipv6.h"
 
 static bool rx_hash = true;
 module_param(rx_hash, bool, 0444);
-MODULE_PARM_DESC(rx_hash, "Enable guarded IPv4 RX flow hashing for the calibrated PPU firmware");
+MODULE_PARM_DESC(rx_hash, "Enable guarded RX flow hashing for the calibrated PPU firmware");
+static bool rx_hash_ipv6 = true;
+module_param(rx_hash_ipv6, bool, 0444);
+MODULE_PARM_DESC(rx_hash_ipv6, "Enable IPv6 tuple hashing with the calibrated RX hash programs");
 
 void zx279133_route_set(struct zx279133_eth *eth, bool enabled)
 {
@@ -1534,6 +1538,8 @@ static int zx279133_ppu_hash_write(struct zx279133_eth *eth, u32 pc,
 static int zx279133_ppu_rx_hash_prepare(struct zx279133_eth *eth,
 					const struct firmware *fw)
 {
+	const struct zx279133_rx_hash_program *programs = rx_hash_ipv6 ?
+		zx279133_rx_hash_ipv6_programs : zx279133_rx_hash_programs;
 	unsigned int which, i;
 	int ret;
 
@@ -1541,7 +1547,7 @@ static int zx279133_ppu_rx_hash_prepare(struct zx279133_eth *eth,
 	 * Publish and verify all bodies before any hook, before route/RX start.
 	 */
 	for (which = 0; which < ARRAY_SIZE(zx279133_rx_hash_programs); which++) {
-		const struct zx279133_rx_hash_program *p = &zx279133_rx_hash_programs[which];
+		const struct zx279133_rx_hash_program *p = &programs[which];
 		u64 block[4];
 		unsigned int j;
 
@@ -1563,7 +1569,7 @@ static int zx279133_ppu_rx_hash_prepare(struct zx279133_eth *eth,
 		}
 	}
 	for (which = 0; which < ARRAY_SIZE(zx279133_rx_hash_programs); which++) {
-		const struct zx279133_rx_hash_program *p = &zx279133_rx_hash_programs[which];
+		const struct zx279133_rx_hash_program *p = &programs[which];
 		u64 block[4];
 
 		for (i = 0; i < 4; i++)
@@ -1589,6 +1595,7 @@ static int zx279133_ppu_mcode_prepare(struct zx279133_eth *eth)
 	int ret;
 
 	WRITE_ONCE(eth->rx_hash_active, false);
+	WRITE_ONCE(eth->rx_hash_ipv6_active, false);
 	ret = request_firmware(&fw, "zte/zx279133/mcode_intel.bin", eth->dev);
 	if (ret)
 		return dev_err_probe(eth->dev, ret,
@@ -1730,10 +1737,11 @@ static int zx279133_ppu_mcode_prepare(struct zx279133_eth *eth)
 	ret = 0;
 	eth->ppu_mcode_prepared = true;
 	WRITE_ONCE(eth->rx_hash_active, hash);
+	WRITE_ONCE(eth->rx_hash_ipv6_active, hash && rx_hash_ipv6);
 	if (hash) {
 		eth->rx_hash_loads++;
-		dev_info(eth->dev, "guarded IPv4 RX hash installed, generation=%u\n",
-			 eth->rx_hash_loads);
+		dev_info(eth->dev, "guarded %s RX hash installed, generation=%u\n",
+			 rx_hash_ipv6 ? "IPv4/IPv6" : "IPv4", eth->rx_hash_loads);
 	}
 
 out_gate:
@@ -1755,6 +1763,7 @@ static void zx279133_ppu_mcode_restore(struct zx279133_eth *eth)
 {
 	eth->ppu_mcode_prepared = false;
 	WRITE_ONCE(eth->rx_hash_active, false);
+	WRITE_ONCE(eth->rx_hash_ipv6_active, false);
 }
 
 static const u32 zx279133_spa_tpid_values[] = {
