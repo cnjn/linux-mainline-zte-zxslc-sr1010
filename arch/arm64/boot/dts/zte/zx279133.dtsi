@@ -284,6 +284,7 @@
 					partition@100000 {
 						label = "tags";
 						reg = <0x100000 0x100000>;
+						read-only;
 					};
 
 					partition@200000 {
