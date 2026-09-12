@@ -524,7 +524,11 @@ static int zx279133_eth_probe(struct platform_device *pdev)
 			     NETDEV_XDP_ACT_XSK_ZEROCOPY;
 	ndev->min_mtu = ETH_MIN_MTU;
 	ndev->max_mtu = ZX279133_MAX_MTU;
-	if (of_get_ethdev_address(dev->of_node, ndev))
+	ret = of_get_ethdev_address(dev->of_node, ndev);
+	if (ret == -EPROBE_DEFER ||
+	    (ret && of_property_present(dev->of_node, "nvmem-cells")))
+		return dev_err_probe(dev, ret, "failed to read factory MAC address\n");
+	if (ret)
 		eth_hw_addr_random(ndev);
 	netif_carrier_off(ndev);
 

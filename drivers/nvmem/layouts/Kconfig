@@ -8,6 +8,13 @@ if NVMEM_LAYOUTS
 
 menu "Layout Types"
 
+config NVMEM_LAYOUT_ZTE_TAGS
+	tristate "ZTE SR1010 factory tags layout"
+	select CRC32
+	help
+	  Validate the factory tags table and expose its WAN and LAN MAC
+	  addresses as read-only NVMEM cells.
+
 config NVMEM_LAYOUT_SL28_VPD
 	tristate "Kontron sl28 VPD layout support"
 	select CRC8

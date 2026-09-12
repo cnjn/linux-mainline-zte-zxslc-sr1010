@@ -3143,6 +3143,12 @@ static int rtl8372n_phy_cable_test_get_status(struct phy_device *phydev,
 	return 0;
 }
 
+static unsigned int rtl8372n_phy_get_next_update_time(struct phy_device *phydev)
+{
+	/* Keep carrier and the board's GPIO link LEDs responsive. */
+	return msecs_to_jiffies(250);
+}
+
 static struct phy_driver rtl8372n_phy_driver = {
 	.name = "RTL8372N internal PHY",
 	.match_phy_device = rtl8372n_phy_match,
@@ -3150,6 +3156,7 @@ static struct phy_driver rtl8372n_phy_driver = {
 	.get_features = rtl8372n_phy_get_features,
 	.config_aneg = rtl8372n_phy_config_aneg,
 	.read_status = rtl8372n_phy_read_status,
+	.get_next_update_time = rtl8372n_phy_get_next_update_time,
 	.cable_test_start = rtl8372n_phy_cable_test_start,
 	.cable_test_get_status = rtl8372n_phy_cable_test_get_status,
 };

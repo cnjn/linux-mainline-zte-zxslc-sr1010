@@ -123,6 +123,10 @@ properties:
     properties:
       compatible:
         const: zte,zx279133-lan-conduit
+      nvmem-cells:
+        maxItems: 1
+      nvmem-cell-names:
+        const: mac-address
     required:
       - compatible
     additionalProperties: false

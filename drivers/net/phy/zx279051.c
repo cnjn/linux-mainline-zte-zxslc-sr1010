@@ -3,6 +3,7 @@
 #include <linux/bitfield.h>
 #include <linux/delay.h>
 #include <linux/iopoll.h>
+#include <linux/jiffies.h>
 #include <linux/mdio.h>
 #include <linux/mii.h>
 #include <linux/module.h>
@@ -830,6 +831,12 @@ static int zx279051_read_status(struct phy_device *phydev)
 	return 0;
 }
 
+static unsigned int zx279051_get_next_update_time(struct phy_device *phydev)
+{
+	/* Keep carrier and the board's GPIO link LED responsive. */
+	return msecs_to_jiffies(250);
+}
+
 static struct phy_driver zx279051_driver[] = {
 	{
 		PHY_ID_MATCH_EXACT(ZX279051_PHY_ID),
@@ -839,6 +846,7 @@ static struct phy_driver zx279051_driver[] = {
 		.get_features	= zx279051_get_features,
 		.config_aneg	= zx279051_config_aneg,
 		.read_status	= zx279051_read_status,
+		.get_next_update_time = zx279051_get_next_update_time,
 		.suspend	= genphy_suspend,
 		.resume		= genphy_resume,
 	},

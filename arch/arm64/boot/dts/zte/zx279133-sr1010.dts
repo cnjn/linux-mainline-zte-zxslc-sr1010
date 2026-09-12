@@ -79,6 +79,50 @@
 			label = "sr1010:red";
 			retain-state-shutdown;
 		};
+
+		led-wan {
+			default-state = "off";
+			function = LED_FUNCTION_WAN;
+			gpios = <&gpio1 10 GPIO_ACTIVE_LOW>;
+			label = "sr1010:wan";
+			linux,default-trigger = "netdev";
+		};
+
+		led-lan1 {
+			default-state = "off";
+			function = LED_FUNCTION_LAN;
+			function-enumerator = <1>;
+			gpios = <&gpio4 5 GPIO_ACTIVE_LOW>;
+			label = "sr1010:lan1";
+			linux,default-trigger = "netdev";
+		};
+
+		led-lan2 {
+			default-state = "off";
+			function = LED_FUNCTION_LAN;
+			function-enumerator = <2>;
+			gpios = <&gpio4 4 GPIO_ACTIVE_LOW>;
+			label = "sr1010:lan2";
+			linux,default-trigger = "netdev";
+		};
+
+		led-lan3 {
+			default-state = "off";
+			function = LED_FUNCTION_LAN;
+			function-enumerator = <3>;
+			gpios = <&gpio0 13 GPIO_ACTIVE_LOW>;
+			label = "sr1010:lan3";
+			linux,default-trigger = "netdev";
+		};
+
+		led-lan4 {
+			default-state = "off";
+			function = LED_FUNCTION_LAN;
+			function-enumerator = <4>;
+			gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
+			label = "sr1010:lan4";
+			linux,default-trigger = "netdev";
+		};
 	};
 
 	thermal-zones {
@@ -109,6 +153,8 @@
 };
 
 &nppt {
+	nvmem-cells = <&factory_mac>;
+	nvmem-cell-names = "mac-address";
 	memory-region = <&bmu_reserved>, <&se_hash_reserved>, <&idm_reserved>;
 	memory-region-names = "bmu", "se-hash", "idm";
 	phy-handle = <&zx279051>;
@@ -116,6 +162,8 @@
 
 	lan_cpu: ethernet-lan-cpu {
 		compatible = "zte,zx279133-lan-conduit";
+		nvmem-cells = <&factory_lan_mac>;
+		nvmem-cell-names = "mac-address";
 	};
 
 	switch {
@@ -211,6 +259,16 @@
 		partitions {
 			partition@100000 {
 				read-only;
+
+				nvmem-layout {
+					compatible = "zte,sr1010-tags";
+
+					factory_mac: mac-address {
+					};
+
+					factory_lan_mac: mac-address-lan {
+					};
+				};
 			};
 		};
 	};

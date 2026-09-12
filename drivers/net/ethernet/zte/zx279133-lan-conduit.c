@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/of.h>
+#include <linux/of_net.h>
 #include <linux/platform_device.h>
 
 #include "zx279133-lan.h"
@@ -193,6 +194,12 @@ static int zx279133_lan_conduit_probe(struct platform_device *pdev)
 				       ndev);
 	if (ret)
 		return ret;
+
+	if (of_property_present(dev->of_node, "nvmem-cells")) {
+		ret = of_get_ethdev_address(dev->of_node, ndev);
+		if (ret)
+			return dev_err_probe(dev, ret, "failed to read LAN MAC address\n");
+	}
 
 	ret = devm_register_netdev(dev, ndev);
 	if (ret)
