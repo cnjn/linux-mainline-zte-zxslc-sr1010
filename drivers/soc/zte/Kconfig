@@ -1,5 +1,13 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
+config ZTE_ZX279133_BOOTINFO
+	bool "ZTE ZX279133 boot information"
+	depends on ARM64 && OF
+	help
+	  Decode the SR1010 boot information supplied by the vendor bootloader
+	  in /chosen/versioninfo. Expose the selected firmware slot and its
+	  flash offsets without changing the MTD partition layout.
+
 config ZTE_ZX279133_PWM_AUDIT
 	tristate "ZTE ZX279133 PWM read-only audit"
 	depends on ARM64 && COMMON_CLK && OF && HAS_IOMEM

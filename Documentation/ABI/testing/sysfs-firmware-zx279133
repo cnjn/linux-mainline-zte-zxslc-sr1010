@@ -1,0 +1,33 @@
+What:		/sys/firmware/zx279133/slot
+Date:		September 2026
+Contact:	Linux ARM Kernel Mailing List <linux-arm-kernel@lists.infradead.org>
+Description:
+		Read-only, zero-based firmware slot reported by SR1010 U-Boot.
+		The directory exists only when /chosen/versioninfo contains a
+		supported, valid boot information record. Absence is normal for
+		RAM boots without vendor boot information or after cspboot alone,
+		before firmware selection. A manual RAM boot may retain bootloader
+		state; this attribute does not establish the running image's origin.
+
+What:		/sys/firmware/zx279133/slot_offset
+What:		/sys/firmware/zx279133/kernel_offset
+What:		/sys/firmware/zx279133/rootfs_offset
+What:		/sys/firmware/zx279133/header_offset
+Date:		September 2026
+Contact:	Linux ARM Kernel Mailing List <linux-arm-kernel@lists.infradead.org>
+Description:
+		Read-only hexadecimal byte offsets from the start of the whole
+		flash for the selected slot, kernel, rootfs and firmware header.
+		Values are decoded from the bootloader's little-endian structure;
+		they are not MTD device numbers. rootfs_offset has no filesystem
+		meaning when rootfs_size is zero. Reading these files neither
+		accesses flash nor changes the partition layout.
+
+What:		/sys/firmware/zx279133/rootfs_size
+Date:		September 2026
+Contact:	Linux ARM Kernel Mailing List <linux-arm-kernel@lists.infradead.org>
+Description:
+		Read-only hexadecimal rootfs payload size in bytes, as declared
+		by the selected firmware header. This is not necessarily the
+		physical span between rootfs_offset and header_offset, which may
+		include skipped bad blocks or padding. Zero means no flash rootfs.
