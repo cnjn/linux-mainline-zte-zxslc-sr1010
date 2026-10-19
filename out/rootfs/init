@@ -12,36 +12,24 @@ say() {
 	printf '%s\r\n' "$*"
 }
 
+configure_link_led() {
+	link_led_path=/sys/class/leds/sr1010:$1
+	if [ ! -d "$link_led_path" ]; then
+		say "zxdbg: $1 GPIO LED is unavailable"
+		return
+	fi
+	if ! { echo "$2" > "$link_led_path/device_name" &&
+	       echo 1 > "$link_led_path/link"; }; then
+		say "zxdbg: failed to configure $1 LED trigger"
+	fi
+}
+
 mount_fs() {
 	mkdir -p "$2"
 	mount -t "$1" "$1" "$2" 2>/dev/null || {
 		say "zxdbg: failed to mount $2"
 		while :; do sleep 3600; done
 	}
-}
-
-pin_eth_irqs_to_cpu1() {
-	local irq irq_field irq_name line
-
-	[ -d /sys/devices/system/cpu/cpu1 ] || return 0
-	for irq_name in 19000000.ethernet zx279133-idm-local; do
-		irq=
-		while IFS= read -r line; do
-			case "$line" in
-			*"$irq_name"*)
-				irq_field=${line%%:*}
-				irq=${irq_field##* }
-				break
-				;;
-			esac
-		done < /proc/interrupts
-		if [ -n "$irq" ] && [ -w "/proc/irq/$irq/smp_affinity" ]; then
-			printf '2\n' > "/proc/irq/$irq/smp_affinity"
-			say "zxdbg: IRQ $irq ($irq_name) pinned to CPU1"
-		else
-			say "zxdbg: IRQ affinity was not changed for $irq_name"
-		fi
-	done
 }
 
 mount_fs devtmpfs /dev
@@ -110,7 +98,7 @@ if [ -e /sys/class/net/eth0 ]; then
 	say '--- bringing eth0 up (192.168.1.1/24) ---'
 	ifconfig eth0 192.168.1.1 netmask 255.255.255.0 up
 	sleep 2
-	pin_eth_irqs_to_cpu1
+	# Preserve the driver's initial LAN/WAN IRQ affinity split.
 	say '--- /proc/interrupts ---'
 	grep -E "ethernet|idm" /proc/interrupts
 	say '--- eth0 state ---'
@@ -120,13 +108,31 @@ else
 	say 'eth0 does NOT exist - driver made no netdev (see probe status above)'
 fi
 
+# Link-only indication avoids polling the switch MIB counters for activity.
+configure_link_led wan eth0
+
+# Start each PHY link state machine so an attached LAN cable is detected.
+say '--- enabling LAN ports ---'
+if modprobe tag_zx279133_rtl8372n && modprobe zx279133-rtl8372n; then
+	if ip link set lan-cpu0 up; then
+		for port in lan1 lan2 lan3 lan4; do
+			ip link set "$port" up || say "zxdbg: failed to enable $port"
+			configure_link_led "$port" "$port"
+		done
+	else
+		say 'zxdbg: failed to enable LAN conduit'
+	fi
+else
+	say 'zxdbg: failed to load LAN switch driver'
+fi
+
 cat <<'EOF'
 
 === Diagnostic cheatsheet ==================================================
  ping -c 1 192.168.1.100
  ifconfig eth0
  cat /proc/interrupts
- Raw IDM register peek (base 0x19280000):
+ Raw IDM register peek (eth0 must be UP; clock-gated MMIO hangs the bus):
    devmem 0x19280000 32       # IDM_GLOBAL_CFG
    devmem 0x192803fc 32       # IDM_DIAG
  reboot -f to restart.

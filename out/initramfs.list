@@ -10,8 +10,14 @@ dir /sbin 0755 0 0
 dir /usr 0755 0 0
 dir /usr/bin 0755 0 0
 dir /usr/sbin 0755 0 0
+dir /usr/lib 0755 0 0
+dir /usr/lib/pppd 0755 0 0
+dir /usr/lib/pppd/2.5.3 0755 0 0
+dir /usr/lib/ossl-modules 0755 0 0
 dir /tmp 0755 0 0
 dir /lib 0755 0 0
+dir /etc 0755 0 0
+dir /etc/ppp 0755 0 0
 dir /lib/firmware 0755 0 0
 dir /lib/firmware/zte 0755 0 0
 dir /lib/firmware/zte/zx279133 0755 0 0
@@ -19,6 +25,20 @@ file /init /Volumes/code/zx279133/out/rootfs/init 0755 0 0
 file /bin/busybox /Volumes/code/zx279133/out/rootfs/bin/busybox 0755 0 0
 file /bin/iperf3 /Volumes/code/zx279133/out/rootfs/bin/iperf3 0755 0 0
 file /bin/nft /Volumes/code/zx279133/out/rootfs/bin/nft 0755 0 0
+file /bin/xsk-zc /Volumes/code/zx279133/out/xsk-zc 0755 0 0
+file /bin/ptp-test /Volumes/code/zx279133/out/ptp-test 0755 0 0
+file /bin/mdb-ctl /Volumes/code/zx279133/out/mdb-ctl 0755 0 0
+file /bin/nic-ctl /Volumes/code/zx279133/out/nic-ctl 0755 0 0
+file /usr/sbin/pppd /Volumes/code/zx279133/out/rootfs/usr/sbin/pppd 0755 0 0
+file /usr/lib/pppd/2.5.3/pppoe.so 	/Volumes/code/zx279133/out/rootfs/usr/lib/pppd/2.5.3/pppoe.so 0755 0 0
+file /lib/ld-musl-aarch64.so.1 /Volumes/code/zx279133/out/rootfs/lib/ld-musl-aarch64.so.1 0755 0 0
+file /usr/lib/libpcap.so.1 /Volumes/code/zx279133/out/rootfs/usr/lib/libpcap.so.1 0755 0 0
+file /usr/lib/libssl.so.3 /Volumes/code/zx279133/out/rootfs/usr/lib/libssl.so.3 0755 0 0
+file /usr/lib/libcrypto.so.3 /Volumes/code/zx279133/out/rootfs/usr/lib/libcrypto.so.3 0755 0 0
+file /usr/lib/ossl-modules/legacy.so 	/Volumes/code/zx279133/out/rootfs/usr/lib/ossl-modules/legacy.so 0755 0 0
+file /etc/ppp/options /Volumes/code/zx279133/out/rootfs/etc/ppp/options 0644 0 0
+file /etc/nft-pppoe-flowtable.nft 	/Volumes/code/zx279133/out/rootfs/etc/nft-pppoe-flowtable.nft 0644 0 0
+file /etc/nft-ipv6-flowtable.nft 	/Volumes/code/zx279133/out/rootfs/etc/nft-ipv6-flowtable.nft 0644 0 0
 file /lib/firmware/zte/zx279133/mcode_intel.bin 	/Volumes/code/zx279133/out/rootfs/lib/firmware/zte/zx279133/mcode_intel.bin 0644 0 0
 slink /bin/sh /bin/busybox 0755 0 0
 slink /bin/ash /bin/busybox 0755 0 0
