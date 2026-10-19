@@ -1,0 +1,22 @@
+attr name                              XMAC0(5)   XMAC1(6)   CPU(15)
+  0 TLB_VLD                            0x1        0x1        0x1       
+  1 PC                                 0xa        0x231      0x0         <-- LAN!=WAN
+  3 FLOWNUM                            0x1        0x0        0x1         <-- LAN!=WAN
+  8 ICU_COS_GET_EN                     0x7        0x7        0x7       
+  9 ICU_PRI_CFG                        0x111      0x111      0x111     
+ 42 PKTLEN_FILTER                      0x1f4000c  0x1f4000c  0x1f4000c 
+ 49 ?                                  0x2        0x1        0x1         <-- LAN!=WAN
+ 50 ?                                  0x1        0x0        0x0         <-- LAN!=WAN
+ 51 ?                                  0x3        0x0        0x0         <-- LAN!=WAN
+ 53 ?                                  0x2        0x1        0x1         <-- LAN!=WAN
+ 54 ?                                  0x1        0x0        0x0         <-- LAN!=WAN
+ 55 ?                                  0x3        0x0        0x0         <-- LAN!=WAN
+ 57 ?                                  0x2        0x0        0x0         <-- LAN!=WAN
+ 58 ?                                  0x1        0x0        0x0         <-- LAN!=WAN
+ 59 ?                                  0x3        0x0        0x0         <-- LAN!=WAN
+ 61 ?                                  0x2        0x0        0x0         <-- LAN!=WAN
+ 62 ?                                  0x1        0x0        0x0         <-- LAN!=WAN
+ 63 ?                                  0x3        0x0        0x0         <-- LAN!=WAN
+ 69 USER_DEF_AREA1                     0x0        0xe014400  0x0         <-- LAN!=WAN
+ 70 USER_DEF_AREA2                     0x0        0x1f1      0x0         <-- LAN!=WAN
+ 71 USER_DEF_AREA3                     0x42000    0x148e0000 0x40000     <-- LAN!=WAN

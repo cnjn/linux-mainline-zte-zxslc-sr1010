@@ -1,0 +1,1342 @@
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   6
+sip_key        0xa406401(10.64.100.1)
+dip_key        0xa400002(10.64.0.2)
+sport_key      5201(0x1451)
+dport_key      64151(0xfa97)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       1
+sport_en       0
+dip_en         1
+sip_en         0
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       0
+l2tp           0
+wmm            0
+wanid          16
+pri            0
+cfi            0
+vid            0
+dport          64151
+dmac           0x00e041680d86
+dip            0xc0a80592(192.168.5.146)
+vxlanid        0
+flowid         302
+gemport        62
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          0
+len_changed    4
+------------end----------------
+
+wanid       16
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  0
+m_cpumac     7c7d21b9c13a
+m_rsv          1
+m_gre        0
+m_vxlan      0
+m_pppoe      2
+m_6rd        0
+m_dislite    0
+m_sip        00000000(0.0.0.0)
+=====dslite table =====
+wanid       16
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0x3d47e4b3(61.71.228.179)
+dip_key        0xa400002(10.64.0.2)
+sport_key      52581(0xcd65)
+dport_key      26342(0x66e6)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       1
+sport_en       0
+dip_en         1
+sip_en         0
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       0
+l2tp           0
+wmm            0
+wanid          16
+pri            0
+cfi            0
+vid            0
+dport          26342
+dmac           0x00e041680d86
+dip            0xc0a80592(192.168.5.146)
+vxlanid        0
+flowid         302
+gemport        62
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          0
+len_changed    4
+------------end----------------
+
+wanid       16
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  0
+m_cpumac     7c7d21b9c13a
+m_rsv          1
+m_gre        0
+m_vxlan      0
+m_pppoe      2
+m_6rd        0
+m_dislite    0
+m_sip        00000000(0.0.0.0)
+=====dslite table =====
+wanid       16
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0x3d47e4b3(61.71.228.179)
+dip_key        0xa400002(10.64.0.2)
+sport_key      52581(0xcd65)
+dport_key      54844(0xd63c)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       1
+sport_en       0
+dip_en         1
+sip_en         0
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       0
+l2tp           0
+wmm            0
+wanid          16
+pri            0
+cfi            0
+vid            0
+dport          54844
+dmac           0x00e041680d86
+dip            0xc0a80592(192.168.5.146)
+vxlanid        0
+flowid         302
+gemport        62
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          0
+len_changed    4
+------------end----------------
+
+wanid       16
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  0
+m_cpumac     7c7d21b9c13a
+m_rsv          1
+m_gre        0
+m_vxlan      0
+m_pppoe      2
+m_6rd        0
+m_dislite    0
+m_sip        00000000(0.0.0.0)
+=====dslite table =====
+wanid       16
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0xc0a80592(192.168.5.146)
+dip_key        0x5411359b(84.17.53.155)
+sport_key      26342(0x66e6)
+dport_key      9993(0x2709)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       0
+sport_en       1
+dip_en         0
+sip_en         1
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       1
+l2tp           0
+wmm            0
+wanid          0
+pri            0
+cfi            0
+vid            0
+dport          0
+dmac           0xf8893c26fe02
+dip            0x00000000(0.0.0.0)
+vxlanid        0
+flowid         2
+gemport        6
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          26342
+len_changed    4
+------------end----------------
+
+wanid       0
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  1
+m_cpumac     7c7d21b9c13a
+m_rsv          0
+m_gre        0
+m_vxlan      0
+m_pppoe      1
+m_6rd        0
+m_dislite    0
+m_sip        0a400002(10.64.0.2)
+=====dslite table =====
+wanid       0
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0xc0a80592(192.168.5.146)
+dip_key        0x3d47e4b3(61.71.228.179)
+sport_key      54844(0xd63c)
+dport_key      52581(0xcd65)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       0
+sport_en       1
+dip_en         0
+sip_en         1
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       1
+l2tp           0
+wmm            0
+wanid          0
+pri            0
+cfi            0
+vid            0
+dport          0
+dmac           0xf8893c26fe02
+dip            0x00000000(0.0.0.0)
+vxlanid        0
+flowid         2
+gemport        6
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          54844
+len_changed    4
+------------end----------------
+
+wanid       0
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  1
+m_cpumac     7c7d21b9c13a
+m_rsv          0
+m_gre        0
+m_vxlan      0
+m_pppoe      1
+m_6rd        0
+m_dislite    0
+m_sip        0a400002(10.64.0.2)
+=====dslite table =====
+wanid       0
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0xc0a80592(192.168.5.146)
+dip_key        0x3d47e4b3(61.71.228.179)
+sport_key      26342(0x66e6)
+dport_key      52581(0xcd65)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       0
+sport_en       1
+dip_en         0
+sip_en         1
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       1
+l2tp           0
+wmm            0
+wanid          0
+pri            0
+cfi            0
+vid            0
+dport          0
+dmac           0xf8893c26fe02
+dip            0x00000000(0.0.0.0)
+vxlanid        0
+flowid         2
+gemport        6
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          26342
+len_changed    4
+------------end----------------
+
+wanid       0
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  1
+m_cpumac     7c7d21b9c13a
+m_rsv          0
+m_gre        0
+m_vxlan      0
+m_pppoe      1
+m_6rd        0
+m_dislite    0
+m_sip        0a400002(10.64.0.2)
+=====dslite table =====
+wanid       0
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0xc0a80592(192.168.5.146)
+dip_key        0x3d47e4b3(61.71.228.179)
+sport_key      9993(0x2709)
+dport_key      52581(0xcd65)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       0
+sport_en       1
+dip_en         0
+sip_en         1
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       1
+l2tp           0
+wmm            0
+wanid          0
+pri            0
+cfi            0
+vid            0
+dport          0
+dmac           0xf8893c26fe02
+dip            0x00000000(0.0.0.0)
+vxlanid        0
+flowid         2
+gemport        6
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          9993
+len_changed    4
+------------end----------------
+
+wanid       0
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  1
+m_cpumac     7c7d21b9c13a
+m_rsv          0
+m_gre        0
+m_vxlan      0
+m_pppoe      1
+m_6rd        0
+m_dislite    0
+m_sip        0a400002(10.64.0.2)
+=====dslite table =====
+wanid       0
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   6
+sip_key        0xc0a80592(192.168.5.146)
+dip_key        0xa406401(10.64.100.1)
+sport_key      64151(0xfa97)
+dport_key      5201(0x1451)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       0
+sport_en       1
+dip_en         0
+sip_en         1
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       1
+l2tp           0
+wmm            0
+wanid          0
+pri            0
+cfi            0
+vid            0
+dport          0
+dmac           0xf8893c26fe02
+dip            0x00000000(0.0.0.0)
+vxlanid        0
+flowid         2
+gemport        6
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          64151
+len_changed    4
+------------end----------------
+
+wanid       0
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  1
+m_cpumac     7c7d21b9c13a
+m_rsv          0
+m_gre        0
+m_vxlan      0
+m_pppoe      1
+m_6rd        0
+m_dislite    0
+m_sip        0a400002(10.64.0.2)
+=====dslite table =====
+wanid       0
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0x3d47e4b3(61.71.228.179)
+dip_key        0xa400002(10.64.0.2)
+sport_key      52581(0xcd65)
+dport_key      9993(0x2709)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       1
+sport_en       0
+dip_en         1
+sip_en         0
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       0
+l2tp           0
+wmm            0
+wanid          16
+pri            0
+cfi            0
+vid            0
+dport          9993
+dmac           0x00e041680d86
+dip            0xc0a80592(192.168.5.146)
+vxlanid        0
+flowid         302
+gemport        62
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          0
+len_changed    4
+------------end----------------
+
+wanid       16
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  0
+m_cpumac     7c7d21b9c13a
+m_rsv          1
+m_gre        0
+m_vxlan      0
+m_pppoe      2
+m_6rd        0
+m_dislite    0
+m_sip        00000000(0.0.0.0)
+=====dslite table =====
+wanid       16
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+SDT_NO_FAST_256b:
+sdt_no(43): ram_items 9, ddr_items 0, reg_items 0
+
+SDT_NO_FAST_512b:
+sdt_no(14): ram_items 0, ddr_items 0, reg_items 0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   6
+sip_key        0xa406401(10.64.100.1)
+dip_key        0xa400002(10.64.0.2)
+sport_key      5201(0x1451)
+dport_key      64151(0xfa97)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       1
+sport_en       0
+dip_en         1
+sip_en         0
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       0
+l2tp           0
+wmm            0
+wanid          16
+pri            0
+cfi            0
+vid            0
+dport          64151
+dmac           0x00e041680d86
+dip            0xc0a80592(192.168.5.146)
+vxlanid        0
+flowid         302
+gemport        62
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          0
+len_changed    4
+------------end----------------
+
+wanid       16
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  0
+m_cpumac     7c7d21b9c13a
+m_rsv          1
+m_gre        0
+m_vxlan      0
+m_pppoe      2
+m_6rd        0
+m_dislite    0
+m_sip        00000000(0.0.0.0)
+=====dslite table =====
+wanid       16
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0x3d47e4b3(61.71.228.179)
+dip_key        0xa400002(10.64.0.2)
+sport_key      52581(0xcd65)
+dport_key      26342(0x66e6)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       1
+sport_en       0
+dip_en         1
+sip_en         0
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       0
+l2tp           0
+wmm            0
+wanid          16
+pri            0
+cfi            0
+vid            0
+dport          26342
+dmac           0x00e041680d86
+dip            0xc0a80592(192.168.5.146)
+vxlanid        0
+flowid         302
+gemport        62
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          0
+len_changed    4
+------------end----------------
+
+wanid       16
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  0
+m_cpumac     7c7d21b9c13a
+m_rsv          1
+m_gre        0
+m_vxlan      0
+m_pppoe      2
+m_6rd        0
+m_dislite    0
+m_sip        00000000(0.0.0.0)
+=====dslite table =====
+wanid       16
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0x3d47e4b3(61.71.228.179)
+dip_key        0xa400002(10.64.0.2)
+sport_key      52581(0xcd65)
+dport_key      54844(0xd63c)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       1
+sport_en       0
+dip_en         1
+sip_en         0
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       0
+l2tp           0
+wmm            0
+wanid          16
+pri            0
+cfi            0
+vid            0
+dport          54844
+dmac           0x00e041680d86
+dip            0xc0a80592(192.168.5.146)
+vxlanid        0
+flowid         302
+gemport        62
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          0
+len_changed    4
+------------end----------------
+
+wanid       16
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  0
+m_cpumac     7c7d21b9c13a
+m_rsv          1
+m_gre        0
+m_vxlan      0
+m_pppoe      2
+m_6rd        0
+m_dislite    0
+m_sip        00000000(0.0.0.0)
+=====dslite table =====
+wanid       16
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0xc0a80592(192.168.5.146)
+dip_key        0x5411359b(84.17.53.155)
+sport_key      26342(0x66e6)
+dport_key      9993(0x2709)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       0
+sport_en       1
+dip_en         0
+sip_en         1
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       1
+l2tp           0
+wmm            0
+wanid          0
+pri            0
+cfi            0
+vid            0
+dport          0
+dmac           0xf8893c26fe02
+dip            0x00000000(0.0.0.0)
+vxlanid        0
+flowid         2
+gemport        6
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          26342
+len_changed    4
+------------end----------------
+
+wanid       0
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  1
+m_cpumac     7c7d21b9c13a
+m_rsv          0
+m_gre        0
+m_vxlan      0
+m_pppoe      1
+m_6rd        0
+m_dislite    0
+m_sip        0a400002(10.64.0.2)
+=====dslite table =====
+wanid       0
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0xc0a80592(192.168.5.146)
+dip_key        0x3d47e4b3(61.71.228.179)
+sport_key      54844(0xd63c)
+dport_key      52581(0xcd65)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       0
+sport_en       1
+dip_en         0
+sip_en         1
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       1
+l2tp           0
+wmm            0
+wanid          0
+pri            0
+cfi            0
+vid            0
+dport          0
+dmac           0xf8893c26fe02
+dip            0x00000000(0.0.0.0)
+vxlanid        0
+flowid         2
+gemport        6
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          54844
+len_changed    4
+------------end----------------
+
+wanid       0
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  1
+m_cpumac     7c7d21b9c13a
+m_rsv          0
+m_gre        0
+m_vxlan      0
+m_pppoe      1
+m_6rd        0
+m_dislite    0
+m_sip        0a400002(10.64.0.2)
+=====dslite table =====
+wanid       0
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0xc0a80592(192.168.5.146)
+dip_key        0x3d47e4b3(61.71.228.179)
+sport_key      26342(0x66e6)
+dport_key      52581(0xcd65)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       0
+sport_en       1
+dip_en         0
+sip_en         1
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       1
+l2tp           0
+wmm            0
+wanid          0
+pri            0
+cfi            0
+vid            0
+dport          0
+dmac           0xf8893c26fe02
+dip            0x00000000(0.0.0.0)
+vxlanid        0
+flowid         2
+gemport        6
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          26342
+len_changed    4
+------------end----------------
+
+wanid       0
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  1
+m_cpumac     7c7d21b9c13a
+m_rsv          0
+m_gre        0
+m_vxlan      0
+m_pppoe      1
+m_6rd        0
+m_dislite    0
+m_sip        0a400002(10.64.0.2)
+=====dslite table =====
+wanid       0
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0xc0a80592(192.168.5.146)
+dip_key        0x3d47e4b3(61.71.228.179)
+sport_key      9993(0x2709)
+dport_key      52581(0xcd65)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       0
+sport_en       1
+dip_en         0
+sip_en         1
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       1
+l2tp           0
+wmm            0
+wanid          0
+pri            0
+cfi            0
+vid            0
+dport          0
+dmac           0xf8893c26fe02
+dip            0x00000000(0.0.0.0)
+vxlanid        0
+flowid         2
+gemport        6
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          9993
+len_changed    4
+------------end----------------
+
+wanid       0
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  1
+m_cpumac     7c7d21b9c13a
+m_rsv          0
+m_gre        0
+m_vxlan      0
+m_pppoe      1
+m_6rd        0
+m_dislite    0
+m_sip        0a400002(10.64.0.2)
+=====dslite table =====
+wanid       0
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   6
+sip_key        0xc0a80592(192.168.5.146)
+dip_key        0xa406401(10.64.100.1)
+sport_key      64151(0xfa97)
+dport_key      5201(0x1451)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       0
+sport_en       1
+dip_en         0
+sip_en         1
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       1
+l2tp           0
+wmm            0
+wanid          0
+pri            0
+cfi            0
+vid            0
+dport          0
+dmac           0xf8893c26fe02
+dip            0x00000000(0.0.0.0)
+vxlanid        0
+flowid         2
+gemport        6
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          64151
+len_changed    4
+------------end----------------
+
+wanid       0
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  1
+m_cpumac     7c7d21b9c13a
+m_rsv          0
+m_gre        0
+m_vxlan      0
+m_pppoe      1
+m_6rd        0
+m_dislite    0
+m_sip        0a400002(10.64.0.2)
+=====dslite table =====
+wanid       0
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+=====fast table =====
+------------key mask----------------
+protocol_mask   ff
+sip_mask        0xffffffff
+dip_mask        0xffffffff
+sport_mask      ffff
+dport_mask      ffff
+rsv_mask      0
+------------key----------------
+protocol_key   17
+sip_key        0x3d47e4b3(61.71.228.179)
+dip_key        0xa400002(10.64.0.2)
+sport_key      52581(0xcd65)
+dport_key      9993(0x2709)
+------------rsp----------------
+m_hit          0
+pri            0
+action         0
+vlan_action    0
+mode           1
+dmac_en        1
+smac_en        1
+dport_en       1
+sport_en       0
+dip_en         1
+sip_en         0
+dscp_tc_en     0
+ratelmt_en     0
+flow_stat_en   1
+vxlan_en       0
+wan_mode       0
+l2tp           0
+wmm            0
+wanid          16
+pri            0
+cfi            0
+vid            0
+dport          9993
+dmac           0x00e041680d86
+dip            0xc0a80592(192.168.5.146)
+vxlanid        0
+flowid         302
+gemport        62
+queue          0
+tcont_llid     0
+dscp_tc_value  0
+bucket_id      0
+l2tp_tunnel_id 0
+l2tp_action0   0
+l2tp_action1   0
+wmm            0
+sport          0
+len_changed    4
+------------end----------------
+
+wanid       16
+=====wanid table =====
+m_l3_mtu    1996
+m_sessionid  0
+m_cpumac     7c7d21b9c13a
+m_rsv          1
+m_gre        0
+m_vxlan      0
+m_pppoe      2
+m_6rd        0
+m_dislite    0
+m_sip        00000000(0.0.0.0)
+=====dslite table =====
+wanid       16
+dip        0x00000000000000000000000000000000
+sip        0x00000000000000000000000000000000
+hl        0x0
+fl        0x0
+tc        0x0
+SDT_NO_FAST_256b:
+sdt_no(43): ram_items 9, ddr_items 0, reg_items 0
+
+SDT_NO_FAST_512b:
+sdt_no(14): ram_items 0, ddr_items 0, reg_items 0

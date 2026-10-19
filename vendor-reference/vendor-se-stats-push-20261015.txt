@@ -1,0 +1,166 @@
+ikey_statistics:
+  i_key_cnt                  : (16bit,0x26)  0xeaef
+  i_key_info_cnt             : (16bit,0x26)  0xeaef
+  i_rsp_cnt                  : (16bit,0x27)  0xeaef
+  as_alg_rsp_cnt             : (16bit,0x28)  0x0000
+  as_req_cnt                 : (16bit,0x28)  0x0000
+  age_req_cnt                : (16bit,0x29)  0x63a6
+  ekey_req_cnt               : (16bit,0x30)  0x0000
+  stat_wt_req_cnt            : (16bit,0x36)  0x76ef
+  stat_rd_req_cnt            : (16bit,0x36)  0x76ef
+  stat_rsp_cnt               : (16bit,0x37)  0x76ef
+  plcr_wt_req_cnt            : (16bit,0x38)  0x00a8
+  plcr_rd_req_cnt            : (16bit,0x38)  0x00a8
+  plcr_rsp_cnt               : (16bit,0x39)  0x00a8
+  tm_stat_wt_req_cnt         : (16bit,0x40)  0x0000
+  tm_stat_rd_req_cnt         : (16bit,0x40)  0x00a8
+  tm_stat_rsp_cnt            : (16bit,0x41)  0x00a8
+  qmg2se_ikey_des_wt_req_cnt : (16bit,0x42)  0xa000
+  qmg2se_ikey_des_rd_req_cnt : (16bit,0x42)  0xa000
+  ppu_return_drop_flag_cnt   : (16bit,0x43)  0x0000
+
+decode:
+  PPU_SE_E_EKY_INFO_VLD_CNT(0x60)                :61473
+  PPU_SE_E_EKY_VLD__CNT(0x61)                    :61473
+  EKEY_HASH_WR_DAT_VLD_CNT(0x62)                 :0
+  EKEY_HASH_REQ_DAT_VLD_CNT(0x63)                :61473
+  EKEY_PPU_COP_VLD_CNT(0x64)                     :0
+  EKEY_MACRO_CODE_VLD_CNT(0x65)                  :0
+  EKEY_DPI_DAT_VLD_CNT(0x66)            	        :0
+  EKEY_PPU_GLOBAL_LOCK_VLD_CNT(0x67)             :0
+  SE_EKEY_SMMU1_VLD_CNT(0x68)                    :0
+  SE_EKEY_SMMU0_VLD_CNT(0x69)                    :0
+  IKEY_WR_RSP_VLD_CNT(0x6a)                      :0
+  EKEY_ABNORMAL_RSP_VLD_CNT(0x6b)                :0
+  MULTI_HASH_REQ_VLD_CNT(0x6c)                   :64640
+  SINGLE_HASH_REQ_VLD_CNT(0x6d)                  :62369
+  MULTI_HASH_CP_REQ_VLD_CNT(0x6e)                :64640
+  AGE_RD_EN_ENT(0x6f)                            :166
+  AGE_IKEY_REQ_VLD_CNT(0x70)                     :166
+  AS_RD_EN_CNT(0x71)                             :0
+  AS_IKEY_REQ_VLD_CNT(0x72)                      :0
+  IKEY_AS_RSP_VLD_CNT(0x73)                      :0
+  DIR_RSP_VLD_CNT(0x74)                          :0
+  HASH_LEARN_FAIL_VLD_CNT(0x75)                  :0
+  HASH_LEARN_SUCCESS_VLD_CNT(0x76)               :0
+  IKEY_WR_RSP_PPU_VLD_CNT(0x77)                  :0
+  EKEY_ABNORMAL_RSP_PPU_VLD_CNT(0x78)            :0
+  EKEY_HASH_NPT_NOT_HIT_RSP_VLD_CNT(0x79)        :251
+  EKEY_HASH_HIT_ASDIS_RSP_VLD_CNT(0x7a)          :58278
+  EKEY_HASH_HIT_ASEN_DROP_RSP_VLD_CNT(0x7b)      :0
+  EKEY_HASH_HIT_ASEN_RSP_VLD_CNT(0x7c)           :0
+  EKEY_PPU_RSP_VLD_CNT(0x7d)                     :61473
+  SE2DMA_RD_REQ_VLD_CNT(0x7e)                    :34320
+  DMA2SE_RD_VLD_CNT(0x7f)                        :38976
+  SMMU1_DIR_RSP_VLD_CNT(0x80)                    :0
+  EKEY_PPU_RSP_DROP_CNT(0x81)                    :0
+  MEC_COPROCESSOR_RSP_VLD_CNT(0x82)              :0
+  ALG_HASH_RSP_VLD_CNT(0x83)                     :61473
+  MULTI_HASH_CP_RSP_VLD_CNT(0x84)                :64640
+  MULTI_NUM_WR_CNT(0x85)                         :64640
+  MULTI_RSP_ARBI_RAM_WRA(0x86)                   :64
+  MULTI_HASH_RSP_FIFO_WR(0x87)                   :64640
+
+alg:
+  ALG_HASH_REQ_VLD_CNT(16bit,0xc0)                     :61473
+  CPU_HASH_SRCH_REQ_VLD_CNT(16bit,0xc1)                :0
+  HASH_LERAN_WR_CNT(16bit,0xc2)                        :0
+  HASH_ZCAM_RE_VLD_CNT(16bit,0xc3)                     :61473
+  HASH_INT_RSP_VLD_CNT(16bit,0xc4)                     :61473
+  HASH_INT_SMF_CNT(16bit,0xc5)                         :58278
+  HASH_INT_SPACE_VLD_CNT(16bit,0xc6)                   :32930
+  LPM_RSP_CNT(16bit,0xc7)                              :0
+  HASH_SMMU1_REQ_VLD_CNT(16bit,0xc8)                   :34320
+  SMMU1_HASH_RSP_VLD_CNT(16bit,0xc9)                   :34320
+  HASH_CPU_RSP_VLD_CNT(16bit,0xca)                     :0
+  HASH_EXT_CMP_SMF_CNT(16bit,0xcb)                     :0
+  HASH_EXT_CMP_SPACEVLD_CNT(16bit,0xcc)                :34320
+  HASH_INT_HIT_RSP_VLD_CNT(16bit,0xcd)                 :59921
+
+se_stat: 
+  ppu_se_stat_key_vld_cnt : (32bit,0x217)  0x08367797
+  ppu_se_stat_rsp_vld_cnt : (32bit,0x218)  0x08367797
+
+ikey_statistics:
+  i_key_cnt                  : (16bit,0x26)  0x0283
+  i_key_info_cnt             : (16bit,0x26)  0x0283
+  i_rsp_cnt                  : (16bit,0x27)  0x0289
+  as_alg_rsp_cnt             : (16bit,0x28)  0x0000
+  as_req_cnt                 : (16bit,0x28)  0x0000
+  age_req_cnt                : (16bit,0x29)  0x8718
+  ekey_req_cnt               : (16bit,0x30)  0x0000
+  stat_wt_req_cnt            : (16bit,0x36)  0x2cab
+  stat_rd_req_cnt            : (16bit,0x36)  0x2cab
+  stat_rsp_cnt               : (16bit,0x37)  0x2cab
+  plcr_wt_req_cnt            : (16bit,0x38)  0x00a8
+  plcr_rd_req_cnt            : (16bit,0x38)  0x00a8
+  plcr_rsp_cnt               : (16bit,0x39)  0x00a8
+  tm_stat_wt_req_cnt         : (16bit,0x40)  0x0000
+  tm_stat_rd_req_cnt         : (16bit,0x40)  0x00a8
+  tm_stat_rsp_cnt            : (16bit,0x41)  0x00a8
+  qmg2se_ikey_des_wt_req_cnt : (16bit,0x42)  0xc1e3
+  qmg2se_ikey_des_rd_req_cnt : (16bit,0x42)  0xc000
+  ppu_return_drop_flag_cnt   : (16bit,0x43)  0x0000
+
+decode:
+  PPU_SE_E_EKY_INFO_VLD_CNT(0x60)                :57471
+  PPU_SE_E_EKY_VLD__CNT(0x61)                    :57473
+  EKEY_HASH_WR_DAT_VLD_CNT(0x62)                 :0
+  EKEY_HASH_REQ_DAT_VLD_CNT(0x63)                :57475
+  EKEY_PPU_COP_VLD_CNT(0x64)                     :0
+  EKEY_MACRO_CODE_VLD_CNT(0x65)                  :0
+  EKEY_DPI_DAT_VLD_CNT(0x66)            	        :0
+  EKEY_PPU_GLOBAL_LOCK_VLD_CNT(0x67)             :0
+  SE_EKEY_SMMU1_VLD_CNT(0x68)                    :0
+  SE_EKEY_SMMU0_VLD_CNT(0x69)                    :0
+  IKEY_WR_RSP_VLD_CNT(0x6a)                      :0
+  EKEY_ABNORMAL_RSP_VLD_CNT(0x6b)                :0
+  MULTI_HASH_REQ_VLD_CNT(0x6c)                   :39098
+  SINGLE_HASH_REQ_VLD_CNT(0x6d)                  :51154
+  MULTI_HASH_CP_REQ_VLD_CNT(0x6e)                :39098
+  AGE_RD_EN_ENT(0x6f)                            :168
+  AGE_IKEY_REQ_VLD_CNT(0x70)                     :168
+  AS_RD_EN_CNT(0x71)                             :0
+  AS_IKEY_REQ_VLD_CNT(0x72)                      :0
+  IKEY_AS_RSP_VLD_CNT(0x73)                      :0
+  DIR_RSP_VLD_CNT(0x74)                          :0
+  HASH_LEARN_FAIL_VLD_CNT(0x75)                  :0
+  HASH_LEARN_SUCCESS_VLD_CNT(0x76)               :0
+  IKEY_WR_RSP_PPU_VLD_CNT(0x77)                  :0
+  EKEY_ABNORMAL_RSP_PPU_VLD_CNT(0x78)            :0
+  EKEY_HASH_NPT_NOT_HIT_RSP_VLD_CNT(0x79)        :229
+  EKEY_HASH_HIT_ASDIS_RSP_VLD_CNT(0x7a)          :34601
+  EKEY_HASH_HIT_ASEN_DROP_RSP_VLD_CNT(0x7b)      :0
+  EKEY_HASH_HIT_ASEN_RSP_VLD_CNT(0x7c)           :0
+  EKEY_PPU_RSP_VLD_CNT(0x7d)                     :57486
+  SE2DMA_RD_REQ_VLD_CNT(0x7e)                    :60549
+  DMA2SE_RD_VLD_CNT(0x7f)                        :45588
+  SMMU1_DIR_RSP_VLD_CNT(0x80)                    :0
+  EKEY_PPU_RSP_DROP_CNT(0x81)                    :0
+  MEC_COPROCESSOR_RSP_VLD_CNT(0x82)              :0
+  ALG_HASH_RSP_VLD_CNT(0x83)                     :57491
+  MULTI_HASH_CP_RSP_VLD_CNT(0x84)                :39104
+  MULTI_NUM_WR_CNT(0x85)                         :39105
+  MULTI_RSP_ARBI_RAM_WRA(0x86)                   :64
+  MULTI_HASH_RSP_FIFO_WR(0x87)                   :39106
+
+alg:
+  ALG_HASH_REQ_VLD_CNT(16bit,0xc0)                     :57500
+  CPU_HASH_SRCH_REQ_VLD_CNT(16bit,0xc1)                :0
+  HASH_LERAN_WR_CNT(16bit,0xc2)                        :0
+  HASH_ZCAM_RE_VLD_CNT(16bit,0xc3)                     :57504
+  HASH_INT_RSP_VLD_CNT(16bit,0xc4)                     :57504
+  HASH_INT_SMF_CNT(16bit,0xc5)                         :34619
+  HASH_INT_SPACE_VLD_CNT(16bit,0xc6)                   :52620
+  LPM_RSP_CNT(16bit,0xc7)                              :0
+  HASH_SMMU1_REQ_VLD_CNT(16bit,0xc8)                   :60549
+  SMMU1_HASH_RSP_VLD_CNT(16bit,0xc9)                   :60549
+  HASH_CPU_RSP_VLD_CNT(16bit,0xca)                     :0
+  HASH_EXT_CMP_SMF_CNT(16bit,0xcb)                     :0
+  HASH_EXT_CMP_SPACEVLD_CNT(16bit,0xcc)                :60549
+  HASH_INT_HIT_RSP_VLD_CNT(16bit,0xcd)                 :62496
+
+se_stat: 
+  ppu_se_stat_key_vld_cnt : (32bit,0x217)  0x08402d6e
+  ppu_se_stat_rsp_vld_cnt : (32bit,0x218)  0x08402d6e
+

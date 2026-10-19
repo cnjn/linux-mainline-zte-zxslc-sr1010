@@ -1,0 +1,202 @@
+== /sys/devices/platform/np/qmg_debug/err_monitor
+ addr = 0x00009030
+ qmg2red watermark overflow: 0
+ deq flag order fifo err:
+     fifo 0 read epmty err: 0
+     fifo 0 full write err: 0
+     fifo 1 read epmty err: 0
+     fifo 1 full write err: 0
+ deq out order fifo err:
+     fifo 0 read epmty err: 0
+     fifo 0 full write err: 0
+     fifo 1 read epmty err: 0
+     fifo 1 full write err: 0
+ deq in des fifo err:
+     fifo 0 read epmty err: 0
+     fifo 0 full write err: 0
+     fifo 1 read epmty err: 0
+     fifo 1 full write err: 0
+ deq out des fifo err:
+     fifo 0 read epmty err: 0
+     fifo 0 full write err: 0
+     fifo 1 read epmty err: 0
+     fifo 1 full write err: 0
+ enq order fifo err:
+     fifo 0 read epmty err: 0
+     fifo 0 full write err: 0
+     fifo 1 read epmty err: 0
+     fifo 1 full write err: 0
+ red2qmg des fifo err:
+     fifo 0 read epmty err: 0
+     fifo 0 full write err: 0
+     fifo 1 read epmty err: 0
+     fifo 1 full write err: 0
+     fifo 3 read epmty err: 0
+     fifo 3 full write err: 0
+== /sys/devices/platform/np/qmg_debug/get_cur_woe_que_full_info
+== /sys/devices/platform/np/qmg_debug/help
+-------------------help--------------------------
+ cat stats
+ echo [queue_num] > queue_stats queue_num:0~8,queue_num=0~7 show single queue,queue_num =8 show all queue
+ cat vr_queue_stats
+ cat req_empty_err_monitor
+ cat err_monitor
+ cat status_monitor
+ echo [queue_num] > queue_ptr_ram queue_num:0~384,queue_num=0~383 show single queue,queue_num =384 show all queue
+== /sys/devices/platform/np/qmg_debug/queue_ptr_ram
+cat: can't open '/sys/devices/platform/np/qmg_debug/queue_ptr_ram': Permission denied
+== /sys/devices/platform/np/qmg_debug/queue_stats
+cat: can't open '/sys/devices/platform/np/qmg_debug/queue_stats': Permission denied
+== /sys/devices/platform/np/qmg_debug/req_empty_err_monitor
+ addr = 0x00009031
+ sch2qmg req empty err:      0
+ sch2qmg req empty err qid:  384
+ addr = 0x00009032
+ enq qid err:                0
+ enq qid err qid:            0
+ deq qid err:                0
+ deq qid err qid:            0
+== /sys/devices/platform/np/qmg_debug/stats
+  enq drop pkt cnt:     422
+  enq list pkt cnt:     57064
+  deq list pkt cnt:     57064
+  enq data ddr pkt cnt: 67
+  deq desc ddr pkt cnt: 0
+  enq both ddr pkt cnt: 0
+  deq both ram pkt cnt: 165
+  enq up pkt cnt:       0
+  deq down pkt cnt:     232
+  enq loop pkt cnt:     0
+  dma wr success cnt0:   67
+  deq up pkt cnt:       0
+  deq down pkt cnt:     232
+  deq loop pkt cnt:     0
+  dma wr success cnt1:  0
+  deq ddr pkt cnt:       0
+  dma rd success cnt1:  0
+  dma rd success cnt0:     0
+== /sys/devices/platform/np/qmg_debug/status_monitor
+ addr = 0x00009041
+ dma2qmg wr full up:          0
+ dma2qmg wr full dn:          0
+ dma2qmg wr full drop:        0
+ dma2qmg rd full up:          0
+ dma2qmg rd full dn:          0
+ mac2qmg aful:                0
+ deq flag order fifo 0 empty: 1
+ deq flag order fifo 0 afull: 0
+ deq flag order fifo 1 empty: 1
+ deq flag order fifo 1 afull: 0
+ deq in des fifo 0 empty:     1
+ deq in des fifo 0 afull:     0
+ deq in des fifo 1 empty:     1
+ deq in des fifo 1 afull:     0
+ deq out des fifo 0 empty:    1
+ deq out des fifo 0 afull:    0
+ deq out des fifo 1 empty:    1
+ deq out des fifo 1 afull:    0
+ deq out order fifo 0 empty:  1
+ deq out order fifo 0 afull:  0
+ deq out order fifo 1 empty:  1
+ deq out order fifo 1 afull:  0
+ enq order fifo 0 empty:      1
+ enq order fifo 0 afull:      0
+ enq order fifo 1 empty:      1
+ enq order fifo 1 afull:      0
+ red2qmg des fifo 0 empty:    1
+ red2qmg des fifo 0 afull:    0
+ red2qmg des fifo 1 empty:    1
+ red2qmg des fifo 1 afull:    0
+ red2qmg des fifo 3 empty:    1
+ red2qmg des fifo 3 afull:    0
+== /sys/devices/platform/np/qmg_debug/vr_queue_stats
+ addr = 0x00009042
+ vr enq up cnt:     0
+ vr enq dn cnt:     57064
+ addr = 0x00009043
+ vr deq up cnt:     0
+ vr deq dn cnt:     57064
+== /sys/devices/platform/np/qmg_debug/woe_stats
+  enq woe pkt cnt(0x22):                     	0x0
+  enq woe desc cache or list cnt(0x22):      	0x0
+  enq woe desc ddr cnt(0x23):     		   	0x0
+  enq woe desc ram cnt(0x23):     			0x0
+  enq woe desc cache cnt(0x24):     			0x0
+  woe enq sch cnt(0x24):     					0x0
+  woe sch fail cnt(0x25):     				0x0
+  woe sch succ cnt(0x25):     				0x0
+  qmg2idm bp req cnt(0x26):     				0x0
+  idm2qmg succ cnt(0x27):     				0x0
+  qmg2idm wr cnt(0x27):     					0x0
+  idm rd succ cnt(0x28):     					0x0
+  qmg2idm rd cnt(0x28):     					0x0
+  qmg2se ikey rd ext cnt(0x29):     			0x0
+  qmg2se ikey wr ext cnt(0x29):     			0x0
+  qmg2se ikey rd cnt(0x29):     				0x0
+  qmg2se ikey wr cnt(0x29):     				0x0
+  qmg2red watermark woe cnt(0x2a):     		0x0
+  qmg2red watermark dn cnt(0x2a):     		0x0
+  qmg2red watermark up cnt(0x2a):     		0x0
+  qmg2red aful woe cnt(0x2a):     			0x0
+  qmg2red aful drop cnt(0x2a):     			0x2
+  qmg2red aful dn cnt(0x2a):     				0x6
+  qmg2red aful up cnt(0x2a):     				0x0
+  que,red2qmg vld cnt(0x2b):     				0x0
+  que,red2qmg ack cnt(0x2b):     				0x0
+  que,red2qmg req cnt(0x2b):     				0x0
+  que,qmg2sch que vld cnt(0x2c):     			0x0
+  que,qmg2sch que ack cnt(0x2c):     			0x0
+  que,sch2qmg que req cnt(0x2c):     			0x0
+  que,qmg2sch que enq cnt(0x2c):     			0x0
+  que,qmg2sch rdpntr ack cnt(0x2d):     		0x0
+  que,sch2qmg rdpntr enq cnt(0x2d):     		0x0
+== /sys/devices/platform/np/bmu_debug/help
+-------------------help--------------------------
+ cat stats
+ cat monitor
+ cat memory
+== /sys/devices/platform/np/bmu_debug/memory
+ BPPE_POOL_SIZE             : 6144(0x1800)
+ JUMBO_BPPE_POOL_SIZE  : 32(0x20)
+ DESC_BUFFER_SIZE         : 2097152(0x200000)
+ BPPE_SIZE                       : 131072(0x20000)
+ NORMAL_BP_SIZE             : 2112(0x840)
+ JUMBO_BP_SIZE                : 9728(0x2600)
+ BP_BUFFER_SIZE               : 13287424(0xcac000)
+ BMU_TOTAL_SIZE              : 15515648(0xecc000)
+== /sys/devices/platform/np/bmu_debug/monitor
+ req rls fifo monitor(0x42)   : 0x8080000
+ bp fifo ept aful addr(0x43)  : 0x0
+ req fifo error addr(0x55)    : 0x0
+ rls fifo error addr(0x56)    : 0x0
+ uopc rls jumbo cnt(0x45)     : 0
+ uopc rls normal cnt(0x45)    : 0
+ sopc rls jumbo cnt(0x46)     : 0
+ sopc rls normal cnt(0x46)    : 4419
+ ssch rls jumbo cnt(0x47)     : 0
+ ssch rls normal cnt(0x47)    : 0
+ ssch rls jumbo cnt(0x48)     : 0
+ ssch rls normal cnt(0x48)    : 0
+ redup jeq jumbo bp cnt(0x51) : 0
+ redup jeq normal bp cnt(0x51): 4419
+== /sys/devices/platform/np/bmu_debug/stats
+ normal bppe bp cnt(0x20)    : 5952
+ jumbo bppe bp cnt(0x21)     : 0
+ normal bppi bp cnt(0x22)    : 184
+ jumbo bppi bp cnt(0x23)     : 23
+ alloc normal bp cnt(0x24)   : 4427
+ alloc jumbo bp cnt(0x25)    : 9
+ rls normal bp cnt(0x26)     : 4419
+ rls jumbo bp cnt(0x27)      : 0
+ swaloc normal bp cnt(0x2a)  : 0
+ swaloc jumbo bp cnt(0x2b)   : 0
+ hwaloc normal bp cnt(0x2c)  : 4427
+ hwaloc jumbo bp cnt(0x2d)   : 9
+ sw alloc bp cnt(0x30)       : 0
+ uopc erls cnt(0x31)         : 0
+ usch erls cnt(0x35)         : 0
+ sopc erls cnt(0x36)         : 0
+ bmu normal bperr cnt(0x38)  : 0
+ bmu jumbo bperr cnt(0x39)   : 0
+ uopc rls error cnt(0x5c)    : 0
+ sopc rls error cnt(0x5c)    : 0

@@ -1,0 +1,6 @@
+eram_table(word32_len is 4):
+0x40904400
+0x00000000
+0x01ff0036
+0x045ec600
+

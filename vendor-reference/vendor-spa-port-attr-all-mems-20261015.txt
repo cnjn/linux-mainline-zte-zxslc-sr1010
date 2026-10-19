@@ -1,0 +1,2304 @@
+memid:0,port_attr_id:0
+get success. mem_id:0, port_attr_id:0, data:0x1
+memid:0,port_attr_id:1
+get success. mem_id:0, port_attr_id:1, data:0x231
+memid:0,port_attr_id:2
+get success. mem_id:0, port_attr_id:2, data:0x0
+memid:0,port_attr_id:3
+get success. mem_id:0, port_attr_id:3, data:0x0
+memid:0,port_attr_id:4
+get success. mem_id:0, port_attr_id:4, data:0x0
+memid:0,port_attr_id:5
+get success. mem_id:0, port_attr_id:5, data:0x0
+memid:0,port_attr_id:6
+get success. mem_id:0, port_attr_id:6, data:0x0
+memid:0,port_attr_id:7
+get success. mem_id:0, port_attr_id:7, data:0x0
+memid:0,port_attr_id:8
+get success. mem_id:0, port_attr_id:8, data:0x7
+memid:0,port_attr_id:9
+get success. mem_id:0, port_attr_id:9, data:0x111
+memid:0,port_attr_id:10
+get success. mem_id:0, port_attr_id:10, data:0x0
+memid:0,port_attr_id:11
+get success. mem_id:0, port_attr_id:11, data:0x0
+memid:0,port_attr_id:12
+get success. mem_id:0, port_attr_id:12, data:0x0
+memid:0,port_attr_id:13
+get success. mem_id:0, port_attr_id:13, data:0x0
+memid:0,port_attr_id:14
+get success. mem_id:0, port_attr_id:14, data:0x0
+memid:0,port_attr_id:15
+get success. mem_id:0, port_attr_id:15, data:0x0
+memid:0,port_attr_id:16
+get success. mem_id:0, port_attr_id:16, data:0x0
+memid:0,port_attr_id:17
+get success. mem_id:0, port_attr_id:17, data:0x0
+memid:0,port_attr_id:18
+get success. mem_id:0, port_attr_id:18, data:0x0
+memid:0,port_attr_id:19
+get success. mem_id:0, port_attr_id:19, data:0x0
+memid:0,port_attr_id:20
+get success. mem_id:0, port_attr_id:20, data:0x0
+memid:0,port_attr_id:21
+get success. mem_id:0, port_attr_id:21, data:0x0
+memid:0,port_attr_id:22
+get success. mem_id:0, port_attr_id:22, data:0x0
+memid:0,port_attr_id:23
+get success. mem_id:0, port_attr_id:23, data:0x0
+memid:0,port_attr_id:24
+get success. mem_id:0, port_attr_id:24, data:0x0
+memid:0,port_attr_id:25
+get success. mem_id:0, port_attr_id:25, data:0x0
+memid:0,port_attr_id:26
+get success. mem_id:0, port_attr_id:26, data:0x0
+memid:0,port_attr_id:27
+get success. mem_id:0, port_attr_id:27, data:0x0
+memid:0,port_attr_id:28
+get success. mem_id:0, port_attr_id:28, data:0x0
+memid:0,port_attr_id:29
+get success. mem_id:0, port_attr_id:29, data:0x0
+memid:0,port_attr_id:30
+get success. mem_id:0, port_attr_id:30, data:0x0
+memid:0,port_attr_id:31
+get success. mem_id:0, port_attr_id:31, data:0x0
+memid:0,port_attr_id:32
+get success. mem_id:0, port_attr_id:32, data:0x0
+memid:0,port_attr_id:33
+get success. mem_id:0, port_attr_id:33, data:0x0
+memid:0,port_attr_id:34
+get success. mem_id:0, port_attr_id:34, data:0x0
+memid:0,port_attr_id:35
+get success. mem_id:0, port_attr_id:35, data:0x0
+memid:0,port_attr_id:36
+get success. mem_id:0, port_attr_id:36, data:0x0
+memid:0,port_attr_id:37
+get success. mem_id:0, port_attr_id:37, data:0x0
+memid:0,port_attr_id:38
+get success. mem_id:0, port_attr_id:38, data:0x0
+memid:0,port_attr_id:39
+get success. mem_id:0, port_attr_id:39, data:0x0
+memid:0,port_attr_id:40
+get success. mem_id:0, port_attr_id:40, data:0x0
+memid:0,port_attr_id:41
+get success. mem_id:0, port_attr_id:41, data:0x0
+memid:0,port_attr_id:42
+get success. mem_id:0, port_attr_id:42, data:0x1f4000c
+memid:0,port_attr_id:43
+get success. mem_id:0, port_attr_id:43, data:0x0
+memid:0,port_attr_id:44
+get success. mem_id:0, port_attr_id:44, data:0x0
+memid:0,port_attr_id:45
+get success. mem_id:0, port_attr_id:45, data:0x0
+memid:0,port_attr_id:46
+get success. mem_id:0, port_attr_id:46, data:0x0
+memid:0,port_attr_id:47
+get success. mem_id:0, port_attr_id:47, data:0x0
+memid:0,port_attr_id:48
+get success. mem_id:0, port_attr_id:48, data:0x0
+memid:0,port_attr_id:49
+get success. mem_id:0, port_attr_id:49, data:0x1
+memid:0,port_attr_id:50
+get success. mem_id:0, port_attr_id:50, data:0x0
+memid:0,port_attr_id:51
+get success. mem_id:0, port_attr_id:51, data:0x0
+memid:0,port_attr_id:52
+get success. mem_id:0, port_attr_id:52, data:0x0
+memid:0,port_attr_id:53
+get success. mem_id:0, port_attr_id:53, data:0x1
+memid:0,port_attr_id:54
+get success. mem_id:0, port_attr_id:54, data:0x0
+memid:0,port_attr_id:55
+get success. mem_id:0, port_attr_id:55, data:0x0
+memid:0,port_attr_id:56
+get success. mem_id:0, port_attr_id:56, data:0x0
+memid:0,port_attr_id:57
+get success. mem_id:0, port_attr_id:57, data:0x0
+memid:0,port_attr_id:58
+get success. mem_id:0, port_attr_id:58, data:0x0
+memid:0,port_attr_id:59
+get success. mem_id:0, port_attr_id:59, data:0x0
+memid:0,port_attr_id:60
+get success. mem_id:0, port_attr_id:60, data:0x0
+memid:0,port_attr_id:61
+get success. mem_id:0, port_attr_id:61, data:0x0
+memid:0,port_attr_id:62
+get success. mem_id:0, port_attr_id:62, data:0x0
+memid:0,port_attr_id:63
+get success. mem_id:0, port_attr_id:63, data:0x0
+memid:0,port_attr_id:64
+get success. mem_id:0, port_attr_id:64, data:0x0
+memid:0,port_attr_id:65
+get success. mem_id:0, port_attr_id:65, data:0x0
+memid:0,port_attr_id:66
+get success. mem_id:0, port_attr_id:66, data:0x0
+memid:0,port_attr_id:67
+get success. mem_id:0, port_attr_id:67, data:0x0
+memid:0,port_attr_id:68
+get success. mem_id:0, port_attr_id:68, data:0x0
+memid:0,port_attr_id:69
+get success. mem_id:0, port_attr_id:69, data:0x0
+memid:0,port_attr_id:70
+get success. mem_id:0, port_attr_id:70, data:0x0
+memid:0,port_attr_id:71
+get success. mem_id:0, port_attr_id:71, data:0x60000
+memid:1,port_attr_id:0
+get success. mem_id:1, port_attr_id:0, data:0x1
+memid:1,port_attr_id:1
+get success. mem_id:1, port_attr_id:1, data:0xa
+memid:1,port_attr_id:2
+get success. mem_id:1, port_attr_id:2, data:0x0
+memid:1,port_attr_id:3
+get success. mem_id:1, port_attr_id:3, data:0x1
+memid:1,port_attr_id:4
+get success. mem_id:1, port_attr_id:4, data:0x0
+memid:1,port_attr_id:5
+get success. mem_id:1, port_attr_id:5, data:0x0
+memid:1,port_attr_id:6
+get success. mem_id:1, port_attr_id:6, data:0x0
+memid:1,port_attr_id:7
+get success. mem_id:1, port_attr_id:7, data:0x0
+memid:1,port_attr_id:8
+get success. mem_id:1, port_attr_id:8, data:0x7
+memid:1,port_attr_id:9
+get success. mem_id:1, port_attr_id:9, data:0x111
+memid:1,port_attr_id:10
+get success. mem_id:1, port_attr_id:10, data:0x0
+memid:1,port_attr_id:11
+get success. mem_id:1, port_attr_id:11, data:0x0
+memid:1,port_attr_id:12
+get success. mem_id:1, port_attr_id:12, data:0x0
+memid:1,port_attr_id:13
+get success. mem_id:1, port_attr_id:13, data:0x0
+memid:1,port_attr_id:14
+get success. mem_id:1, port_attr_id:14, data:0x0
+memid:1,port_attr_id:15
+get success. mem_id:1, port_attr_id:15, data:0x0
+memid:1,port_attr_id:16
+get success. mem_id:1, port_attr_id:16, data:0x0
+memid:1,port_attr_id:17
+get success. mem_id:1, port_attr_id:17, data:0x0
+memid:1,port_attr_id:18
+get success. mem_id:1, port_attr_id:18, data:0x0
+memid:1,port_attr_id:19
+get success. mem_id:1, port_attr_id:19, data:0x0
+memid:1,port_attr_id:20
+get success. mem_id:1, port_attr_id:20, data:0x0
+memid:1,port_attr_id:21
+get success. mem_id:1, port_attr_id:21, data:0x0
+memid:1,port_attr_id:22
+get success. mem_id:1, port_attr_id:22, data:0x0
+memid:1,port_attr_id:23
+get success. mem_id:1, port_attr_id:23, data:0x0
+memid:1,port_attr_id:24
+get success. mem_id:1, port_attr_id:24, data:0x0
+memid:1,port_attr_id:25
+get success. mem_id:1, port_attr_id:25, data:0x0
+memid:1,port_attr_id:26
+get success. mem_id:1, port_attr_id:26, data:0x0
+memid:1,port_attr_id:27
+get success. mem_id:1, port_attr_id:27, data:0x0
+memid:1,port_attr_id:28
+get success. mem_id:1, port_attr_id:28, data:0x0
+memid:1,port_attr_id:29
+get success. mem_id:1, port_attr_id:29, data:0x0
+memid:1,port_attr_id:30
+get success. mem_id:1, port_attr_id:30, data:0x0
+memid:1,port_attr_id:31
+get success. mem_id:1, port_attr_id:31, data:0x0
+memid:1,port_attr_id:32
+get success. mem_id:1, port_attr_id:32, data:0x0
+memid:1,port_attr_id:33
+get success. mem_id:1, port_attr_id:33, data:0x0
+memid:1,port_attr_id:34
+get success. mem_id:1, port_attr_id:34, data:0x0
+memid:1,port_attr_id:35
+get success. mem_id:1, port_attr_id:35, data:0x0
+memid:1,port_attr_id:36
+get success. mem_id:1, port_attr_id:36, data:0x0
+memid:1,port_attr_id:37
+get success. mem_id:1, port_attr_id:37, data:0x0
+memid:1,port_attr_id:38
+get success. mem_id:1, port_attr_id:38, data:0x0
+memid:1,port_attr_id:39
+get success. mem_id:1, port_attr_id:39, data:0x0
+memid:1,port_attr_id:40
+get success. mem_id:1, port_attr_id:40, data:0x0
+memid:1,port_attr_id:41
+get success. mem_id:1, port_attr_id:41, data:0x0
+memid:1,port_attr_id:42
+get success. mem_id:1, port_attr_id:42, data:0x1f4000c
+memid:1,port_attr_id:43
+get success. mem_id:1, port_attr_id:43, data:0x0
+memid:1,port_attr_id:44
+get success. mem_id:1, port_attr_id:44, data:0x0
+memid:1,port_attr_id:45
+get success. mem_id:1, port_attr_id:45, data:0x0
+memid:1,port_attr_id:46
+get success. mem_id:1, port_attr_id:46, data:0x0
+memid:1,port_attr_id:47
+get success. mem_id:1, port_attr_id:47, data:0x0
+memid:1,port_attr_id:48
+get success. mem_id:1, port_attr_id:48, data:0x0
+memid:1,port_attr_id:49
+get success. mem_id:1, port_attr_id:49, data:0x2
+memid:1,port_attr_id:50
+get success. mem_id:1, port_attr_id:50, data:0x1
+memid:1,port_attr_id:51
+get success. mem_id:1, port_attr_id:51, data:0x3
+memid:1,port_attr_id:52
+get success. mem_id:1, port_attr_id:52, data:0x0
+memid:1,port_attr_id:53
+get success. mem_id:1, port_attr_id:53, data:0x2
+memid:1,port_attr_id:54
+get success. mem_id:1, port_attr_id:54, data:0x1
+memid:1,port_attr_id:55
+get success. mem_id:1, port_attr_id:55, data:0x3
+memid:1,port_attr_id:56
+get success. mem_id:1, port_attr_id:56, data:0x0
+memid:1,port_attr_id:57
+get success. mem_id:1, port_attr_id:57, data:0x2
+memid:1,port_attr_id:58
+get success. mem_id:1, port_attr_id:58, data:0x1
+memid:1,port_attr_id:59
+get success. mem_id:1, port_attr_id:59, data:0x3
+memid:1,port_attr_id:60
+get success. mem_id:1, port_attr_id:60, data:0x0
+memid:1,port_attr_id:61
+get success. mem_id:1, port_attr_id:61, data:0x2
+memid:1,port_attr_id:62
+get success. mem_id:1, port_attr_id:62, data:0x1
+memid:1,port_attr_id:63
+get success. mem_id:1, port_attr_id:63, data:0x3
+memid:1,port_attr_id:64
+get success. mem_id:1, port_attr_id:64, data:0x0
+memid:1,port_attr_id:65
+get success. mem_id:1, port_attr_id:65, data:0x0
+memid:1,port_attr_id:66
+get success. mem_id:1, port_attr_id:66, data:0x0
+memid:1,port_attr_id:67
+get success. mem_id:1, port_attr_id:67, data:0x0
+memid:1,port_attr_id:68
+get success. mem_id:1, port_attr_id:68, data:0x0
+memid:1,port_attr_id:69
+get success. mem_id:1, port_attr_id:69, data:0x0
+memid:1,port_attr_id:70
+get success. mem_id:1, port_attr_id:70, data:0x0
+memid:1,port_attr_id:71
+get success. mem_id:1, port_attr_id:71, data:0x0
+memid:2,port_attr_id:0
+get success. mem_id:2, port_attr_id:0, data:0x1
+memid:2,port_attr_id:1
+get success. mem_id:2, port_attr_id:1, data:0xa
+memid:2,port_attr_id:2
+get success. mem_id:2, port_attr_id:2, data:0x0
+memid:2,port_attr_id:3
+get success. mem_id:2, port_attr_id:3, data:0x1
+memid:2,port_attr_id:4
+get success. mem_id:2, port_attr_id:4, data:0x0
+memid:2,port_attr_id:5
+get success. mem_id:2, port_attr_id:5, data:0x0
+memid:2,port_attr_id:6
+get success. mem_id:2, port_attr_id:6, data:0x0
+memid:2,port_attr_id:7
+get success. mem_id:2, port_attr_id:7, data:0x0
+memid:2,port_attr_id:8
+get success. mem_id:2, port_attr_id:8, data:0x7
+memid:2,port_attr_id:9
+get success. mem_id:2, port_attr_id:9, data:0x111
+memid:2,port_attr_id:10
+get success. mem_id:2, port_attr_id:10, data:0x0
+memid:2,port_attr_id:11
+get success. mem_id:2, port_attr_id:11, data:0x0
+memid:2,port_attr_id:12
+get success. mem_id:2, port_attr_id:12, data:0x0
+memid:2,port_attr_id:13
+get success. mem_id:2, port_attr_id:13, data:0x0
+memid:2,port_attr_id:14
+get success. mem_id:2, port_attr_id:14, data:0x0
+memid:2,port_attr_id:15
+get success. mem_id:2, port_attr_id:15, data:0x0
+memid:2,port_attr_id:16
+get success. mem_id:2, port_attr_id:16, data:0x0
+memid:2,port_attr_id:17
+get success. mem_id:2, port_attr_id:17, data:0x0
+memid:2,port_attr_id:18
+get success. mem_id:2, port_attr_id:18, data:0x0
+memid:2,port_attr_id:19
+get success. mem_id:2, port_attr_id:19, data:0x0
+memid:2,port_attr_id:20
+get success. mem_id:2, port_attr_id:20, data:0x0
+memid:2,port_attr_id:21
+get success. mem_id:2, port_attr_id:21, data:0x0
+memid:2,port_attr_id:22
+get success. mem_id:2, port_attr_id:22, data:0x0
+memid:2,port_attr_id:23
+get success. mem_id:2, port_attr_id:23, data:0x0
+memid:2,port_attr_id:24
+get success. mem_id:2, port_attr_id:24, data:0x0
+memid:2,port_attr_id:25
+get success. mem_id:2, port_attr_id:25, data:0x0
+memid:2,port_attr_id:26
+get success. mem_id:2, port_attr_id:26, data:0x0
+memid:2,port_attr_id:27
+get success. mem_id:2, port_attr_id:27, data:0x0
+memid:2,port_attr_id:28
+get success. mem_id:2, port_attr_id:28, data:0x0
+memid:2,port_attr_id:29
+get success. mem_id:2, port_attr_id:29, data:0x0
+memid:2,port_attr_id:30
+get success. mem_id:2, port_attr_id:30, data:0x0
+memid:2,port_attr_id:31
+get success. mem_id:2, port_attr_id:31, data:0x0
+memid:2,port_attr_id:32
+get success. mem_id:2, port_attr_id:32, data:0x0
+memid:2,port_attr_id:33
+get success. mem_id:2, port_attr_id:33, data:0x0
+memid:2,port_attr_id:34
+get success. mem_id:2, port_attr_id:34, data:0x0
+memid:2,port_attr_id:35
+get success. mem_id:2, port_attr_id:35, data:0x0
+memid:2,port_attr_id:36
+get success. mem_id:2, port_attr_id:36, data:0x0
+memid:2,port_attr_id:37
+get success. mem_id:2, port_attr_id:37, data:0x0
+memid:2,port_attr_id:38
+get success. mem_id:2, port_attr_id:38, data:0x0
+memid:2,port_attr_id:39
+get success. mem_id:2, port_attr_id:39, data:0x0
+memid:2,port_attr_id:40
+get success. mem_id:2, port_attr_id:40, data:0x0
+memid:2,port_attr_id:41
+get success. mem_id:2, port_attr_id:41, data:0x0
+memid:2,port_attr_id:42
+get success. mem_id:2, port_attr_id:42, data:0x1f4000c
+memid:2,port_attr_id:43
+get success. mem_id:2, port_attr_id:43, data:0x0
+memid:2,port_attr_id:44
+get success. mem_id:2, port_attr_id:44, data:0x0
+memid:2,port_attr_id:45
+get success. mem_id:2, port_attr_id:45, data:0x0
+memid:2,port_attr_id:46
+get success. mem_id:2, port_attr_id:46, data:0x0
+memid:2,port_attr_id:47
+get success. mem_id:2, port_attr_id:47, data:0x0
+memid:2,port_attr_id:48
+get success. mem_id:2, port_attr_id:48, data:0x0
+memid:2,port_attr_id:49
+get success. mem_id:2, port_attr_id:49, data:0x2
+memid:2,port_attr_id:50
+get success. mem_id:2, port_attr_id:50, data:0x1
+memid:2,port_attr_id:51
+get success. mem_id:2, port_attr_id:51, data:0x3
+memid:2,port_attr_id:52
+get success. mem_id:2, port_attr_id:52, data:0x0
+memid:2,port_attr_id:53
+get success. mem_id:2, port_attr_id:53, data:0x2
+memid:2,port_attr_id:54
+get success. mem_id:2, port_attr_id:54, data:0x1
+memid:2,port_attr_id:55
+get success. mem_id:2, port_attr_id:55, data:0x3
+memid:2,port_attr_id:56
+get success. mem_id:2, port_attr_id:56, data:0x0
+memid:2,port_attr_id:57
+get success. mem_id:2, port_attr_id:57, data:0x2
+memid:2,port_attr_id:58
+get success. mem_id:2, port_attr_id:58, data:0x1
+memid:2,port_attr_id:59
+get success. mem_id:2, port_attr_id:59, data:0x3
+memid:2,port_attr_id:60
+get success. mem_id:2, port_attr_id:60, data:0x0
+memid:2,port_attr_id:61
+get success. mem_id:2, port_attr_id:61, data:0x2
+memid:2,port_attr_id:62
+get success. mem_id:2, port_attr_id:62, data:0x1
+memid:2,port_attr_id:63
+get success. mem_id:2, port_attr_id:63, data:0x3
+memid:2,port_attr_id:64
+get success. mem_id:2, port_attr_id:64, data:0x0
+memid:2,port_attr_id:65
+get success. mem_id:2, port_attr_id:65, data:0x0
+memid:2,port_attr_id:66
+get success. mem_id:2, port_attr_id:66, data:0x0
+memid:2,port_attr_id:67
+get success. mem_id:2, port_attr_id:67, data:0x0
+memid:2,port_attr_id:68
+get success. mem_id:2, port_attr_id:68, data:0x0
+memid:2,port_attr_id:69
+get success. mem_id:2, port_attr_id:69, data:0x0
+memid:2,port_attr_id:70
+get success. mem_id:2, port_attr_id:70, data:0x0
+memid:2,port_attr_id:71
+get success. mem_id:2, port_attr_id:71, data:0x0
+memid:3,port_attr_id:0
+get success. mem_id:3, port_attr_id:0, data:0x1
+memid:3,port_attr_id:1
+get success. mem_id:3, port_attr_id:1, data:0xa
+memid:3,port_attr_id:2
+get success. mem_id:3, port_attr_id:2, data:0x0
+memid:3,port_attr_id:3
+get success. mem_id:3, port_attr_id:3, data:0x1
+memid:3,port_attr_id:4
+get success. mem_id:3, port_attr_id:4, data:0x0
+memid:3,port_attr_id:5
+get success. mem_id:3, port_attr_id:5, data:0x0
+memid:3,port_attr_id:6
+get success. mem_id:3, port_attr_id:6, data:0x0
+memid:3,port_attr_id:7
+get success. mem_id:3, port_attr_id:7, data:0x0
+memid:3,port_attr_id:8
+get success. mem_id:3, port_attr_id:8, data:0x7
+memid:3,port_attr_id:9
+get success. mem_id:3, port_attr_id:9, data:0x111
+memid:3,port_attr_id:10
+get success. mem_id:3, port_attr_id:10, data:0x0
+memid:3,port_attr_id:11
+get success. mem_id:3, port_attr_id:11, data:0x0
+memid:3,port_attr_id:12
+get success. mem_id:3, port_attr_id:12, data:0x0
+memid:3,port_attr_id:13
+get success. mem_id:3, port_attr_id:13, data:0x0
+memid:3,port_attr_id:14
+get success. mem_id:3, port_attr_id:14, data:0x0
+memid:3,port_attr_id:15
+get success. mem_id:3, port_attr_id:15, data:0x0
+memid:3,port_attr_id:16
+get success. mem_id:3, port_attr_id:16, data:0x0
+memid:3,port_attr_id:17
+get success. mem_id:3, port_attr_id:17, data:0x0
+memid:3,port_attr_id:18
+get success. mem_id:3, port_attr_id:18, data:0x0
+memid:3,port_attr_id:19
+get success. mem_id:3, port_attr_id:19, data:0x0
+memid:3,port_attr_id:20
+get success. mem_id:3, port_attr_id:20, data:0x0
+memid:3,port_attr_id:21
+get success. mem_id:3, port_attr_id:21, data:0x0
+memid:3,port_attr_id:22
+get success. mem_id:3, port_attr_id:22, data:0x0
+memid:3,port_attr_id:23
+get success. mem_id:3, port_attr_id:23, data:0x0
+memid:3,port_attr_id:24
+get success. mem_id:3, port_attr_id:24, data:0x0
+memid:3,port_attr_id:25
+get success. mem_id:3, port_attr_id:25, data:0x0
+memid:3,port_attr_id:26
+get success. mem_id:3, port_attr_id:26, data:0x0
+memid:3,port_attr_id:27
+get success. mem_id:3, port_attr_id:27, data:0x0
+memid:3,port_attr_id:28
+get success. mem_id:3, port_attr_id:28, data:0x0
+memid:3,port_attr_id:29
+get success. mem_id:3, port_attr_id:29, data:0x0
+memid:3,port_attr_id:30
+get success. mem_id:3, port_attr_id:30, data:0x0
+memid:3,port_attr_id:31
+get success. mem_id:3, port_attr_id:31, data:0x0
+memid:3,port_attr_id:32
+get success. mem_id:3, port_attr_id:32, data:0x0
+memid:3,port_attr_id:33
+get success. mem_id:3, port_attr_id:33, data:0x0
+memid:3,port_attr_id:34
+get success. mem_id:3, port_attr_id:34, data:0x0
+memid:3,port_attr_id:35
+get success. mem_id:3, port_attr_id:35, data:0x0
+memid:3,port_attr_id:36
+get success. mem_id:3, port_attr_id:36, data:0x0
+memid:3,port_attr_id:37
+get success. mem_id:3, port_attr_id:37, data:0x0
+memid:3,port_attr_id:38
+get success. mem_id:3, port_attr_id:38, data:0x0
+memid:3,port_attr_id:39
+get success. mem_id:3, port_attr_id:39, data:0x0
+memid:3,port_attr_id:40
+get success. mem_id:3, port_attr_id:40, data:0x0
+memid:3,port_attr_id:41
+get success. mem_id:3, port_attr_id:41, data:0x0
+memid:3,port_attr_id:42
+get success. mem_id:3, port_attr_id:42, data:0x1f4000c
+memid:3,port_attr_id:43
+get success. mem_id:3, port_attr_id:43, data:0x0
+memid:3,port_attr_id:44
+get success. mem_id:3, port_attr_id:44, data:0x0
+memid:3,port_attr_id:45
+get success. mem_id:3, port_attr_id:45, data:0x0
+memid:3,port_attr_id:46
+get success. mem_id:3, port_attr_id:46, data:0x0
+memid:3,port_attr_id:47
+get success. mem_id:3, port_attr_id:47, data:0x0
+memid:3,port_attr_id:48
+get success. mem_id:3, port_attr_id:48, data:0x0
+memid:3,port_attr_id:49
+get success. mem_id:3, port_attr_id:49, data:0x2
+memid:3,port_attr_id:50
+get success. mem_id:3, port_attr_id:50, data:0x1
+memid:3,port_attr_id:51
+get success. mem_id:3, port_attr_id:51, data:0x3
+memid:3,port_attr_id:52
+get success. mem_id:3, port_attr_id:52, data:0x0
+memid:3,port_attr_id:53
+get success. mem_id:3, port_attr_id:53, data:0x2
+memid:3,port_attr_id:54
+get success. mem_id:3, port_attr_id:54, data:0x1
+memid:3,port_attr_id:55
+get success. mem_id:3, port_attr_id:55, data:0x3
+memid:3,port_attr_id:56
+get success. mem_id:3, port_attr_id:56, data:0x0
+memid:3,port_attr_id:57
+get success. mem_id:3, port_attr_id:57, data:0x2
+memid:3,port_attr_id:58
+get success. mem_id:3, port_attr_id:58, data:0x1
+memid:3,port_attr_id:59
+get success. mem_id:3, port_attr_id:59, data:0x3
+memid:3,port_attr_id:60
+get success. mem_id:3, port_attr_id:60, data:0x0
+memid:3,port_attr_id:61
+get success. mem_id:3, port_attr_id:61, data:0x2
+memid:3,port_attr_id:62
+get success. mem_id:3, port_attr_id:62, data:0x1
+memid:3,port_attr_id:63
+get success. mem_id:3, port_attr_id:63, data:0x3
+memid:3,port_attr_id:64
+get success. mem_id:3, port_attr_id:64, data:0x0
+memid:3,port_attr_id:65
+get success. mem_id:3, port_attr_id:65, data:0x0
+memid:3,port_attr_id:66
+get success. mem_id:3, port_attr_id:66, data:0x0
+memid:3,port_attr_id:67
+get success. mem_id:3, port_attr_id:67, data:0x0
+memid:3,port_attr_id:68
+get success. mem_id:3, port_attr_id:68, data:0x0
+memid:3,port_attr_id:69
+get success. mem_id:3, port_attr_id:69, data:0x0
+memid:3,port_attr_id:70
+get success. mem_id:3, port_attr_id:70, data:0x0
+memid:3,port_attr_id:71
+get success. mem_id:3, port_attr_id:71, data:0x0
+memid:4,port_attr_id:0
+get success. mem_id:4, port_attr_id:0, data:0x1
+memid:4,port_attr_id:1
+get success. mem_id:4, port_attr_id:1, data:0xa
+memid:4,port_attr_id:2
+get success. mem_id:4, port_attr_id:2, data:0x0
+memid:4,port_attr_id:3
+get success. mem_id:4, port_attr_id:3, data:0x1
+memid:4,port_attr_id:4
+get success. mem_id:4, port_attr_id:4, data:0x0
+memid:4,port_attr_id:5
+get success. mem_id:4, port_attr_id:5, data:0x0
+memid:4,port_attr_id:6
+get success. mem_id:4, port_attr_id:6, data:0x0
+memid:4,port_attr_id:7
+get success. mem_id:4, port_attr_id:7, data:0x0
+memid:4,port_attr_id:8
+get success. mem_id:4, port_attr_id:8, data:0x7
+memid:4,port_attr_id:9
+get success. mem_id:4, port_attr_id:9, data:0x111
+memid:4,port_attr_id:10
+get success. mem_id:4, port_attr_id:10, data:0x0
+memid:4,port_attr_id:11
+get success. mem_id:4, port_attr_id:11, data:0x0
+memid:4,port_attr_id:12
+get success. mem_id:4, port_attr_id:12, data:0x0
+memid:4,port_attr_id:13
+get success. mem_id:4, port_attr_id:13, data:0x0
+memid:4,port_attr_id:14
+get success. mem_id:4, port_attr_id:14, data:0x0
+memid:4,port_attr_id:15
+get success. mem_id:4, port_attr_id:15, data:0x0
+memid:4,port_attr_id:16
+get success. mem_id:4, port_attr_id:16, data:0x0
+memid:4,port_attr_id:17
+get success. mem_id:4, port_attr_id:17, data:0x0
+memid:4,port_attr_id:18
+get success. mem_id:4, port_attr_id:18, data:0x0
+memid:4,port_attr_id:19
+get success. mem_id:4, port_attr_id:19, data:0x0
+memid:4,port_attr_id:20
+get success. mem_id:4, port_attr_id:20, data:0x0
+memid:4,port_attr_id:21
+get success. mem_id:4, port_attr_id:21, data:0x0
+memid:4,port_attr_id:22
+get success. mem_id:4, port_attr_id:22, data:0x0
+memid:4,port_attr_id:23
+get success. mem_id:4, port_attr_id:23, data:0x0
+memid:4,port_attr_id:24
+get success. mem_id:4, port_attr_id:24, data:0x0
+memid:4,port_attr_id:25
+get success. mem_id:4, port_attr_id:25, data:0x0
+memid:4,port_attr_id:26
+get success. mem_id:4, port_attr_id:26, data:0x0
+memid:4,port_attr_id:27
+get success. mem_id:4, port_attr_id:27, data:0x0
+memid:4,port_attr_id:28
+get success. mem_id:4, port_attr_id:28, data:0x0
+memid:4,port_attr_id:29
+get success. mem_id:4, port_attr_id:29, data:0x0
+memid:4,port_attr_id:30
+get success. mem_id:4, port_attr_id:30, data:0x0
+memid:4,port_attr_id:31
+get success. mem_id:4, port_attr_id:31, data:0x0
+memid:4,port_attr_id:32
+get success. mem_id:4, port_attr_id:32, data:0x0
+memid:4,port_attr_id:33
+get success. mem_id:4, port_attr_id:33, data:0x0
+memid:4,port_attr_id:34
+get success. mem_id:4, port_attr_id:34, data:0x0
+memid:4,port_attr_id:35
+get success. mem_id:4, port_attr_id:35, data:0x0
+memid:4,port_attr_id:36
+get success. mem_id:4, port_attr_id:36, data:0x0
+memid:4,port_attr_id:37
+get success. mem_id:4, port_attr_id:37, data:0x0
+memid:4,port_attr_id:38
+get success. mem_id:4, port_attr_id:38, data:0x0
+memid:4,port_attr_id:39
+get success. mem_id:4, port_attr_id:39, data:0x0
+memid:4,port_attr_id:40
+get success. mem_id:4, port_attr_id:40, data:0x0
+memid:4,port_attr_id:41
+get success. mem_id:4, port_attr_id:41, data:0x0
+memid:4,port_attr_id:42
+get success. mem_id:4, port_attr_id:42, data:0x1f4000c
+memid:4,port_attr_id:43
+get success. mem_id:4, port_attr_id:43, data:0x0
+memid:4,port_attr_id:44
+get success. mem_id:4, port_attr_id:44, data:0x0
+memid:4,port_attr_id:45
+get success. mem_id:4, port_attr_id:45, data:0x0
+memid:4,port_attr_id:46
+get success. mem_id:4, port_attr_id:46, data:0x0
+memid:4,port_attr_id:47
+get success. mem_id:4, port_attr_id:47, data:0x0
+memid:4,port_attr_id:48
+get success. mem_id:4, port_attr_id:48, data:0x0
+memid:4,port_attr_id:49
+get success. mem_id:4, port_attr_id:49, data:0x2
+memid:4,port_attr_id:50
+get success. mem_id:4, port_attr_id:50, data:0x1
+memid:4,port_attr_id:51
+get success. mem_id:4, port_attr_id:51, data:0x3
+memid:4,port_attr_id:52
+get success. mem_id:4, port_attr_id:52, data:0x0
+memid:4,port_attr_id:53
+get success. mem_id:4, port_attr_id:53, data:0x2
+memid:4,port_attr_id:54
+get success. mem_id:4, port_attr_id:54, data:0x1
+memid:4,port_attr_id:55
+get success. mem_id:4, port_attr_id:55, data:0x3
+memid:4,port_attr_id:56
+get success. mem_id:4, port_attr_id:56, data:0x0
+memid:4,port_attr_id:57
+get success. mem_id:4, port_attr_id:57, data:0x2
+memid:4,port_attr_id:58
+get success. mem_id:4, port_attr_id:58, data:0x1
+memid:4,port_attr_id:59
+get success. mem_id:4, port_attr_id:59, data:0x3
+memid:4,port_attr_id:60
+get success. mem_id:4, port_attr_id:60, data:0x0
+memid:4,port_attr_id:61
+get success. mem_id:4, port_attr_id:61, data:0x2
+memid:4,port_attr_id:62
+get success. mem_id:4, port_attr_id:62, data:0x1
+memid:4,port_attr_id:63
+get success. mem_id:4, port_attr_id:63, data:0x3
+memid:4,port_attr_id:64
+get success. mem_id:4, port_attr_id:64, data:0x0
+memid:4,port_attr_id:65
+get success. mem_id:4, port_attr_id:65, data:0x0
+memid:4,port_attr_id:66
+get success. mem_id:4, port_attr_id:66, data:0x0
+memid:4,port_attr_id:67
+get success. mem_id:4, port_attr_id:67, data:0x0
+memid:4,port_attr_id:68
+get success. mem_id:4, port_attr_id:68, data:0x0
+memid:4,port_attr_id:69
+get success. mem_id:4, port_attr_id:69, data:0x0
+memid:4,port_attr_id:70
+get success. mem_id:4, port_attr_id:70, data:0x0
+memid:4,port_attr_id:71
+get success. mem_id:4, port_attr_id:71, data:0x0
+memid:5,port_attr_id:0
+get success. mem_id:5, port_attr_id:0, data:0x1
+memid:5,port_attr_id:1
+get success. mem_id:5, port_attr_id:1, data:0xa
+memid:5,port_attr_id:2
+get success. mem_id:5, port_attr_id:2, data:0x0
+memid:5,port_attr_id:3
+get success. mem_id:5, port_attr_id:3, data:0x1
+memid:5,port_attr_id:4
+get success. mem_id:5, port_attr_id:4, data:0x0
+memid:5,port_attr_id:5
+get success. mem_id:5, port_attr_id:5, data:0x0
+memid:5,port_attr_id:6
+get success. mem_id:5, port_attr_id:6, data:0x0
+memid:5,port_attr_id:7
+get success. mem_id:5, port_attr_id:7, data:0x0
+memid:5,port_attr_id:8
+get success. mem_id:5, port_attr_id:8, data:0x7
+memid:5,port_attr_id:9
+get success. mem_id:5, port_attr_id:9, data:0x111
+memid:5,port_attr_id:10
+get success. mem_id:5, port_attr_id:10, data:0x0
+memid:5,port_attr_id:11
+get success. mem_id:5, port_attr_id:11, data:0x0
+memid:5,port_attr_id:12
+get success. mem_id:5, port_attr_id:12, data:0x0
+memid:5,port_attr_id:13
+get success. mem_id:5, port_attr_id:13, data:0x0
+memid:5,port_attr_id:14
+get success. mem_id:5, port_attr_id:14, data:0x0
+memid:5,port_attr_id:15
+get success. mem_id:5, port_attr_id:15, data:0x0
+memid:5,port_attr_id:16
+get success. mem_id:5, port_attr_id:16, data:0x0
+memid:5,port_attr_id:17
+get success. mem_id:5, port_attr_id:17, data:0x0
+memid:5,port_attr_id:18
+get success. mem_id:5, port_attr_id:18, data:0x0
+memid:5,port_attr_id:19
+get success. mem_id:5, port_attr_id:19, data:0x0
+memid:5,port_attr_id:20
+get success. mem_id:5, port_attr_id:20, data:0x0
+memid:5,port_attr_id:21
+get success. mem_id:5, port_attr_id:21, data:0x0
+memid:5,port_attr_id:22
+get success. mem_id:5, port_attr_id:22, data:0x0
+memid:5,port_attr_id:23
+get success. mem_id:5, port_attr_id:23, data:0x0
+memid:5,port_attr_id:24
+get success. mem_id:5, port_attr_id:24, data:0x0
+memid:5,port_attr_id:25
+get success. mem_id:5, port_attr_id:25, data:0x0
+memid:5,port_attr_id:26
+get success. mem_id:5, port_attr_id:26, data:0x0
+memid:5,port_attr_id:27
+get success. mem_id:5, port_attr_id:27, data:0x0
+memid:5,port_attr_id:28
+get success. mem_id:5, port_attr_id:28, data:0x0
+memid:5,port_attr_id:29
+get success. mem_id:5, port_attr_id:29, data:0x0
+memid:5,port_attr_id:30
+get success. mem_id:5, port_attr_id:30, data:0x0
+memid:5,port_attr_id:31
+get success. mem_id:5, port_attr_id:31, data:0x0
+memid:5,port_attr_id:32
+get success. mem_id:5, port_attr_id:32, data:0x0
+memid:5,port_attr_id:33
+get success. mem_id:5, port_attr_id:33, data:0x0
+memid:5,port_attr_id:34
+get success. mem_id:5, port_attr_id:34, data:0x0
+memid:5,port_attr_id:35
+get success. mem_id:5, port_attr_id:35, data:0x0
+memid:5,port_attr_id:36
+get success. mem_id:5, port_attr_id:36, data:0x0
+memid:5,port_attr_id:37
+get success. mem_id:5, port_attr_id:37, data:0x0
+memid:5,port_attr_id:38
+get success. mem_id:5, port_attr_id:38, data:0x0
+memid:5,port_attr_id:39
+get success. mem_id:5, port_attr_id:39, data:0x0
+memid:5,port_attr_id:40
+get success. mem_id:5, port_attr_id:40, data:0x0
+memid:5,port_attr_id:41
+get success. mem_id:5, port_attr_id:41, data:0x0
+memid:5,port_attr_id:42
+get success. mem_id:5, port_attr_id:42, data:0x1f4000c
+memid:5,port_attr_id:43
+get success. mem_id:5, port_attr_id:43, data:0x0
+memid:5,port_attr_id:44
+get success. mem_id:5, port_attr_id:44, data:0x0
+memid:5,port_attr_id:45
+get success. mem_id:5, port_attr_id:45, data:0x0
+memid:5,port_attr_id:46
+get success. mem_id:5, port_attr_id:46, data:0x0
+memid:5,port_attr_id:47
+get success. mem_id:5, port_attr_id:47, data:0x0
+memid:5,port_attr_id:48
+get success. mem_id:5, port_attr_id:48, data:0x0
+memid:5,port_attr_id:49
+get success. mem_id:5, port_attr_id:49, data:0x2
+memid:5,port_attr_id:50
+get success. mem_id:5, port_attr_id:50, data:0x1
+memid:5,port_attr_id:51
+get success. mem_id:5, port_attr_id:51, data:0x3
+memid:5,port_attr_id:52
+get success. mem_id:5, port_attr_id:52, data:0x0
+memid:5,port_attr_id:53
+get success. mem_id:5, port_attr_id:53, data:0x2
+memid:5,port_attr_id:54
+get success. mem_id:5, port_attr_id:54, data:0x1
+memid:5,port_attr_id:55
+get success. mem_id:5, port_attr_id:55, data:0x3
+memid:5,port_attr_id:56
+get success. mem_id:5, port_attr_id:56, data:0x0
+memid:5,port_attr_id:57
+get success. mem_id:5, port_attr_id:57, data:0x2
+memid:5,port_attr_id:58
+get success. mem_id:5, port_attr_id:58, data:0x1
+memid:5,port_attr_id:59
+get success. mem_id:5, port_attr_id:59, data:0x3
+memid:5,port_attr_id:60
+get success. mem_id:5, port_attr_id:60, data:0x0
+memid:5,port_attr_id:61
+get success. mem_id:5, port_attr_id:61, data:0x2
+memid:5,port_attr_id:62
+get success. mem_id:5, port_attr_id:62, data:0x1
+memid:5,port_attr_id:63
+get success. mem_id:5, port_attr_id:63, data:0x3
+memid:5,port_attr_id:64
+get success. mem_id:5, port_attr_id:64, data:0x0
+memid:5,port_attr_id:65
+get success. mem_id:5, port_attr_id:65, data:0x0
+memid:5,port_attr_id:66
+get success. mem_id:5, port_attr_id:66, data:0x0
+memid:5,port_attr_id:67
+get success. mem_id:5, port_attr_id:67, data:0x0
+memid:5,port_attr_id:68
+get success. mem_id:5, port_attr_id:68, data:0x0
+memid:5,port_attr_id:69
+get success. mem_id:5, port_attr_id:69, data:0x0
+memid:5,port_attr_id:70
+get success. mem_id:5, port_attr_id:70, data:0x0
+memid:5,port_attr_id:71
+get success. mem_id:5, port_attr_id:71, data:0x42000
+memid:6,port_attr_id:0
+get success. mem_id:6, port_attr_id:0, data:0x1
+memid:6,port_attr_id:1
+get success. mem_id:6, port_attr_id:1, data:0x231
+memid:6,port_attr_id:2
+get success. mem_id:6, port_attr_id:2, data:0x0
+memid:6,port_attr_id:3
+get success. mem_id:6, port_attr_id:3, data:0x0
+memid:6,port_attr_id:4
+get success. mem_id:6, port_attr_id:4, data:0x0
+memid:6,port_attr_id:5
+get success. mem_id:6, port_attr_id:5, data:0x0
+memid:6,port_attr_id:6
+get success. mem_id:6, port_attr_id:6, data:0x0
+memid:6,port_attr_id:7
+get success. mem_id:6, port_attr_id:7, data:0x0
+memid:6,port_attr_id:8
+get success. mem_id:6, port_attr_id:8, data:0x7
+memid:6,port_attr_id:9
+get success. mem_id:6, port_attr_id:9, data:0x111
+memid:6,port_attr_id:10
+get success. mem_id:6, port_attr_id:10, data:0x0
+memid:6,port_attr_id:11
+get success. mem_id:6, port_attr_id:11, data:0x0
+memid:6,port_attr_id:12
+get success. mem_id:6, port_attr_id:12, data:0x0
+memid:6,port_attr_id:13
+get success. mem_id:6, port_attr_id:13, data:0x0
+memid:6,port_attr_id:14
+get success. mem_id:6, port_attr_id:14, data:0x0
+memid:6,port_attr_id:15
+get success. mem_id:6, port_attr_id:15, data:0x0
+memid:6,port_attr_id:16
+get success. mem_id:6, port_attr_id:16, data:0x0
+memid:6,port_attr_id:17
+get success. mem_id:6, port_attr_id:17, data:0x0
+memid:6,port_attr_id:18
+get success. mem_id:6, port_attr_id:18, data:0x0
+memid:6,port_attr_id:19
+get success. mem_id:6, port_attr_id:19, data:0x0
+memid:6,port_attr_id:20
+get success. mem_id:6, port_attr_id:20, data:0x0
+memid:6,port_attr_id:21
+get success. mem_id:6, port_attr_id:21, data:0x0
+memid:6,port_attr_id:22
+get success. mem_id:6, port_attr_id:22, data:0x0
+memid:6,port_attr_id:23
+get success. mem_id:6, port_attr_id:23, data:0x0
+memid:6,port_attr_id:24
+get success. mem_id:6, port_attr_id:24, data:0x0
+memid:6,port_attr_id:25
+get success. mem_id:6, port_attr_id:25, data:0x0
+memid:6,port_attr_id:26
+get success. mem_id:6, port_attr_id:26, data:0x0
+memid:6,port_attr_id:27
+get success. mem_id:6, port_attr_id:27, data:0x0
+memid:6,port_attr_id:28
+get success. mem_id:6, port_attr_id:28, data:0x0
+memid:6,port_attr_id:29
+get success. mem_id:6, port_attr_id:29, data:0x0
+memid:6,port_attr_id:30
+get success. mem_id:6, port_attr_id:30, data:0x0
+memid:6,port_attr_id:31
+get success. mem_id:6, port_attr_id:31, data:0x0
+memid:6,port_attr_id:32
+get success. mem_id:6, port_attr_id:32, data:0x0
+memid:6,port_attr_id:33
+get success. mem_id:6, port_attr_id:33, data:0x0
+memid:6,port_attr_id:34
+get success. mem_id:6, port_attr_id:34, data:0x0
+memid:6,port_attr_id:35
+get success. mem_id:6, port_attr_id:35, data:0x0
+memid:6,port_attr_id:36
+get success. mem_id:6, port_attr_id:36, data:0x0
+memid:6,port_attr_id:37
+get success. mem_id:6, port_attr_id:37, data:0x0
+memid:6,port_attr_id:38
+get success. mem_id:6, port_attr_id:38, data:0x0
+memid:6,port_attr_id:39
+get success. mem_id:6, port_attr_id:39, data:0x0
+memid:6,port_attr_id:40
+get success. mem_id:6, port_attr_id:40, data:0x0
+memid:6,port_attr_id:41
+get success. mem_id:6, port_attr_id:41, data:0x0
+memid:6,port_attr_id:42
+get success. mem_id:6, port_attr_id:42, data:0x1f4000c
+memid:6,port_attr_id:43
+get success. mem_id:6, port_attr_id:43, data:0x0
+memid:6,port_attr_id:44
+get success. mem_id:6, port_attr_id:44, data:0x0
+memid:6,port_attr_id:45
+get success. mem_id:6, port_attr_id:45, data:0x0
+memid:6,port_attr_id:46
+get success. mem_id:6, port_attr_id:46, data:0x0
+memid:6,port_attr_id:47
+get success. mem_id:6, port_attr_id:47, data:0x0
+memid:6,port_attr_id:48
+get success. mem_id:6, port_attr_id:48, data:0x0
+memid:6,port_attr_id:49
+get success. mem_id:6, port_attr_id:49, data:0x1
+memid:6,port_attr_id:50
+get success. mem_id:6, port_attr_id:50, data:0x0
+memid:6,port_attr_id:51
+get success. mem_id:6, port_attr_id:51, data:0x0
+memid:6,port_attr_id:52
+get success. mem_id:6, port_attr_id:52, data:0x0
+memid:6,port_attr_id:53
+get success. mem_id:6, port_attr_id:53, data:0x1
+memid:6,port_attr_id:54
+get success. mem_id:6, port_attr_id:54, data:0x0
+memid:6,port_attr_id:55
+get success. mem_id:6, port_attr_id:55, data:0x0
+memid:6,port_attr_id:56
+get success. mem_id:6, port_attr_id:56, data:0x0
+memid:6,port_attr_id:57
+get success. mem_id:6, port_attr_id:57, data:0x0
+memid:6,port_attr_id:58
+get success. mem_id:6, port_attr_id:58, data:0x0
+memid:6,port_attr_id:59
+get success. mem_id:6, port_attr_id:59, data:0x0
+memid:6,port_attr_id:60
+get success. mem_id:6, port_attr_id:60, data:0x0
+memid:6,port_attr_id:61
+get success. mem_id:6, port_attr_id:61, data:0x0
+memid:6,port_attr_id:62
+get success. mem_id:6, port_attr_id:62, data:0x0
+memid:6,port_attr_id:63
+get success. mem_id:6, port_attr_id:63, data:0x0
+memid:6,port_attr_id:64
+get success. mem_id:6, port_attr_id:64, data:0x0
+memid:6,port_attr_id:65
+get success. mem_id:6, port_attr_id:65, data:0x0
+memid:6,port_attr_id:66
+get success. mem_id:6, port_attr_id:66, data:0x0
+memid:6,port_attr_id:67
+get success. mem_id:6, port_attr_id:67, data:0x0
+memid:6,port_attr_id:68
+get success. mem_id:6, port_attr_id:68, data:0x0
+memid:6,port_attr_id:69
+get success. mem_id:6, port_attr_id:69, data:0xe014400
+memid:6,port_attr_id:70
+get success. mem_id:6, port_attr_id:70, data:0x1f1
+memid:6,port_attr_id:71
+get success. mem_id:6, port_attr_id:71, data:0x148e0000
+memid:7,port_attr_id:0
+get success. mem_id:7, port_attr_id:0, data:0x1
+memid:7,port_attr_id:1
+get success. mem_id:7, port_attr_id:1, data:0xa
+memid:7,port_attr_id:2
+get success. mem_id:7, port_attr_id:2, data:0x0
+memid:7,port_attr_id:3
+get success. mem_id:7, port_attr_id:3, data:0x1
+memid:7,port_attr_id:4
+get success. mem_id:7, port_attr_id:4, data:0x0
+memid:7,port_attr_id:5
+get success. mem_id:7, port_attr_id:5, data:0x0
+memid:7,port_attr_id:6
+get success. mem_id:7, port_attr_id:6, data:0x0
+memid:7,port_attr_id:7
+get success. mem_id:7, port_attr_id:7, data:0x0
+memid:7,port_attr_id:8
+get success. mem_id:7, port_attr_id:8, data:0x7
+memid:7,port_attr_id:9
+get success. mem_id:7, port_attr_id:9, data:0x111
+memid:7,port_attr_id:10
+get success. mem_id:7, port_attr_id:10, data:0x0
+memid:7,port_attr_id:11
+get success. mem_id:7, port_attr_id:11, data:0x0
+memid:7,port_attr_id:12
+get success. mem_id:7, port_attr_id:12, data:0x0
+memid:7,port_attr_id:13
+get success. mem_id:7, port_attr_id:13, data:0x0
+memid:7,port_attr_id:14
+get success. mem_id:7, port_attr_id:14, data:0x0
+memid:7,port_attr_id:15
+get success. mem_id:7, port_attr_id:15, data:0x0
+memid:7,port_attr_id:16
+get success. mem_id:7, port_attr_id:16, data:0x0
+memid:7,port_attr_id:17
+get success. mem_id:7, port_attr_id:17, data:0x0
+memid:7,port_attr_id:18
+get success. mem_id:7, port_attr_id:18, data:0x0
+memid:7,port_attr_id:19
+get success. mem_id:7, port_attr_id:19, data:0x0
+memid:7,port_attr_id:20
+get success. mem_id:7, port_attr_id:20, data:0x0
+memid:7,port_attr_id:21
+get success. mem_id:7, port_attr_id:21, data:0x0
+memid:7,port_attr_id:22
+get success. mem_id:7, port_attr_id:22, data:0x0
+memid:7,port_attr_id:23
+get success. mem_id:7, port_attr_id:23, data:0x0
+memid:7,port_attr_id:24
+get success. mem_id:7, port_attr_id:24, data:0x0
+memid:7,port_attr_id:25
+get success. mem_id:7, port_attr_id:25, data:0x0
+memid:7,port_attr_id:26
+get success. mem_id:7, port_attr_id:26, data:0x0
+memid:7,port_attr_id:27
+get success. mem_id:7, port_attr_id:27, data:0x0
+memid:7,port_attr_id:28
+get success. mem_id:7, port_attr_id:28, data:0x0
+memid:7,port_attr_id:29
+get success. mem_id:7, port_attr_id:29, data:0x0
+memid:7,port_attr_id:30
+get success. mem_id:7, port_attr_id:30, data:0x0
+memid:7,port_attr_id:31
+get success. mem_id:7, port_attr_id:31, data:0x0
+memid:7,port_attr_id:32
+get success. mem_id:7, port_attr_id:32, data:0x0
+memid:7,port_attr_id:33
+get success. mem_id:7, port_attr_id:33, data:0x0
+memid:7,port_attr_id:34
+get success. mem_id:7, port_attr_id:34, data:0x0
+memid:7,port_attr_id:35
+get success. mem_id:7, port_attr_id:35, data:0x0
+memid:7,port_attr_id:36
+get success. mem_id:7, port_attr_id:36, data:0x0
+memid:7,port_attr_id:37
+get success. mem_id:7, port_attr_id:37, data:0x0
+memid:7,port_attr_id:38
+get success. mem_id:7, port_attr_id:38, data:0x0
+memid:7,port_attr_id:39
+get success. mem_id:7, port_attr_id:39, data:0x0
+memid:7,port_attr_id:40
+get success. mem_id:7, port_attr_id:40, data:0x0
+memid:7,port_attr_id:41
+get success. mem_id:7, port_attr_id:41, data:0x0
+memid:7,port_attr_id:42
+get success. mem_id:7, port_attr_id:42, data:0x1f4000c
+memid:7,port_attr_id:43
+get success. mem_id:7, port_attr_id:43, data:0x0
+memid:7,port_attr_id:44
+get success. mem_id:7, port_attr_id:44, data:0x0
+memid:7,port_attr_id:45
+get success. mem_id:7, port_attr_id:45, data:0x0
+memid:7,port_attr_id:46
+get success. mem_id:7, port_attr_id:46, data:0x0
+memid:7,port_attr_id:47
+get success. mem_id:7, port_attr_id:47, data:0x0
+memid:7,port_attr_id:48
+get success. mem_id:7, port_attr_id:48, data:0x0
+memid:7,port_attr_id:49
+get success. mem_id:7, port_attr_id:49, data:0x1
+memid:7,port_attr_id:50
+get success. mem_id:7, port_attr_id:50, data:0x0
+memid:7,port_attr_id:51
+get success. mem_id:7, port_attr_id:51, data:0x0
+memid:7,port_attr_id:52
+get success. mem_id:7, port_attr_id:52, data:0x0
+memid:7,port_attr_id:53
+get success. mem_id:7, port_attr_id:53, data:0x1
+memid:7,port_attr_id:54
+get success. mem_id:7, port_attr_id:54, data:0x0
+memid:7,port_attr_id:55
+get success. mem_id:7, port_attr_id:55, data:0x0
+memid:7,port_attr_id:56
+get success. mem_id:7, port_attr_id:56, data:0x0
+memid:7,port_attr_id:57
+get success. mem_id:7, port_attr_id:57, data:0x0
+memid:7,port_attr_id:58
+get success. mem_id:7, port_attr_id:58, data:0x0
+memid:7,port_attr_id:59
+get success. mem_id:7, port_attr_id:59, data:0x0
+memid:7,port_attr_id:60
+get success. mem_id:7, port_attr_id:60, data:0x0
+memid:7,port_attr_id:61
+get success. mem_id:7, port_attr_id:61, data:0x0
+memid:7,port_attr_id:62
+get success. mem_id:7, port_attr_id:62, data:0x0
+memid:7,port_attr_id:63
+get success. mem_id:7, port_attr_id:63, data:0x0
+memid:7,port_attr_id:64
+get success. mem_id:7, port_attr_id:64, data:0x0
+memid:7,port_attr_id:65
+get success. mem_id:7, port_attr_id:65, data:0x0
+memid:7,port_attr_id:66
+get success. mem_id:7, port_attr_id:66, data:0x0
+memid:7,port_attr_id:67
+get success. mem_id:7, port_attr_id:67, data:0x0
+memid:7,port_attr_id:68
+get success. mem_id:7, port_attr_id:68, data:0x0
+memid:7,port_attr_id:69
+get success. mem_id:7, port_attr_id:69, data:0x0
+memid:7,port_attr_id:70
+get success. mem_id:7, port_attr_id:70, data:0x0
+memid:7,port_attr_id:71
+get success. mem_id:7, port_attr_id:71, data:0x0
+memid:8,port_attr_id:0
+get success. mem_id:8, port_attr_id:0, data:0x0
+memid:8,port_attr_id:1
+get success. mem_id:8, port_attr_id:1, data:0x0
+memid:8,port_attr_id:2
+get success. mem_id:8, port_attr_id:2, data:0x0
+memid:8,port_attr_id:3
+get success. mem_id:8, port_attr_id:3, data:0x0
+memid:8,port_attr_id:4
+get success. mem_id:8, port_attr_id:4, data:0x0
+memid:8,port_attr_id:5
+get success. mem_id:8, port_attr_id:5, data:0x0
+memid:8,port_attr_id:6
+get success. mem_id:8, port_attr_id:6, data:0x0
+memid:8,port_attr_id:7
+get success. mem_id:8, port_attr_id:7, data:0x0
+memid:8,port_attr_id:8
+get success. mem_id:8, port_attr_id:8, data:0x7
+memid:8,port_attr_id:9
+get success. mem_id:8, port_attr_id:9, data:0x111
+memid:8,port_attr_id:10
+get success. mem_id:8, port_attr_id:10, data:0x0
+memid:8,port_attr_id:11
+get success. mem_id:8, port_attr_id:11, data:0x0
+memid:8,port_attr_id:12
+get success. mem_id:8, port_attr_id:12, data:0x0
+memid:8,port_attr_id:13
+get success. mem_id:8, port_attr_id:13, data:0x0
+memid:8,port_attr_id:14
+get success. mem_id:8, port_attr_id:14, data:0x0
+memid:8,port_attr_id:15
+get success. mem_id:8, port_attr_id:15, data:0x0
+memid:8,port_attr_id:16
+get success. mem_id:8, port_attr_id:16, data:0x0
+memid:8,port_attr_id:17
+get success. mem_id:8, port_attr_id:17, data:0x0
+memid:8,port_attr_id:18
+get success. mem_id:8, port_attr_id:18, data:0x0
+memid:8,port_attr_id:19
+get success. mem_id:8, port_attr_id:19, data:0x0
+memid:8,port_attr_id:20
+get success. mem_id:8, port_attr_id:20, data:0x0
+memid:8,port_attr_id:21
+get success. mem_id:8, port_attr_id:21, data:0x0
+memid:8,port_attr_id:22
+get success. mem_id:8, port_attr_id:22, data:0x0
+memid:8,port_attr_id:23
+get success. mem_id:8, port_attr_id:23, data:0x0
+memid:8,port_attr_id:24
+get success. mem_id:8, port_attr_id:24, data:0x0
+memid:8,port_attr_id:25
+get success. mem_id:8, port_attr_id:25, data:0x0
+memid:8,port_attr_id:26
+get success. mem_id:8, port_attr_id:26, data:0x0
+memid:8,port_attr_id:27
+get success. mem_id:8, port_attr_id:27, data:0x0
+memid:8,port_attr_id:28
+get success. mem_id:8, port_attr_id:28, data:0x0
+memid:8,port_attr_id:29
+get success. mem_id:8, port_attr_id:29, data:0x0
+memid:8,port_attr_id:30
+get success. mem_id:8, port_attr_id:30, data:0x0
+memid:8,port_attr_id:31
+get success. mem_id:8, port_attr_id:31, data:0x0
+memid:8,port_attr_id:32
+get success. mem_id:8, port_attr_id:32, data:0x0
+memid:8,port_attr_id:33
+get success. mem_id:8, port_attr_id:33, data:0x0
+memid:8,port_attr_id:34
+get success. mem_id:8, port_attr_id:34, data:0x0
+memid:8,port_attr_id:35
+get success. mem_id:8, port_attr_id:35, data:0x0
+memid:8,port_attr_id:36
+get success. mem_id:8, port_attr_id:36, data:0x0
+memid:8,port_attr_id:37
+get success. mem_id:8, port_attr_id:37, data:0x0
+memid:8,port_attr_id:38
+get success. mem_id:8, port_attr_id:38, data:0x0
+memid:8,port_attr_id:39
+get success. mem_id:8, port_attr_id:39, data:0x0
+memid:8,port_attr_id:40
+get success. mem_id:8, port_attr_id:40, data:0x0
+memid:8,port_attr_id:41
+get success. mem_id:8, port_attr_id:41, data:0x0
+memid:8,port_attr_id:42
+get success. mem_id:8, port_attr_id:42, data:0x1f4000c
+memid:8,port_attr_id:43
+get success. mem_id:8, port_attr_id:43, data:0x0
+memid:8,port_attr_id:44
+get success. mem_id:8, port_attr_id:44, data:0x0
+memid:8,port_attr_id:45
+get success. mem_id:8, port_attr_id:45, data:0x0
+memid:8,port_attr_id:46
+get success. mem_id:8, port_attr_id:46, data:0x0
+memid:8,port_attr_id:47
+get success. mem_id:8, port_attr_id:47, data:0x0
+memid:8,port_attr_id:48
+get success. mem_id:8, port_attr_id:48, data:0x0
+memid:8,port_attr_id:49
+get success. mem_id:8, port_attr_id:49, data:0x1
+memid:8,port_attr_id:50
+get success. mem_id:8, port_attr_id:50, data:0x0
+memid:8,port_attr_id:51
+get success. mem_id:8, port_attr_id:51, data:0x0
+memid:8,port_attr_id:52
+get success. mem_id:8, port_attr_id:52, data:0x0
+memid:8,port_attr_id:53
+get success. mem_id:8, port_attr_id:53, data:0x1
+memid:8,port_attr_id:54
+get success. mem_id:8, port_attr_id:54, data:0x0
+memid:8,port_attr_id:55
+get success. mem_id:8, port_attr_id:55, data:0x0
+memid:8,port_attr_id:56
+get success. mem_id:8, port_attr_id:56, data:0x0
+memid:8,port_attr_id:57
+get success. mem_id:8, port_attr_id:57, data:0x0
+memid:8,port_attr_id:58
+get success. mem_id:8, port_attr_id:58, data:0x0
+memid:8,port_attr_id:59
+get success. mem_id:8, port_attr_id:59, data:0x0
+memid:8,port_attr_id:60
+get success. mem_id:8, port_attr_id:60, data:0x0
+memid:8,port_attr_id:61
+get success. mem_id:8, port_attr_id:61, data:0x0
+memid:8,port_attr_id:62
+get success. mem_id:8, port_attr_id:62, data:0x0
+memid:8,port_attr_id:63
+get success. mem_id:8, port_attr_id:63, data:0x0
+memid:8,port_attr_id:64
+get success. mem_id:8, port_attr_id:64, data:0x0
+memid:8,port_attr_id:65
+get success. mem_id:8, port_attr_id:65, data:0x0
+memid:8,port_attr_id:66
+get success. mem_id:8, port_attr_id:66, data:0x0
+memid:8,port_attr_id:67
+get success. mem_id:8, port_attr_id:67, data:0x0
+memid:8,port_attr_id:68
+get success. mem_id:8, port_attr_id:68, data:0x0
+memid:8,port_attr_id:69
+get success. mem_id:8, port_attr_id:69, data:0xf415800
+memid:8,port_attr_id:70
+get success. mem_id:8, port_attr_id:70, data:0x240
+memid:8,port_attr_id:71
+get success. mem_id:8, port_attr_id:71, data:0x1c8c0000
+memid:9,port_attr_id:0
+get success. mem_id:9, port_attr_id:0, data:0x0
+memid:9,port_attr_id:1
+get success. mem_id:9, port_attr_id:1, data:0x0
+memid:9,port_attr_id:2
+get success. mem_id:9, port_attr_id:2, data:0x0
+memid:9,port_attr_id:3
+get success. mem_id:9, port_attr_id:3, data:0x0
+memid:9,port_attr_id:4
+get success. mem_id:9, port_attr_id:4, data:0x0
+memid:9,port_attr_id:5
+get success. mem_id:9, port_attr_id:5, data:0x0
+memid:9,port_attr_id:6
+get success. mem_id:9, port_attr_id:6, data:0x0
+memid:9,port_attr_id:7
+get success. mem_id:9, port_attr_id:7, data:0x0
+memid:9,port_attr_id:8
+get success. mem_id:9, port_attr_id:8, data:0x7
+memid:9,port_attr_id:9
+get success. mem_id:9, port_attr_id:9, data:0x111
+memid:9,port_attr_id:10
+get success. mem_id:9, port_attr_id:10, data:0x0
+memid:9,port_attr_id:11
+get success. mem_id:9, port_attr_id:11, data:0x0
+memid:9,port_attr_id:12
+get success. mem_id:9, port_attr_id:12, data:0x0
+memid:9,port_attr_id:13
+get success. mem_id:9, port_attr_id:13, data:0x0
+memid:9,port_attr_id:14
+get success. mem_id:9, port_attr_id:14, data:0x0
+memid:9,port_attr_id:15
+get success. mem_id:9, port_attr_id:15, data:0x0
+memid:9,port_attr_id:16
+get success. mem_id:9, port_attr_id:16, data:0x0
+memid:9,port_attr_id:17
+get success. mem_id:9, port_attr_id:17, data:0x0
+memid:9,port_attr_id:18
+get success. mem_id:9, port_attr_id:18, data:0x0
+memid:9,port_attr_id:19
+get success. mem_id:9, port_attr_id:19, data:0x0
+memid:9,port_attr_id:20
+get success. mem_id:9, port_attr_id:20, data:0x0
+memid:9,port_attr_id:21
+get success. mem_id:9, port_attr_id:21, data:0x0
+memid:9,port_attr_id:22
+get success. mem_id:9, port_attr_id:22, data:0x0
+memid:9,port_attr_id:23
+get success. mem_id:9, port_attr_id:23, data:0x0
+memid:9,port_attr_id:24
+get success. mem_id:9, port_attr_id:24, data:0x0
+memid:9,port_attr_id:25
+get success. mem_id:9, port_attr_id:25, data:0x0
+memid:9,port_attr_id:26
+get success. mem_id:9, port_attr_id:26, data:0x0
+memid:9,port_attr_id:27
+get success. mem_id:9, port_attr_id:27, data:0x0
+memid:9,port_attr_id:28
+get success. mem_id:9, port_attr_id:28, data:0x0
+memid:9,port_attr_id:29
+get success. mem_id:9, port_attr_id:29, data:0x0
+memid:9,port_attr_id:30
+get success. mem_id:9, port_attr_id:30, data:0x0
+memid:9,port_attr_id:31
+get success. mem_id:9, port_attr_id:31, data:0x0
+memid:9,port_attr_id:32
+get success. mem_id:9, port_attr_id:32, data:0x0
+memid:9,port_attr_id:33
+get success. mem_id:9, port_attr_id:33, data:0x0
+memid:9,port_attr_id:34
+get success. mem_id:9, port_attr_id:34, data:0x0
+memid:9,port_attr_id:35
+get success. mem_id:9, port_attr_id:35, data:0x0
+memid:9,port_attr_id:36
+get success. mem_id:9, port_attr_id:36, data:0x0
+memid:9,port_attr_id:37
+get success. mem_id:9, port_attr_id:37, data:0x0
+memid:9,port_attr_id:38
+get success. mem_id:9, port_attr_id:38, data:0x0
+memid:9,port_attr_id:39
+get success. mem_id:9, port_attr_id:39, data:0x0
+memid:9,port_attr_id:40
+get success. mem_id:9, port_attr_id:40, data:0x0
+memid:9,port_attr_id:41
+get success. mem_id:9, port_attr_id:41, data:0x0
+memid:9,port_attr_id:42
+get success. mem_id:9, port_attr_id:42, data:0x1f4000c
+memid:9,port_attr_id:43
+get success. mem_id:9, port_attr_id:43, data:0x0
+memid:9,port_attr_id:44
+get success. mem_id:9, port_attr_id:44, data:0x0
+memid:9,port_attr_id:45
+get success. mem_id:9, port_attr_id:45, data:0x0
+memid:9,port_attr_id:46
+get success. mem_id:9, port_attr_id:46, data:0x0
+memid:9,port_attr_id:47
+get success. mem_id:9, port_attr_id:47, data:0x0
+memid:9,port_attr_id:48
+get success. mem_id:9, port_attr_id:48, data:0x0
+memid:9,port_attr_id:49
+get success. mem_id:9, port_attr_id:49, data:0x1
+memid:9,port_attr_id:50
+get success. mem_id:9, port_attr_id:50, data:0x0
+memid:9,port_attr_id:51
+get success. mem_id:9, port_attr_id:51, data:0x0
+memid:9,port_attr_id:52
+get success. mem_id:9, port_attr_id:52, data:0x0
+memid:9,port_attr_id:53
+get success. mem_id:9, port_attr_id:53, data:0x1
+memid:9,port_attr_id:54
+get success. mem_id:9, port_attr_id:54, data:0x0
+memid:9,port_attr_id:55
+get success. mem_id:9, port_attr_id:55, data:0x0
+memid:9,port_attr_id:56
+get success. mem_id:9, port_attr_id:56, data:0x0
+memid:9,port_attr_id:57
+get success. mem_id:9, port_attr_id:57, data:0x0
+memid:9,port_attr_id:58
+get success. mem_id:9, port_attr_id:58, data:0x0
+memid:9,port_attr_id:59
+get success. mem_id:9, port_attr_id:59, data:0x0
+memid:9,port_attr_id:60
+get success. mem_id:9, port_attr_id:60, data:0x0
+memid:9,port_attr_id:61
+get success. mem_id:9, port_attr_id:61, data:0x0
+memid:9,port_attr_id:62
+get success. mem_id:9, port_attr_id:62, data:0x0
+memid:9,port_attr_id:63
+get success. mem_id:9, port_attr_id:63, data:0x0
+memid:9,port_attr_id:64
+get success. mem_id:9, port_attr_id:64, data:0x0
+memid:9,port_attr_id:65
+get success. mem_id:9, port_attr_id:65, data:0x0
+memid:9,port_attr_id:66
+get success. mem_id:9, port_attr_id:66, data:0x0
+memid:9,port_attr_id:67
+get success. mem_id:9, port_attr_id:67, data:0x0
+memid:9,port_attr_id:68
+get success. mem_id:9, port_attr_id:68, data:0x0
+memid:9,port_attr_id:69
+get success. mem_id:9, port_attr_id:69, data:0x0
+memid:9,port_attr_id:70
+get success. mem_id:9, port_attr_id:70, data:0x0
+memid:9,port_attr_id:71
+get success. mem_id:9, port_attr_id:71, data:0x0
+memid:10,port_attr_id:0
+get success. mem_id:10, port_attr_id:0, data:0x1
+memid:10,port_attr_id:1
+get success. mem_id:10, port_attr_id:1, data:0x5
+memid:10,port_attr_id:2
+get success. mem_id:10, port_attr_id:2, data:0x0
+memid:10,port_attr_id:3
+get success. mem_id:10, port_attr_id:3, data:0x1
+memid:10,port_attr_id:4
+get success. mem_id:10, port_attr_id:4, data:0x6
+memid:10,port_attr_id:5
+get success. mem_id:10, port_attr_id:5, data:0x0
+memid:10,port_attr_id:6
+get success. mem_id:10, port_attr_id:6, data:0x0
+memid:10,port_attr_id:7
+get success. mem_id:10, port_attr_id:7, data:0x0
+memid:10,port_attr_id:8
+get success. mem_id:10, port_attr_id:8, data:0x6
+memid:10,port_attr_id:9
+get success. mem_id:10, port_attr_id:9, data:0x111
+memid:10,port_attr_id:10
+get success. mem_id:10, port_attr_id:10, data:0x0
+memid:10,port_attr_id:11
+get success. mem_id:10, port_attr_id:11, data:0x0
+memid:10,port_attr_id:12
+get success. mem_id:10, port_attr_id:12, data:0x0
+memid:10,port_attr_id:13
+get success. mem_id:10, port_attr_id:13, data:0x0
+memid:10,port_attr_id:14
+get success. mem_id:10, port_attr_id:14, data:0x0
+memid:10,port_attr_id:15
+get success. mem_id:10, port_attr_id:15, data:0x0
+memid:10,port_attr_id:16
+get success. mem_id:10, port_attr_id:16, data:0x0
+memid:10,port_attr_id:17
+get success. mem_id:10, port_attr_id:17, data:0x0
+memid:10,port_attr_id:18
+get success. mem_id:10, port_attr_id:18, data:0x0
+memid:10,port_attr_id:19
+get success. mem_id:10, port_attr_id:19, data:0x0
+memid:10,port_attr_id:20
+get success. mem_id:10, port_attr_id:20, data:0x0
+memid:10,port_attr_id:21
+get success. mem_id:10, port_attr_id:21, data:0x0
+memid:10,port_attr_id:22
+get success. mem_id:10, port_attr_id:22, data:0x0
+memid:10,port_attr_id:23
+get success. mem_id:10, port_attr_id:23, data:0x0
+memid:10,port_attr_id:24
+get success. mem_id:10, port_attr_id:24, data:0x0
+memid:10,port_attr_id:25
+get success. mem_id:10, port_attr_id:25, data:0x0
+memid:10,port_attr_id:26
+get success. mem_id:10, port_attr_id:26, data:0x0
+memid:10,port_attr_id:27
+get success. mem_id:10, port_attr_id:27, data:0x0
+memid:10,port_attr_id:28
+get success. mem_id:10, port_attr_id:28, data:0x0
+memid:10,port_attr_id:29
+get success. mem_id:10, port_attr_id:29, data:0x0
+memid:10,port_attr_id:30
+get success. mem_id:10, port_attr_id:30, data:0x0
+memid:10,port_attr_id:31
+get success. mem_id:10, port_attr_id:31, data:0x0
+memid:10,port_attr_id:32
+get success. mem_id:10, port_attr_id:32, data:0x0
+memid:10,port_attr_id:33
+get success. mem_id:10, port_attr_id:33, data:0x0
+memid:10,port_attr_id:34
+get success. mem_id:10, port_attr_id:34, data:0x0
+memid:10,port_attr_id:35
+get success. mem_id:10, port_attr_id:35, data:0x0
+memid:10,port_attr_id:36
+get success. mem_id:10, port_attr_id:36, data:0x0
+memid:10,port_attr_id:37
+get success. mem_id:10, port_attr_id:37, data:0x0
+memid:10,port_attr_id:38
+get success. mem_id:10, port_attr_id:38, data:0x0
+memid:10,port_attr_id:39
+get success. mem_id:10, port_attr_id:39, data:0x0
+memid:10,port_attr_id:40
+get success. mem_id:10, port_attr_id:40, data:0x0
+memid:10,port_attr_id:41
+get success. mem_id:10, port_attr_id:41, data:0x0
+memid:10,port_attr_id:42
+get success. mem_id:10, port_attr_id:42, data:0x1f4000c
+memid:10,port_attr_id:43
+get success. mem_id:10, port_attr_id:43, data:0x0
+memid:10,port_attr_id:44
+get success. mem_id:10, port_attr_id:44, data:0x0
+memid:10,port_attr_id:45
+get success. mem_id:10, port_attr_id:45, data:0x0
+memid:10,port_attr_id:46
+get success. mem_id:10, port_attr_id:46, data:0x0
+memid:10,port_attr_id:47
+get success. mem_id:10, port_attr_id:47, data:0x0
+memid:10,port_attr_id:48
+get success. mem_id:10, port_attr_id:48, data:0x0
+memid:10,port_attr_id:49
+get success. mem_id:10, port_attr_id:49, data:0x1
+memid:10,port_attr_id:50
+get success. mem_id:10, port_attr_id:50, data:0x0
+memid:10,port_attr_id:51
+get success. mem_id:10, port_attr_id:51, data:0x0
+memid:10,port_attr_id:52
+get success. mem_id:10, port_attr_id:52, data:0x0
+memid:10,port_attr_id:53
+get success. mem_id:10, port_attr_id:53, data:0x1
+memid:10,port_attr_id:54
+get success. mem_id:10, port_attr_id:54, data:0x0
+memid:10,port_attr_id:55
+get success. mem_id:10, port_attr_id:55, data:0x0
+memid:10,port_attr_id:56
+get success. mem_id:10, port_attr_id:56, data:0x0
+memid:10,port_attr_id:57
+get success. mem_id:10, port_attr_id:57, data:0x0
+memid:10,port_attr_id:58
+get success. mem_id:10, port_attr_id:58, data:0x0
+memid:10,port_attr_id:59
+get success. mem_id:10, port_attr_id:59, data:0x0
+memid:10,port_attr_id:60
+get success. mem_id:10, port_attr_id:60, data:0x0
+memid:10,port_attr_id:61
+get success. mem_id:10, port_attr_id:61, data:0x0
+memid:10,port_attr_id:62
+get success. mem_id:10, port_attr_id:62, data:0x0
+memid:10,port_attr_id:63
+get success. mem_id:10, port_attr_id:63, data:0x0
+memid:10,port_attr_id:64
+get success. mem_id:10, port_attr_id:64, data:0x0
+memid:10,port_attr_id:65
+get success. mem_id:10, port_attr_id:65, data:0x0
+memid:10,port_attr_id:66
+get success. mem_id:10, port_attr_id:66, data:0x0
+memid:10,port_attr_id:67
+get success. mem_id:10, port_attr_id:67, data:0x0
+memid:10,port_attr_id:68
+get success. mem_id:10, port_attr_id:68, data:0x0
+memid:10,port_attr_id:69
+get success. mem_id:10, port_attr_id:69, data:0x0
+memid:10,port_attr_id:70
+get success. mem_id:10, port_attr_id:70, data:0x0
+memid:10,port_attr_id:71
+get success. mem_id:10, port_attr_id:71, data:0x42000
+memid:11,port_attr_id:0
+get success. mem_id:11, port_attr_id:0, data:0x0
+memid:11,port_attr_id:1
+get success. mem_id:11, port_attr_id:1, data:0x0
+memid:11,port_attr_id:2
+get success. mem_id:11, port_attr_id:2, data:0x0
+memid:11,port_attr_id:3
+get success. mem_id:11, port_attr_id:3, data:0x0
+memid:11,port_attr_id:4
+get success. mem_id:11, port_attr_id:4, data:0x0
+memid:11,port_attr_id:5
+get success. mem_id:11, port_attr_id:5, data:0x0
+memid:11,port_attr_id:6
+get success. mem_id:11, port_attr_id:6, data:0x0
+memid:11,port_attr_id:7
+get success. mem_id:11, port_attr_id:7, data:0x0
+memid:11,port_attr_id:8
+get success. mem_id:11, port_attr_id:8, data:0x7
+memid:11,port_attr_id:9
+get success. mem_id:11, port_attr_id:9, data:0x111
+memid:11,port_attr_id:10
+get success. mem_id:11, port_attr_id:10, data:0x0
+memid:11,port_attr_id:11
+get success. mem_id:11, port_attr_id:11, data:0x0
+memid:11,port_attr_id:12
+get success. mem_id:11, port_attr_id:12, data:0x0
+memid:11,port_attr_id:13
+get success. mem_id:11, port_attr_id:13, data:0x0
+memid:11,port_attr_id:14
+get success. mem_id:11, port_attr_id:14, data:0x0
+memid:11,port_attr_id:15
+get success. mem_id:11, port_attr_id:15, data:0x0
+memid:11,port_attr_id:16
+get success. mem_id:11, port_attr_id:16, data:0x0
+memid:11,port_attr_id:17
+get success. mem_id:11, port_attr_id:17, data:0x0
+memid:11,port_attr_id:18
+get success. mem_id:11, port_attr_id:18, data:0x0
+memid:11,port_attr_id:19
+get success. mem_id:11, port_attr_id:19, data:0x0
+memid:11,port_attr_id:20
+get success. mem_id:11, port_attr_id:20, data:0x0
+memid:11,port_attr_id:21
+get success. mem_id:11, port_attr_id:21, data:0x0
+memid:11,port_attr_id:22
+get success. mem_id:11, port_attr_id:22, data:0x0
+memid:11,port_attr_id:23
+get success. mem_id:11, port_attr_id:23, data:0x0
+memid:11,port_attr_id:24
+get success. mem_id:11, port_attr_id:24, data:0x0
+memid:11,port_attr_id:25
+get success. mem_id:11, port_attr_id:25, data:0x0
+memid:11,port_attr_id:26
+get success. mem_id:11, port_attr_id:26, data:0x0
+memid:11,port_attr_id:27
+get success. mem_id:11, port_attr_id:27, data:0x0
+memid:11,port_attr_id:28
+get success. mem_id:11, port_attr_id:28, data:0x0
+memid:11,port_attr_id:29
+get success. mem_id:11, port_attr_id:29, data:0x0
+memid:11,port_attr_id:30
+get success. mem_id:11, port_attr_id:30, data:0x0
+memid:11,port_attr_id:31
+get success. mem_id:11, port_attr_id:31, data:0x0
+memid:11,port_attr_id:32
+get success. mem_id:11, port_attr_id:32, data:0x0
+memid:11,port_attr_id:33
+get success. mem_id:11, port_attr_id:33, data:0x0
+memid:11,port_attr_id:34
+get success. mem_id:11, port_attr_id:34, data:0x0
+memid:11,port_attr_id:35
+get success. mem_id:11, port_attr_id:35, data:0x0
+memid:11,port_attr_id:36
+get success. mem_id:11, port_attr_id:36, data:0x0
+memid:11,port_attr_id:37
+get success. mem_id:11, port_attr_id:37, data:0x0
+memid:11,port_attr_id:38
+get success. mem_id:11, port_attr_id:38, data:0x0
+memid:11,port_attr_id:39
+get success. mem_id:11, port_attr_id:39, data:0x0
+memid:11,port_attr_id:40
+get success. mem_id:11, port_attr_id:40, data:0x0
+memid:11,port_attr_id:41
+get success. mem_id:11, port_attr_id:41, data:0x0
+memid:11,port_attr_id:42
+get success. mem_id:11, port_attr_id:42, data:0x1f4000c
+memid:11,port_attr_id:43
+get success. mem_id:11, port_attr_id:43, data:0x0
+memid:11,port_attr_id:44
+get success. mem_id:11, port_attr_id:44, data:0x0
+memid:11,port_attr_id:45
+get success. mem_id:11, port_attr_id:45, data:0x0
+memid:11,port_attr_id:46
+get success. mem_id:11, port_attr_id:46, data:0x0
+memid:11,port_attr_id:47
+get success. mem_id:11, port_attr_id:47, data:0x0
+memid:11,port_attr_id:48
+get success. mem_id:11, port_attr_id:48, data:0x0
+memid:11,port_attr_id:49
+get success. mem_id:11, port_attr_id:49, data:0x1
+memid:11,port_attr_id:50
+get success. mem_id:11, port_attr_id:50, data:0x0
+memid:11,port_attr_id:51
+get success. mem_id:11, port_attr_id:51, data:0x0
+memid:11,port_attr_id:52
+get success. mem_id:11, port_attr_id:52, data:0x0
+memid:11,port_attr_id:53
+get success. mem_id:11, port_attr_id:53, data:0x1
+memid:11,port_attr_id:54
+get success. mem_id:11, port_attr_id:54, data:0x0
+memid:11,port_attr_id:55
+get success. mem_id:11, port_attr_id:55, data:0x0
+memid:11,port_attr_id:56
+get success. mem_id:11, port_attr_id:56, data:0x0
+memid:11,port_attr_id:57
+get success. mem_id:11, port_attr_id:57, data:0x0
+memid:11,port_attr_id:58
+get success. mem_id:11, port_attr_id:58, data:0x0
+memid:11,port_attr_id:59
+get success. mem_id:11, port_attr_id:59, data:0x0
+memid:11,port_attr_id:60
+get success. mem_id:11, port_attr_id:60, data:0x0
+memid:11,port_attr_id:61
+get success. mem_id:11, port_attr_id:61, data:0x0
+memid:11,port_attr_id:62
+get success. mem_id:11, port_attr_id:62, data:0x0
+memid:11,port_attr_id:63
+get success. mem_id:11, port_attr_id:63, data:0x0
+memid:11,port_attr_id:64
+get success. mem_id:11, port_attr_id:64, data:0x0
+memid:11,port_attr_id:65
+get success. mem_id:11, port_attr_id:65, data:0x0
+memid:11,port_attr_id:66
+get success. mem_id:11, port_attr_id:66, data:0x0
+memid:11,port_attr_id:67
+get success. mem_id:11, port_attr_id:67, data:0x0
+memid:11,port_attr_id:68
+get success. mem_id:11, port_attr_id:68, data:0x0
+memid:11,port_attr_id:69
+get success. mem_id:11, port_attr_id:69, data:0x0
+memid:11,port_attr_id:70
+get success. mem_id:11, port_attr_id:70, data:0x0
+memid:11,port_attr_id:71
+get success. mem_id:11, port_attr_id:71, data:0x0
+memid:12,port_attr_id:0
+get success. mem_id:12, port_attr_id:0, data:0x1
+memid:12,port_attr_id:1
+get success. mem_id:12, port_attr_id:1, data:0x222
+memid:12,port_attr_id:2
+get success. mem_id:12, port_attr_id:2, data:0x0
+memid:12,port_attr_id:3
+get success. mem_id:12, port_attr_id:3, data:0x1f
+memid:12,port_attr_id:4
+get success. mem_id:12, port_attr_id:4, data:0x7
+memid:12,port_attr_id:5
+get success. mem_id:12, port_attr_id:5, data:0x0
+memid:12,port_attr_id:6
+get success. mem_id:12, port_attr_id:6, data:0x0
+memid:12,port_attr_id:7
+get success. mem_id:12, port_attr_id:7, data:0x0
+memid:12,port_attr_id:8
+get success. mem_id:12, port_attr_id:8, data:0x6
+memid:12,port_attr_id:9
+get success. mem_id:12, port_attr_id:9, data:0x111
+memid:12,port_attr_id:10
+get success. mem_id:12, port_attr_id:10, data:0x0
+memid:12,port_attr_id:11
+get success. mem_id:12, port_attr_id:11, data:0x0
+memid:12,port_attr_id:12
+get success. mem_id:12, port_attr_id:12, data:0x0
+memid:12,port_attr_id:13
+get success. mem_id:12, port_attr_id:13, data:0x0
+memid:12,port_attr_id:14
+get success. mem_id:12, port_attr_id:14, data:0x0
+memid:12,port_attr_id:15
+get success. mem_id:12, port_attr_id:15, data:0x0
+memid:12,port_attr_id:16
+get success. mem_id:12, port_attr_id:16, data:0x0
+memid:12,port_attr_id:17
+get success. mem_id:12, port_attr_id:17, data:0x0
+memid:12,port_attr_id:18
+get success. mem_id:12, port_attr_id:18, data:0x0
+memid:12,port_attr_id:19
+get success. mem_id:12, port_attr_id:19, data:0x0
+memid:12,port_attr_id:20
+get success. mem_id:12, port_attr_id:20, data:0x0
+memid:12,port_attr_id:21
+get success. mem_id:12, port_attr_id:21, data:0x0
+memid:12,port_attr_id:22
+get success. mem_id:12, port_attr_id:22, data:0x0
+memid:12,port_attr_id:23
+get success. mem_id:12, port_attr_id:23, data:0x0
+memid:12,port_attr_id:24
+get success. mem_id:12, port_attr_id:24, data:0x0
+memid:12,port_attr_id:25
+get success. mem_id:12, port_attr_id:25, data:0x0
+memid:12,port_attr_id:26
+get success. mem_id:12, port_attr_id:26, data:0x0
+memid:12,port_attr_id:27
+get success. mem_id:12, port_attr_id:27, data:0x0
+memid:12,port_attr_id:28
+get success. mem_id:12, port_attr_id:28, data:0x0
+memid:12,port_attr_id:29
+get success. mem_id:12, port_attr_id:29, data:0x0
+memid:12,port_attr_id:30
+get success. mem_id:12, port_attr_id:30, data:0x0
+memid:12,port_attr_id:31
+get success. mem_id:12, port_attr_id:31, data:0x0
+memid:12,port_attr_id:32
+get success. mem_id:12, port_attr_id:32, data:0x0
+memid:12,port_attr_id:33
+get success. mem_id:12, port_attr_id:33, data:0x0
+memid:12,port_attr_id:34
+get success. mem_id:12, port_attr_id:34, data:0x0
+memid:12,port_attr_id:35
+get success. mem_id:12, port_attr_id:35, data:0x0
+memid:12,port_attr_id:36
+get success. mem_id:12, port_attr_id:36, data:0x0
+memid:12,port_attr_id:37
+get success. mem_id:12, port_attr_id:37, data:0x0
+memid:12,port_attr_id:38
+get success. mem_id:12, port_attr_id:38, data:0x0
+memid:12,port_attr_id:39
+get success. mem_id:12, port_attr_id:39, data:0x0
+memid:12,port_attr_id:40
+get success. mem_id:12, port_attr_id:40, data:0x0
+memid:12,port_attr_id:41
+get success. mem_id:12, port_attr_id:41, data:0x0
+memid:12,port_attr_id:42
+get success. mem_id:12, port_attr_id:42, data:0x1f4000c
+memid:12,port_attr_id:43
+get success. mem_id:12, port_attr_id:43, data:0x0
+memid:12,port_attr_id:44
+get success. mem_id:12, port_attr_id:44, data:0x0
+memid:12,port_attr_id:45
+get success. mem_id:12, port_attr_id:45, data:0x0
+memid:12,port_attr_id:46
+get success. mem_id:12, port_attr_id:46, data:0x0
+memid:12,port_attr_id:47
+get success. mem_id:12, port_attr_id:47, data:0x0
+memid:12,port_attr_id:48
+get success. mem_id:12, port_attr_id:48, data:0x0
+memid:12,port_attr_id:49
+get success. mem_id:12, port_attr_id:49, data:0x1
+memid:12,port_attr_id:50
+get success. mem_id:12, port_attr_id:50, data:0x0
+memid:12,port_attr_id:51
+get success. mem_id:12, port_attr_id:51, data:0x0
+memid:12,port_attr_id:52
+get success. mem_id:12, port_attr_id:52, data:0x0
+memid:12,port_attr_id:53
+get success. mem_id:12, port_attr_id:53, data:0x1
+memid:12,port_attr_id:54
+get success. mem_id:12, port_attr_id:54, data:0x0
+memid:12,port_attr_id:55
+get success. mem_id:12, port_attr_id:55, data:0x0
+memid:12,port_attr_id:56
+get success. mem_id:12, port_attr_id:56, data:0x0
+memid:12,port_attr_id:57
+get success. mem_id:12, port_attr_id:57, data:0x0
+memid:12,port_attr_id:58
+get success. mem_id:12, port_attr_id:58, data:0x0
+memid:12,port_attr_id:59
+get success. mem_id:12, port_attr_id:59, data:0x0
+memid:12,port_attr_id:60
+get success. mem_id:12, port_attr_id:60, data:0x0
+memid:12,port_attr_id:61
+get success. mem_id:12, port_attr_id:61, data:0x0
+memid:12,port_attr_id:62
+get success. mem_id:12, port_attr_id:62, data:0x0
+memid:12,port_attr_id:63
+get success. mem_id:12, port_attr_id:63, data:0x0
+memid:12,port_attr_id:64
+get success. mem_id:12, port_attr_id:64, data:0x0
+memid:12,port_attr_id:65
+get success. mem_id:12, port_attr_id:65, data:0x0
+memid:12,port_attr_id:66
+get success. mem_id:12, port_attr_id:66, data:0x0
+memid:12,port_attr_id:67
+get success. mem_id:12, port_attr_id:67, data:0x0
+memid:12,port_attr_id:68
+get success. mem_id:12, port_attr_id:68, data:0x0
+memid:12,port_attr_id:69
+get success. mem_id:12, port_attr_id:69, data:0x0
+memid:12,port_attr_id:70
+get success. mem_id:12, port_attr_id:70, data:0x0
+memid:12,port_attr_id:71
+get success. mem_id:12, port_attr_id:71, data:0x0
+memid:13,port_attr_id:0
+get success. mem_id:13, port_attr_id:0, data:0x0
+memid:13,port_attr_id:1
+get success. mem_id:13, port_attr_id:1, data:0x0
+memid:13,port_attr_id:2
+get success. mem_id:13, port_attr_id:2, data:0x0
+memid:13,port_attr_id:3
+get success. mem_id:13, port_attr_id:3, data:0x0
+memid:13,port_attr_id:4
+get success. mem_id:13, port_attr_id:4, data:0x0
+memid:13,port_attr_id:5
+get success. mem_id:13, port_attr_id:5, data:0x0
+memid:13,port_attr_id:6
+get success. mem_id:13, port_attr_id:6, data:0x0
+memid:13,port_attr_id:7
+get success. mem_id:13, port_attr_id:7, data:0x0
+memid:13,port_attr_id:8
+get success. mem_id:13, port_attr_id:8, data:0x7
+memid:13,port_attr_id:9
+get success. mem_id:13, port_attr_id:9, data:0x111
+memid:13,port_attr_id:10
+get success. mem_id:13, port_attr_id:10, data:0x0
+memid:13,port_attr_id:11
+get success. mem_id:13, port_attr_id:11, data:0x0
+memid:13,port_attr_id:12
+get success. mem_id:13, port_attr_id:12, data:0x0
+memid:13,port_attr_id:13
+get success. mem_id:13, port_attr_id:13, data:0x0
+memid:13,port_attr_id:14
+get success. mem_id:13, port_attr_id:14, data:0x0
+memid:13,port_attr_id:15
+get success. mem_id:13, port_attr_id:15, data:0x0
+memid:13,port_attr_id:16
+get success. mem_id:13, port_attr_id:16, data:0x0
+memid:13,port_attr_id:17
+get success. mem_id:13, port_attr_id:17, data:0x0
+memid:13,port_attr_id:18
+get success. mem_id:13, port_attr_id:18, data:0x0
+memid:13,port_attr_id:19
+get success. mem_id:13, port_attr_id:19, data:0x0
+memid:13,port_attr_id:20
+get success. mem_id:13, port_attr_id:20, data:0x0
+memid:13,port_attr_id:21
+get success. mem_id:13, port_attr_id:21, data:0x0
+memid:13,port_attr_id:22
+get success. mem_id:13, port_attr_id:22, data:0x0
+memid:13,port_attr_id:23
+get success. mem_id:13, port_attr_id:23, data:0x0
+memid:13,port_attr_id:24
+get success. mem_id:13, port_attr_id:24, data:0x0
+memid:13,port_attr_id:25
+get success. mem_id:13, port_attr_id:25, data:0x0
+memid:13,port_attr_id:26
+get success. mem_id:13, port_attr_id:26, data:0x0
+memid:13,port_attr_id:27
+get success. mem_id:13, port_attr_id:27, data:0x0
+memid:13,port_attr_id:28
+get success. mem_id:13, port_attr_id:28, data:0x0
+memid:13,port_attr_id:29
+get success. mem_id:13, port_attr_id:29, data:0x0
+memid:13,port_attr_id:30
+get success. mem_id:13, port_attr_id:30, data:0x0
+memid:13,port_attr_id:31
+get success. mem_id:13, port_attr_id:31, data:0x0
+memid:13,port_attr_id:32
+get success. mem_id:13, port_attr_id:32, data:0x0
+memid:13,port_attr_id:33
+get success. mem_id:13, port_attr_id:33, data:0x0
+memid:13,port_attr_id:34
+get success. mem_id:13, port_attr_id:34, data:0x0
+memid:13,port_attr_id:35
+get success. mem_id:13, port_attr_id:35, data:0x0
+memid:13,port_attr_id:36
+get success. mem_id:13, port_attr_id:36, data:0x0
+memid:13,port_attr_id:37
+get success. mem_id:13, port_attr_id:37, data:0x0
+memid:13,port_attr_id:38
+get success. mem_id:13, port_attr_id:38, data:0x0
+memid:13,port_attr_id:39
+get success. mem_id:13, port_attr_id:39, data:0x0
+memid:13,port_attr_id:40
+get success. mem_id:13, port_attr_id:40, data:0x0
+memid:13,port_attr_id:41
+get success. mem_id:13, port_attr_id:41, data:0x0
+memid:13,port_attr_id:42
+get success. mem_id:13, port_attr_id:42, data:0x1f4000c
+memid:13,port_attr_id:43
+get success. mem_id:13, port_attr_id:43, data:0x0
+memid:13,port_attr_id:44
+get success. mem_id:13, port_attr_id:44, data:0x0
+memid:13,port_attr_id:45
+get success. mem_id:13, port_attr_id:45, data:0x0
+memid:13,port_attr_id:46
+get success. mem_id:13, port_attr_id:46, data:0x0
+memid:13,port_attr_id:47
+get success. mem_id:13, port_attr_id:47, data:0x0
+memid:13,port_attr_id:48
+get success. mem_id:13, port_attr_id:48, data:0x0
+memid:13,port_attr_id:49
+get success. mem_id:13, port_attr_id:49, data:0x1
+memid:13,port_attr_id:50
+get success. mem_id:13, port_attr_id:50, data:0x0
+memid:13,port_attr_id:51
+get success. mem_id:13, port_attr_id:51, data:0x0
+memid:13,port_attr_id:52
+get success. mem_id:13, port_attr_id:52, data:0x0
+memid:13,port_attr_id:53
+get success. mem_id:13, port_attr_id:53, data:0x1
+memid:13,port_attr_id:54
+get success. mem_id:13, port_attr_id:54, data:0x0
+memid:13,port_attr_id:55
+get success. mem_id:13, port_attr_id:55, data:0x0
+memid:13,port_attr_id:56
+get success. mem_id:13, port_attr_id:56, data:0x0
+memid:13,port_attr_id:57
+get success. mem_id:13, port_attr_id:57, data:0x0
+memid:13,port_attr_id:58
+get success. mem_id:13, port_attr_id:58, data:0x0
+memid:13,port_attr_id:59
+get success. mem_id:13, port_attr_id:59, data:0x0
+memid:13,port_attr_id:60
+get success. mem_id:13, port_attr_id:60, data:0x0
+memid:13,port_attr_id:61
+get success. mem_id:13, port_attr_id:61, data:0x0
+memid:13,port_attr_id:62
+get success. mem_id:13, port_attr_id:62, data:0x0
+memid:13,port_attr_id:63
+get success. mem_id:13, port_attr_id:63, data:0x0
+memid:13,port_attr_id:64
+get success. mem_id:13, port_attr_id:64, data:0x0
+memid:13,port_attr_id:65
+get success. mem_id:13, port_attr_id:65, data:0x0
+memid:13,port_attr_id:66
+get success. mem_id:13, port_attr_id:66, data:0x0
+memid:13,port_attr_id:67
+get success. mem_id:13, port_attr_id:67, data:0x0
+memid:13,port_attr_id:68
+get success. mem_id:13, port_attr_id:68, data:0x0
+memid:13,port_attr_id:69
+get success. mem_id:13, port_attr_id:69, data:0x0
+memid:13,port_attr_id:70
+get success. mem_id:13, port_attr_id:70, data:0x0
+memid:13,port_attr_id:71
+get success. mem_id:13, port_attr_id:71, data:0x0
+memid:14,port_attr_id:0
+get success. mem_id:14, port_attr_id:0, data:0x1
+memid:14,port_attr_id:1
+get success. mem_id:14, port_attr_id:1, data:0x22c
+memid:14,port_attr_id:2
+get success. mem_id:14, port_attr_id:2, data:0x0
+memid:14,port_attr_id:3
+get success. mem_id:14, port_attr_id:3, data:0x0
+memid:14,port_attr_id:4
+get success. mem_id:14, port_attr_id:4, data:0x6
+memid:14,port_attr_id:5
+get success. mem_id:14, port_attr_id:5, data:0x0
+memid:14,port_attr_id:6
+get success. mem_id:14, port_attr_id:6, data:0x0
+memid:14,port_attr_id:7
+get success. mem_id:14, port_attr_id:7, data:0x0
+memid:14,port_attr_id:8
+get success. mem_id:14, port_attr_id:8, data:0x6
+memid:14,port_attr_id:9
+get success. mem_id:14, port_attr_id:9, data:0x111
+memid:14,port_attr_id:10
+get success. mem_id:14, port_attr_id:10, data:0x0
+memid:14,port_attr_id:11
+get success. mem_id:14, port_attr_id:11, data:0x0
+memid:14,port_attr_id:12
+get success. mem_id:14, port_attr_id:12, data:0x0
+memid:14,port_attr_id:13
+get success. mem_id:14, port_attr_id:13, data:0x0
+memid:14,port_attr_id:14
+get success. mem_id:14, port_attr_id:14, data:0x0
+memid:14,port_attr_id:15
+get success. mem_id:14, port_attr_id:15, data:0x0
+memid:14,port_attr_id:16
+get success. mem_id:14, port_attr_id:16, data:0x0
+memid:14,port_attr_id:17
+get success. mem_id:14, port_attr_id:17, data:0x0
+memid:14,port_attr_id:18
+get success. mem_id:14, port_attr_id:18, data:0x0
+memid:14,port_attr_id:19
+get success. mem_id:14, port_attr_id:19, data:0x0
+memid:14,port_attr_id:20
+get success. mem_id:14, port_attr_id:20, data:0x0
+memid:14,port_attr_id:21
+get success. mem_id:14, port_attr_id:21, data:0x0
+memid:14,port_attr_id:22
+get success. mem_id:14, port_attr_id:22, data:0x0
+memid:14,port_attr_id:23
+get success. mem_id:14, port_attr_id:23, data:0x0
+memid:14,port_attr_id:24
+get success. mem_id:14, port_attr_id:24, data:0x0
+memid:14,port_attr_id:25
+get success. mem_id:14, port_attr_id:25, data:0x0
+memid:14,port_attr_id:26
+get success. mem_id:14, port_attr_id:26, data:0x0
+memid:14,port_attr_id:27
+get success. mem_id:14, port_attr_id:27, data:0x0
+memid:14,port_attr_id:28
+get success. mem_id:14, port_attr_id:28, data:0x0
+memid:14,port_attr_id:29
+get success. mem_id:14, port_attr_id:29, data:0x0
+memid:14,port_attr_id:30
+get success. mem_id:14, port_attr_id:30, data:0x0
+memid:14,port_attr_id:31
+get success. mem_id:14, port_attr_id:31, data:0x0
+memid:14,port_attr_id:32
+get success. mem_id:14, port_attr_id:32, data:0x0
+memid:14,port_attr_id:33
+get success. mem_id:14, port_attr_id:33, data:0x0
+memid:14,port_attr_id:34
+get success. mem_id:14, port_attr_id:34, data:0x0
+memid:14,port_attr_id:35
+get success. mem_id:14, port_attr_id:35, data:0x0
+memid:14,port_attr_id:36
+get success. mem_id:14, port_attr_id:36, data:0x0
+memid:14,port_attr_id:37
+get success. mem_id:14, port_attr_id:37, data:0x0
+memid:14,port_attr_id:38
+get success. mem_id:14, port_attr_id:38, data:0x0
+memid:14,port_attr_id:39
+get success. mem_id:14, port_attr_id:39, data:0x0
+memid:14,port_attr_id:40
+get success. mem_id:14, port_attr_id:40, data:0x0
+memid:14,port_attr_id:41
+get success. mem_id:14, port_attr_id:41, data:0x0
+memid:14,port_attr_id:42
+get success. mem_id:14, port_attr_id:42, data:0x1f4000c
+memid:14,port_attr_id:43
+get success. mem_id:14, port_attr_id:43, data:0x0
+memid:14,port_attr_id:44
+get success. mem_id:14, port_attr_id:44, data:0x0
+memid:14,port_attr_id:45
+get success. mem_id:14, port_attr_id:45, data:0x0
+memid:14,port_attr_id:46
+get success. mem_id:14, port_attr_id:46, data:0x0
+memid:14,port_attr_id:47
+get success. mem_id:14, port_attr_id:47, data:0x0
+memid:14,port_attr_id:48
+get success. mem_id:14, port_attr_id:48, data:0x0
+memid:14,port_attr_id:49
+get success. mem_id:14, port_attr_id:49, data:0x1
+memid:14,port_attr_id:50
+get success. mem_id:14, port_attr_id:50, data:0x0
+memid:14,port_attr_id:51
+get success. mem_id:14, port_attr_id:51, data:0x0
+memid:14,port_attr_id:52
+get success. mem_id:14, port_attr_id:52, data:0x0
+memid:14,port_attr_id:53
+get success. mem_id:14, port_attr_id:53, data:0x1
+memid:14,port_attr_id:54
+get success. mem_id:14, port_attr_id:54, data:0x0
+memid:14,port_attr_id:55
+get success. mem_id:14, port_attr_id:55, data:0x0
+memid:14,port_attr_id:56
+get success. mem_id:14, port_attr_id:56, data:0x0
+memid:14,port_attr_id:57
+get success. mem_id:14, port_attr_id:57, data:0x0
+memid:14,port_attr_id:58
+get success. mem_id:14, port_attr_id:58, data:0x0
+memid:14,port_attr_id:59
+get success. mem_id:14, port_attr_id:59, data:0x0
+memid:14,port_attr_id:60
+get success. mem_id:14, port_attr_id:60, data:0x0
+memid:14,port_attr_id:61
+get success. mem_id:14, port_attr_id:61, data:0x0
+memid:14,port_attr_id:62
+get success. mem_id:14, port_attr_id:62, data:0x0
+memid:14,port_attr_id:63
+get success. mem_id:14, port_attr_id:63, data:0x0
+memid:14,port_attr_id:64
+get success. mem_id:14, port_attr_id:64, data:0x0
+memid:14,port_attr_id:65
+get success. mem_id:14, port_attr_id:65, data:0x0
+memid:14,port_attr_id:66
+get success. mem_id:14, port_attr_id:66, data:0x0
+memid:14,port_attr_id:67
+get success. mem_id:14, port_attr_id:67, data:0x0
+memid:14,port_attr_id:68
+get success. mem_id:14, port_attr_id:68, data:0x0
+memid:14,port_attr_id:69
+get success. mem_id:14, port_attr_id:69, data:0x0
+memid:14,port_attr_id:70
+get success. mem_id:14, port_attr_id:70, data:0x0
+memid:14,port_attr_id:71
+get success. mem_id:14, port_attr_id:71, data:0x60000
+memid:15,port_attr_id:0
+get success. mem_id:15, port_attr_id:0, data:0x1
+memid:15,port_attr_id:1
+get success. mem_id:15, port_attr_id:1, data:0x0
+memid:15,port_attr_id:2
+get success. mem_id:15, port_attr_id:2, data:0x0
+memid:15,port_attr_id:3
+get success. mem_id:15, port_attr_id:3, data:0x1
+memid:15,port_attr_id:4
+get success. mem_id:15, port_attr_id:4, data:0x0
+memid:15,port_attr_id:5
+get success. mem_id:15, port_attr_id:5, data:0x0
+memid:15,port_attr_id:6
+get success. mem_id:15, port_attr_id:6, data:0x0
+memid:15,port_attr_id:7
+get success. mem_id:15, port_attr_id:7, data:0x0
+memid:15,port_attr_id:8
+get success. mem_id:15, port_attr_id:8, data:0x7
+memid:15,port_attr_id:9
+get success. mem_id:15, port_attr_id:9, data:0x111
+memid:15,port_attr_id:10
+get success. mem_id:15, port_attr_id:10, data:0x0
+memid:15,port_attr_id:11
+get success. mem_id:15, port_attr_id:11, data:0x0
+memid:15,port_attr_id:12
+get success. mem_id:15, port_attr_id:12, data:0x0
+memid:15,port_attr_id:13
+get success. mem_id:15, port_attr_id:13, data:0x0
+memid:15,port_attr_id:14
+get success. mem_id:15, port_attr_id:14, data:0x0
+memid:15,port_attr_id:15
+get success. mem_id:15, port_attr_id:15, data:0x0
+memid:15,port_attr_id:16
+get success. mem_id:15, port_attr_id:16, data:0x0
+memid:15,port_attr_id:17
+get success. mem_id:15, port_attr_id:17, data:0x0
+memid:15,port_attr_id:18
+get success. mem_id:15, port_attr_id:18, data:0x0
+memid:15,port_attr_id:19
+get success. mem_id:15, port_attr_id:19, data:0x0
+memid:15,port_attr_id:20
+get success. mem_id:15, port_attr_id:20, data:0x0
+memid:15,port_attr_id:21
+get success. mem_id:15, port_attr_id:21, data:0x0
+memid:15,port_attr_id:22
+get success. mem_id:15, port_attr_id:22, data:0x0
+memid:15,port_attr_id:23
+get success. mem_id:15, port_attr_id:23, data:0x0
+memid:15,port_attr_id:24
+get success. mem_id:15, port_attr_id:24, data:0x0
+memid:15,port_attr_id:25
+get success. mem_id:15, port_attr_id:25, data:0x0
+memid:15,port_attr_id:26
+get success. mem_id:15, port_attr_id:26, data:0x0
+memid:15,port_attr_id:27
+get success. mem_id:15, port_attr_id:27, data:0x0
+memid:15,port_attr_id:28
+get success. mem_id:15, port_attr_id:28, data:0x0
+memid:15,port_attr_id:29
+get success. mem_id:15, port_attr_id:29, data:0x0
+memid:15,port_attr_id:30
+get success. mem_id:15, port_attr_id:30, data:0x0
+memid:15,port_attr_id:31
+get success. mem_id:15, port_attr_id:31, data:0x0
+memid:15,port_attr_id:32
+get success. mem_id:15, port_attr_id:32, data:0x0
+memid:15,port_attr_id:33
+get success. mem_id:15, port_attr_id:33, data:0x0
+memid:15,port_attr_id:34
+get success. mem_id:15, port_attr_id:34, data:0x0
+memid:15,port_attr_id:35
+get success. mem_id:15, port_attr_id:35, data:0x0
+memid:15,port_attr_id:36
+get success. mem_id:15, port_attr_id:36, data:0x0
+memid:15,port_attr_id:37
+get success. mem_id:15, port_attr_id:37, data:0x0
+memid:15,port_attr_id:38
+get success. mem_id:15, port_attr_id:38, data:0x0
+memid:15,port_attr_id:39
+get success. mem_id:15, port_attr_id:39, data:0x0
+memid:15,port_attr_id:40
+get success. mem_id:15, port_attr_id:40, data:0x0
+memid:15,port_attr_id:41
+get success. mem_id:15, port_attr_id:41, data:0x0
+memid:15,port_attr_id:42
+get success. mem_id:15, port_attr_id:42, data:0x1f4000c
+memid:15,port_attr_id:43
+get success. mem_id:15, port_attr_id:43, data:0x0
+memid:15,port_attr_id:44
+get success. mem_id:15, port_attr_id:44, data:0x0
+memid:15,port_attr_id:45
+get success. mem_id:15, port_attr_id:45, data:0x0
+memid:15,port_attr_id:46
+get success. mem_id:15, port_attr_id:46, data:0x0
+memid:15,port_attr_id:47
+get success. mem_id:15, port_attr_id:47, data:0x0
+memid:15,port_attr_id:48
+get success. mem_id:15, port_attr_id:48, data:0x0
+memid:15,port_attr_id:49
+get success. mem_id:15, port_attr_id:49, data:0x1
+memid:15,port_attr_id:50
+get success. mem_id:15, port_attr_id:50, data:0x0
+memid:15,port_attr_id:51
+get success. mem_id:15, port_attr_id:51, data:0x0
+memid:15,port_attr_id:52
+get success. mem_id:15, port_attr_id:52, data:0x0
+memid:15,port_attr_id:53
+get success. mem_id:15, port_attr_id:53, data:0x1
+memid:15,port_attr_id:54
+get success. mem_id:15, port_attr_id:54, data:0x0
+memid:15,port_attr_id:55
+get success. mem_id:15, port_attr_id:55, data:0x0
+memid:15,port_attr_id:56
+get success. mem_id:15, port_attr_id:56, data:0x0
+memid:15,port_attr_id:57
+get success. mem_id:15, port_attr_id:57, data:0x0
+memid:15,port_attr_id:58
+get success. mem_id:15, port_attr_id:58, data:0x0
+memid:15,port_attr_id:59
+get success. mem_id:15, port_attr_id:59, data:0x0
+memid:15,port_attr_id:60
+get success. mem_id:15, port_attr_id:60, data:0x0
+memid:15,port_attr_id:61
+get success. mem_id:15, port_attr_id:61, data:0x0
+memid:15,port_attr_id:62
+get success. mem_id:15, port_attr_id:62, data:0x0
+memid:15,port_attr_id:63
+get success. mem_id:15, port_attr_id:63, data:0x0
+memid:15,port_attr_id:64
+get success. mem_id:15, port_attr_id:64, data:0x0
+memid:15,port_attr_id:65
+get success. mem_id:15, port_attr_id:65, data:0x0
+memid:15,port_attr_id:66
+get success. mem_id:15, port_attr_id:66, data:0x0
+memid:15,port_attr_id:67
+get success. mem_id:15, port_attr_id:67, data:0x0
+memid:15,port_attr_id:68
+get success. mem_id:15, port_attr_id:68, data:0x0
+memid:15,port_attr_id:69
+get success. mem_id:15, port_attr_id:69, data:0x0
+memid:15,port_attr_id:70
+get success. mem_id:15, port_attr_id:70, data:0x0
+memid:15,port_attr_id:71
+get success. mem_id:15, port_attr_id:71, data:0x40000

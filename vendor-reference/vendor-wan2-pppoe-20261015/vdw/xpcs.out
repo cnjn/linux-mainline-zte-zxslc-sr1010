@@ -1,0 +1,1 @@
+cat: can't open '/sys/devices/platform/np/test/xpcs_reg_show': Permission denied
