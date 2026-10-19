@@ -21,15 +21,15 @@ define Package/mcfast
   SECTION:=net
   CATEGORY:=Network
   SUBMENU:=Routing and Redirection
-  TITLE:=eBPF fast path for routed IPv4 multicast
+  TITLE:=eBPF fast path for routed IPv4 and IPv6 multicast
   DEPENDS:=+libbpf $(BPF_DEPENDS)
 endef
 
 define Package/mcfast/description
-  Forwards IPv4 multicast streams that the kernel multicast routing table
-  (as set up by igmpproxy or smcroute) has resolved directly at tc ingress
-  of the upstream device, bypassing conntrack, netfilter and ipmr. Bridges
-  still apply IGMP snooping.
+  Forwards IPv4 and IPv6 multicast streams that the kernel multicast routing
+  tables (as set up by omcproxy, igmpproxy or smcroute) have resolved directly
+  at tc ingress of the upstream device, bypassing conntrack, netfilter and
+  ipmr/ip6mr. Bridges still apply IGMP and MLD snooping.
 endef
 
 define Package/mcfast/conffiles

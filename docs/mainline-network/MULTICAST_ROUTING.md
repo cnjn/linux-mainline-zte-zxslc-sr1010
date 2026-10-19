@@ -140,3 +140,49 @@
 - 是否把 `mcfast`（和 `igmpproxy`）编进固件默认包。目前是 `=m`，测试路由器上是手动 apk 安装的。
 - IPv6（ip6mr）可以照同样的思路扩展。
 - PPPoE 还可以在 eth0 上用 XDP 剥 PPPoE 头，省掉内核的 PPPoE 解封装和 backlog 这一跳，性能能再接近 IPoE。暂不需要。
+
+## omcproxy、mcfast 加 IPv6，以及 fw4 卸载组播的问题（2026-10-19）
+
+**组播代理改用 omcproxy**
+- omcproxy 是 OpenWrt 官方的组播代理，同时支持 IGMPv3 和 MLDv2，也就是 IPv4 和 IPv6 都能管，带 LuCI 页面。
+- 它和 igmpproxy 一样，在上游口用 socket 加入组（本机成员数为 1），写组播路由时下游的 TTL 门限设为 1。所以 mcfast 判断“本机还有没有其他接收者”的阈值不用改。
+- omcproxy 严格按 RFC 要求，非查询类的 IGMP/MLD 报文必须带 Router Alert，否则记一条 `ignoring invalid IGMP-message` 后丢弃。真实设备都会带。
+- 测试工具的问题：原来的 `igmprep` 不带 Router Alert；而 macOS 自己发出的 IP 包只要带选项就会被悄悄丢掉（`IP_OPTIONS` 和自己构造 IP 头都一样）。改用 `mcrep GROUP IFNAME SECS`：通过 `/dev/bpf` 直接写以太网帧，IPv4 发带 RA 的 IGMPv2 报告，IPv6 发带逐跳选项头和 RA 的 MLDv1 报告。
+
+**mcfast 支持 IPv6**
+- 新增第二张表 `mcfast_routes6`，键是入口加 128 位的源地址和组地址。
+- hop limit 直接减一（IPv6 头没有校验和）；组播 MAC 为 `33:33` 加组地址后 4 字节；只转发作用域大于 link-local 的组。
+- 守护进程同时读 `RTNL_FAMILY_IPMR` 和 `RTNL_FAMILY_IP6MR` 两张组播路由表，监听 `RTMGRP_IPV6_MROUTE`；本机成员检查读 `/proc/net/igmp6`。
+- 测试环境：笔记本 ppp0 和路由器 pppoe-wanppp 上临时加 `2001:db8:64::1/::2`；组 `ff0e::239:1`；mac 用 `mcrecv6` 接收、`mcrep` 发报告。
+
+| WAN 口 PPPoE + mcfast | IPv4 | IPv6 |
+|---|---|---|
+| 300 Mbit/s | 零丢包，收包核 50% | 零丢包，51% |
+| 700 Mbit/s | 零丢包，94% | 丢 0.24%，95% |
+| 饱和点 | 约 7.9 万包/秒 | 约 7.7 万包/秒 |
+
+**fw4 会把 IPv6 组播流放进软件 flowtable**
+- 现象：路由条目在推流中途建立时，eth0 每秒收 2.85 万包，pppoe-wanppp 收 0；mcfast 和 ip6mr 的计数都停在个位数，而 mac 照样收全。
+- 原因：
+  1. 最初几个包走内核 ip6mr 时经过 fw4 的 forward 链；
+  2. 链首规则是 `meta l4proto { tcp, udp } flow offload @ft`；
+  3. 6.18 的 `nft_flow_offload` 不排除组播，也不要求连接被应答，于是这条流被卸载，conntrack 里显示为 `[UNREPLIED] … [OFFLOAD]`；
+  4. 之后的包在 eth0 入口由 flowtable 剥掉 PPPoE 头，直接送进 br-lan。
+- 后果：
+  - 只有一个出口（ip6mr 最初用的那个）；
+  - 接收者离开、路由被删之后，只要源一直在发，流就一直有效；
+  - TTL 门限、多个下游口、mcfast 都被绕过。
+  - 网桥仍按 MLD 剪枝，所以测试里包没有发错地方，但语义不对。
+- IPv4 组播在同样的规则下没有被卸载，原因未深究。
+- `meta pkttype host` 挡不住：PPPoE 内层包的 pkttype 继承自外层的单播帧。
+- 修复：ImmortalWrt 的 `firewall4/patches/003-fw4-no-multicast-offload.patch`，把规则拆成两条：
+  - `meta nfproto ipv4 … ip daddr != 224.0.0.0/4 flow offload @ft`
+  - `meta nfproto ipv6 … ip6 daddr != ff00::/8 flow offload @ft`
+- 修复后验证：
+  - 组播流不再被卸载，mcfast 在最初约 400 个包之后接管，300 Mbit/s 零丢包；
+  - 单播 PPPoE 下载仍是 `HW_OFFLOAD`，1934 Mbit/s。
+
+**同批进固件的其他东西**
+- mwan3、luci-app-syncdial。
+- 首次启动脚本 `99-zx279133-mwan3`：mwan3 配置还是出厂原样时，关掉它默认的 `wan` 条目，避免它 ping 不通公共 DNS 时把上网流量判为不可达。
+- 6.18 内核把 ip_tables/ip6_tables 移到了 `NETFILTER_XTABLES_LEGACY` 开关后面，而 OpenWrt 的 `kmod-nf-ipt` 还需要这两个模块（mwan3 通过 iptables-nft 用到），所以在 `config-6.18` 里打开这个开关。

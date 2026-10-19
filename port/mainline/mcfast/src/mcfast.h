@@ -2,8 +2,9 @@
 /*
  * mcfast: shared definitions between the tc BPF program and the daemon.
  *
- * One map entry per resolved kernel multicast route (MFC entry): the key is
- * the ingress interface plus (source, group), source 0 for (*,G) routes.
+ * One map entry per resolved kernel multicast route (MFC entry), one map per
+ * address family: the key is the ingress interface plus (source, group),
+ * source all-zero for (*,G) routes.
  */
 #ifndef MCFAST_H
 #define MCFAST_H
@@ -17,6 +18,12 @@ struct mcfast_key {
 	__be32 grp;
 };
 
+struct mcfast_key6 {
+	__u32 ifindex;
+	__u8 src[16];
+	__u8 grp[16];
+};
+
 struct mcfast_oif {
 	__u32 ifindex;
 	__u8 mac[6];
@@ -24,7 +31,7 @@ struct mcfast_oif {
 };
 
 struct mcfast_route {
-	__u8 ttl_min;		/* forward only when the IPv4 TTL is above this */
+	__u8 ttl_min;		/* forward only when the TTL / hop limit is above */
 	__u8 n_oifs;
 	__u16 mtu;		/* smallest egress MTU */
 	__u32 pad;

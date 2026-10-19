@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * mcfast: keep the tc BPF multicast fast path in sync with the kernel's
- * IPv4 multicast routing table (MFC).
+ * IPv4 and IPv6 multicast routing tables (MFC).
  *
  * Only resolved routes are offered to the fast path, so the multicast
- * router daemon (igmpproxy, smcroute, ...) and the firewall still decide
+ * router daemon (omcproxy, igmpproxy, smcroute, ...) and the firewall still decide
  * what gets forwarded. A route stays in the kernel when
  *  - its ingress device is neither Ethernet nor a raw-IP device (PPP),
  *  - one of its egress devices is not Ethernet (a bridge, a port, ...),
@@ -42,15 +42,24 @@
 /* Memberships the routing daemon itself holds on its upstream device. */
 #define MCFAST_DAEMON_USERS	1
 
+/* A resolved route of either family; IPv4 addresses use the first 4 bytes. */
 struct mfc {
-	struct mcfast_key key;
+	int family;
+	__u32 iif;
+	__u8 src[16];
+	__u8 grp[16];
 	int n_oifs;
 	__u32 oif[MCFAST_MAX_VIFS];
 	__u8 ttl[MCFAST_MAX_VIFS];
 };
 
 struct want {
-	struct mcfast_key key;
+	int family;
+	__u32 iif;
+	union {
+		struct mcfast_key k4;
+		struct mcfast_key6 k6;
+	} key;
 	struct mcfast_route route;
 	int iif_type;
 };
@@ -63,7 +72,7 @@ struct iif_link {
 
 static struct bpf_object *obj;
 static struct bpf_program *prog_eth, *prog_ip;
-static int map_fd;
+static int map_fd, map6_fd;
 static struct iif_link links[MCFAST_MAX_IIFS];
 static int n_links;
 static volatile sig_atomic_t stop;
@@ -141,28 +150,40 @@ static int nl_open(__u32 groups)
 	return fd;
 }
 
-static void parse_mfc(struct nlmsghdr *nh, int *n)
+static const __u8 zero_addr[16];
+
+static int family_alen(int family)
+{
+	return family == AF_INET6 ? 16 : 4;
+}
+
+static void parse_mfc(struct nlmsghdr *nh, int *n, int family)
 {
 	struct rtmsg *rtm = NLMSG_DATA(nh);
-	int len = RTM_PAYLOAD(nh);
+	int rtnl_family = family == AF_INET6 ? RTNL_FAMILY_IP6MR :
+					       RTNL_FAMILY_IPMR;
+	int len = RTM_PAYLOAD(nh), alen = family_alen(family);
 	struct mfc *m = &mfcs[*n];
 	bool have_iif = false;
 	struct rtattr *rta;
 
-	if (*n >= MCFAST_MAX_MFC || rtm->rtm_family != RTNL_FAMILY_IPMR ||
+	if (*n >= MCFAST_MAX_MFC || rtm->rtm_family != rtnl_family ||
 	    (rtm->rtm_flags & RTNH_F_UNRESOLVED))
 		return;
 	memset(m, 0, sizeof(*m));
+	m->family = family;
 	for (rta = RTM_RTA(rtm); RTA_OK(rta, len); rta = RTA_NEXT(rta, len)) {
 		switch (rta->rta_type) {
 		case RTA_SRC:
-			memcpy(&m->key.src, RTA_DATA(rta), 4);
+			if (RTA_PAYLOAD(rta) == alen)
+				memcpy(m->src, RTA_DATA(rta), alen);
 			break;
 		case RTA_DST:
-			memcpy(&m->key.grp, RTA_DATA(rta), 4);
+			if (RTA_PAYLOAD(rta) == alen)
+				memcpy(m->grp, RTA_DATA(rta), alen);
 			break;
 		case RTA_IIF:
-			memcpy(&m->key.ifindex, RTA_DATA(rta), 4);
+			memcpy(&m->iif, RTA_DATA(rta), 4);
 			have_iif = true;
 			break;
 		case RTA_MULTIPATH: {
@@ -181,12 +202,15 @@ static void parse_mfc(struct nlmsghdr *nh, int *n)
 		}
 		}
 	}
-	if (have_iif && m->key.grp)
+	if (have_iif && memcmp(m->grp, zero_addr, alen))
 		(*n)++;
 }
 
-/* Dump the resolved IPv4 multicast routes of all tables into mfcs[]. */
-static int dump_mfc(int fd)
+/*
+ * Append the resolved multicast routes of @family (all tables) to mfcs[],
+ * which holds @n of them so far. Returns the new count or -errno.
+ */
+static int dump_mfc(int fd, int family, int n)
 {
 	struct {
 		struct nlmsghdr nh;
@@ -198,10 +222,10 @@ static int dump_mfc(int fd)
 			.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP,
 			.nlmsg_seq = ++nl_seq,
 		},
-		.rtm.rtm_family = RTNL_FAMILY_IPMR,
+		.rtm.rtm_family = family == AF_INET6 ? RTNL_FAMILY_IP6MR :
+						       RTNL_FAMILY_IPMR,
 	};
 	static char buf[32768];
-	int n = 0;
 
 	if (send(fd, &req, sizeof(req), 0) < 0)
 		return -errno;
@@ -226,7 +250,7 @@ static int dump_mfc(int fd)
 				return e->error;
 			}
 			if (nh->nlmsg_type == RTM_NEWROUTE)
-				parse_mfc(nh, &n);
+				parse_mfc(nh, &n, family);
 		}
 	}
 }
@@ -237,7 +261,7 @@ static int dump_mfc(int fd)
  * which the fast path would bypass. /proc/net/igmp prints each group as the
  * raw __be32 read as a host-order u32.
  */
-static bool local_listeners(__u32 ifindex, __be32 grp)
+static bool local_listeners4(__u32 ifindex, __be32 grp)
 {
 	unsigned int idx = 0, group, users;
 	char line[256];
@@ -259,22 +283,57 @@ static bool local_listeners(__u32 ifindex, __be32 grp)
 	return found;
 }
 
+/* The same for IPv6: /proc/net/igmp6 prints the group as 32 hex digits. */
+static bool local_listeners6(__u32 ifindex, const __u8 *grp)
+{
+	unsigned int idx, users;
+	char line[256], hex[33];
+	bool found = false;
+	__u8 g[16];
+	FILE *f;
+
+	f = fopen("/proc/net/igmp6", "r");
+	if (!f)
+		return false;
+	while (!found && fgets(line, sizeof(line), f)) {
+		if (sscanf(line, "%u %*s %32s %u", &idx, hex, &users) != 3 ||
+		    idx != ifindex || strlen(hex) != 32)
+			continue;
+		for (int i = 0; i < 16; i++)
+			sscanf(hex + 2 * i, "%2hhx", &g[i]);
+		if (!memcmp(g, grp, 16))
+			found = users > MCFAST_DAEMON_USERS;
+	}
+	fclose(f);
+	return found;
+}
+
 static bool build_want(const struct mfc *m, struct want *w)
 {
 	unsigned int mtu, min_mtu = 0xffff;
 	int type, n = 0;
 
 	memset(w, 0, sizeof(*w));
-	w->key = m->key;
+	w->family = m->family;
+	w->iif = m->iif;
+	if (m->family == AF_INET6) {
+		w->key.k6.ifindex = m->iif;
+		memcpy(w->key.k6.src, m->src, 16);
+		memcpy(w->key.k6.grp, m->grp, 16);
+	} else {
+		w->key.k4.ifindex = m->iif;
+		memcpy(&w->key.k4.src, m->src, 4);
+		memcpy(&w->key.k4.grp, m->grp, 4);
+	}
 	if (m->n_oifs == 0 || m->n_oifs > MCFAST_MAX_OIFS ||
-	    if_info(m->key.ifindex, &w->iif_type, NULL, &mtu) ||
+	    if_info(m->iif, &w->iif_type, NULL, &mtu) ||
 	    (w->iif_type != ARPHRD_ETHER && w->iif_type != ARPHRD_PPP))
 		return false;
 
 	for (int i = 0; i < m->n_oifs; i++) {
 		struct mcfast_oif *oif = &w->route.oif[n++];
 
-		if (m->oif[i] == m->key.ifindex ||
+		if (m->oif[i] == m->iif ||
 		    if_info(m->oif[i], &type, oif->mac, &mtu) ||
 		    type != ARPHRD_ETHER)
 			return false;
@@ -287,7 +346,9 @@ static bool build_want(const struct mfc *m, struct want *w)
 	w->route.n_oifs = n;
 	w->route.mtu = min_mtu;
 
-	return !local_listeners(m->key.ifindex, m->key.grp);
+	if (m->family == AF_INET6)
+		return !local_listeners6(m->iif, m->grp);
+	return !local_listeners4(m->iif, w->key.k4.grp);
 }
 
 static struct iif_link *find_link(__u32 ifindex)
@@ -304,7 +365,7 @@ static void sync_links(int n_want)
 	bool used[MCFAST_MAX_IIFS] = {};
 
 	for (int i = 0; i < n_want; i++) {
-		struct iif_link *l = find_link(wants[i].key.ifindex);
+		struct iif_link *l = find_link(wants[i].iif);
 		LIBBPF_OPTS(bpf_tcx_opts, opts, .flags = BPF_F_BEFORE);
 		struct bpf_program *prog;
 
@@ -326,12 +387,11 @@ static void sync_links(int n_want)
 		 * retried every round; it is retried once the device stops
 		 * being used and comes back.
 		 */
-		l->link = bpf_program__attach_tcx(prog, wants[i].key.ifindex,
-						  &opts);
+		l->link = bpf_program__attach_tcx(prog, wants[i].iif, &opts);
 		if (!l->link)
 			fprintf(stderr, "mcfast: attach to ifindex %u: %s\n",
-				wants[i].key.ifindex, strerror(errno));
-		l->ifindex = wants[i].key.ifindex;
+				wants[i].iif, strerror(errno));
+		l->ifindex = wants[i].iif;
 		l->type = wants[i].iif_type;
 		used[n_links++] = true;
 		dbg("mcfast: attached to ifindex %u\n", l->ifindex);
@@ -347,64 +407,75 @@ static void sync_links(int n_want)
 	}
 }
 
-static bool wanted(const struct mcfast_key *key, int n_want)
+static size_t key_size(int family)
+{
+	return family == AF_INET6 ? sizeof(struct mcfast_key6) :
+				    sizeof(struct mcfast_key);
+}
+
+static bool wanted(int family, const void *key, int n_want)
 {
 	for (int i = 0; i < n_want; i++)
-		if (!memcmp(&wants[i].key, key, sizeof(*key)))
+		if (wants[i].family == family &&
+		    !memcmp(&wants[i].key, key, key_size(family)))
 			return true;
 	return false;
 }
 
-static void sync_map(int n_want)
+/* Bring the map of @family in line with the wants of that family. */
+static void sync_map(int fd, int family, int n_want)
 {
-	static struct mcfast_key stale[MCFAST_MAX_ROUTES];
-	struct mcfast_key key, *prev = NULL;
+	static struct mcfast_key6 stale[MCFAST_MAX_ROUTES];
+	struct mcfast_key6 key, *prev = NULL;
+	size_t ksize = key_size(family);
 	int n_stale = 0;
 
 	while (n_stale < MCFAST_MAX_ROUTES &&
-	       !bpf_map_get_next_key(map_fd, prev, &key)) {
-		if (!wanted(&key, n_want))
-			stale[n_stale++] = key;
+	       !bpf_map_get_next_key(fd, prev, &key)) {
+		if (!wanted(family, &key, n_want))
+			memcpy(&stale[n_stale++], &key, ksize);
 		prev = &key;
 	}
 	for (int i = 0; i < n_stale; i++)
-		bpf_map_delete_elem(map_fd, &stale[i]);
+		bpf_map_delete_elem(fd, &stale[i]);
 
 	for (int i = 0; i < n_want; i++) {
 		struct mcfast_route cur;
 
-		if (!bpf_map_lookup_elem(map_fd, &wants[i].key, &cur)) {
+		if (wants[i].family != family)
+			continue;
+		if (!bpf_map_lookup_elem(fd, &wants[i].key, &cur)) {
 			if (!memcmp(&cur, &wants[i].route,
 				    offsetof(struct mcfast_route, packets)))
 				continue;
 			wants[i].route.packets = cur.packets;
 			wants[i].route.bytes = cur.bytes;
 		}
-		if (bpf_map_update_elem(map_fd, &wants[i].key,
-					&wants[i].route, BPF_ANY))
+		if (bpf_map_update_elem(fd, &wants[i].key, &wants[i].route,
+					BPF_ANY))
 			fprintf(stderr, "mcfast: map update: %s\n",
 				strerror(errno));
 	}
 }
 
-static void write_status(void)
+static void write_status_map(FILE *f, int fd, int family)
 {
-	struct mcfast_key key, *prev = NULL;
+	int alen = family_alen(family);
+	struct mcfast_key6 key, *prev = NULL;
 	struct mcfast_route r;
-	FILE *f;
 
-	f = fopen(MCFAST_STATUS ".tmp", "w");
-	if (!f)
-		return;
-	while (!bpf_map_get_next_key(map_fd, prev, &key)) {
-		char iif[IF_NAMESIZE] = "?", src[16], grp[16];
+	/* Both key layouts start with the ifindex, then source and group. */
+	while (!bpf_map_get_next_key(fd, prev, &key)) {
+		char iif[IF_NAMESIZE] = "?";
+		char src[INET6_ADDRSTRLEN], grp[INET6_ADDRSTRLEN];
+		const __u8 *addr = (const __u8 *)&key + sizeof(__u32);
 
 		prev = &key;
-		if (bpf_map_lookup_elem(map_fd, &key, &r))
+		if (bpf_map_lookup_elem(fd, &key, &r))
 			continue;
 		if_indextoname(key.ifindex, iif);
-		inet_ntop(AF_INET, &key.src, src, sizeof(src));
-		inet_ntop(AF_INET, &key.grp, grp, sizeof(grp));
+		inet_ntop(family, addr, src, sizeof(src));
+		inet_ntop(family, addr + alen, grp, sizeof(grp));
 		fprintf(f, "%s %s %s ->", iif, src, grp);
 		for (int i = 0; i < r.n_oifs && i < MCFAST_MAX_OIFS; i++) {
 			char oif[IF_NAMESIZE] = "?";
@@ -416,24 +487,40 @@ static void write_status(void)
 			(unsigned long long)r.packets,
 			(unsigned long long)r.bytes);
 	}
+}
+
+static void write_status(void)
+{
+	FILE *f;
+
+	f = fopen(MCFAST_STATUS ".tmp", "w");
+	if (!f)
+		return;
+	write_status_map(f, map_fd, AF_INET);
+	write_status_map(f, map6_fd, AF_INET6);
 	fclose(f);
 	rename(MCFAST_STATUS ".tmp", MCFAST_STATUS);
 }
 
 static void resync(int dump_fd)
 {
-	int n_mfc, n_want = 0;
+	int n_mfc, n6, n_want = 0;
 
-	n_mfc = dump_mfc(dump_fd);
+	n_mfc = dump_mfc(dump_fd, AF_INET, 0);
 	if (n_mfc < 0) {
 		fprintf(stderr, "mcfast: MFC dump: %s\n", strerror(-n_mfc));
 		return;
 	}
+	/* A kernel without IPv6 multicast routing fails this one: go on. */
+	n6 = dump_mfc(dump_fd, AF_INET6, n_mfc);
+	if (n6 >= 0)
+		n_mfc = n6;
 	for (int i = 0; i < n_mfc; i++)
 		if (build_want(&mfcs[i], &wants[n_want]))
 			n_want++;
 	sync_links(n_want);
-	sync_map(n_want);
+	sync_map(map_fd, AF_INET, n_want);
+	sync_map(map6_fd, AF_INET6, n_want);
 	write_status();
 }
 
@@ -455,7 +542,7 @@ int main(int argc, char **argv)
 {
 	const char *path = MCFAST_OBJ;
 	int interval = 1000, dump_fd, ev_fd, opt;
-	struct bpf_map *map;
+	struct bpf_map *map, *map6;
 
 	while ((opt = getopt(argc, argv, "o:i:v")) != -1) {
 		switch (opt) {
@@ -483,14 +570,16 @@ int main(int argc, char **argv)
 	prog_eth = bpf_object__find_program_by_name(obj, "mcfast_eth");
 	prog_ip = bpf_object__find_program_by_name(obj, "mcfast_ip");
 	map = bpf_object__find_map_by_name(obj, "mcfast_routes");
-	if (!prog_eth || !prog_ip || !map) {
+	map6 = bpf_object__find_map_by_name(obj, "mcfast_routes6");
+	if (!prog_eth || !prog_ip || !map || !map6) {
 		fprintf(stderr, "mcfast: %s lacks programs or map\n", path);
 		return 1;
 	}
 	map_fd = bpf_map__fd(map);
+	map6_fd = bpf_map__fd(map6);
 
 	dump_fd = nl_open(0);
-	ev_fd = nl_open(RTMGRP_IPV4_MROUTE | RTMGRP_LINK);
+	ev_fd = nl_open(RTMGRP_IPV4_MROUTE | RTMGRP_IPV6_MROUTE | RTMGRP_LINK);
 	if (dump_fd < 0 || ev_fd < 0) {
 		perror("mcfast: netlink");
 		return 1;

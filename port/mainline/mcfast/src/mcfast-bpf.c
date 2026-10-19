@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * mcfast: forward routed IPv4 multicast at tc ingress.
+ * mcfast: forward routed IPv4 and IPv6 multicast at tc ingress.
  *
  * For packets matching a resolved kernel multicast route the program does
- * what ip_mr_forward() would (TTL check and decrement, Ethernet header for
- * the egress) and redirects to each egress device, typically a bridge, which
- * still applies its own snooping state. Everything else continues to the
- * next program and the regular stack.
+ * what ip_mr_forward() / ip6_mr_forward() would (TTL or hop limit check and
+ * decrement, Ethernet header for the egress) and redirects to each egress
+ * device, typically a bridge, which still applies its own snooping state.
+ * Everything else continues to the next program and the regular stack.
  */
 #define KBUILD_MODNAME "mcfast"
 #include <uapi/linux/bpf.h>
 #include <uapi/linux/if_ether.h>
 #include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
 #include <uapi/linux/pkt_cls.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
@@ -24,6 +25,13 @@ struct {
 	__type(key, struct mcfast_key);
 	__type(value, struct mcfast_route);
 } mcfast_routes SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, MCFAST_MAX_ROUTES);
+	__type(key, struct mcfast_key6);
+	__type(value, struct mcfast_route);
+} mcfast_routes6 SEC(".maps");
 
 static __always_inline struct mcfast_route *
 mcfast_lookup(__u32 ifindex, struct iphdr *ip)
@@ -45,6 +53,28 @@ mcfast_lookup(__u32 ifindex, struct iphdr *ip)
 		return route;
 	key.src = 0;
 	return bpf_map_lookup_elem(&mcfast_routes, &key);
+}
+
+static __always_inline struct mcfast_route *
+mcfast_lookup6(__u32 ifindex, struct ipv6hdr *ip6)
+{
+	struct mcfast_key6 key = {
+		.ifindex = ifindex,
+	};
+	struct mcfast_route *route;
+	__u8 *grp = ip6->daddr.in6_u.u6_addr8;
+
+	/* Interface- and link-local scoped groups are never routed. */
+	if (grp[0] != 0xff || (grp[1] & 0x0f) <= 2)
+		return NULL;
+
+	__builtin_memcpy(key.src, ip6->saddr.in6_u.u6_addr8, 16);
+	__builtin_memcpy(key.grp, grp, 16);
+	route = bpf_map_lookup_elem(&mcfast_routes6, &key);
+	if (route)
+		return route;
+	__builtin_memset(key.src, 0, 16);
+	return bpf_map_lookup_elem(&mcfast_routes6, &key);
 }
 
 /*
@@ -73,6 +103,24 @@ mcfast_xmit(struct __sk_buff *skb, struct mcfast_route *route)
 	return TC_ACT_SHOT;
 }
 
+/*
+ * Give the packet whose network header is at @l3 (0 or ETH_HLEN) an
+ * Ethernet header with the group address @dmac; the source address is
+ * written per egress device by mcfast_xmit().
+ */
+static __always_inline int
+mcfast_l2(struct __sk_buff *skb, __u32 l3, const __u8 *dmac, __u16 proto)
+{
+	struct ethhdr eth = {
+		.h_proto = bpf_htons(proto),
+	};
+
+	__builtin_memcpy(eth.h_dest, dmac, ETH_ALEN);
+	if (!l3 && bpf_skb_change_head(skb, ETH_HLEN, 0))
+		return -1;
+	return bpf_skb_store_bytes(skb, 0, &eth, sizeof(eth), 0);
+}
+
 /* Decrement the TTL at offset @l3 and fix up the header checksum. */
 static __always_inline int
 mcfast_ttl_dec(struct __sk_buff *skb, struct iphdr *ip, __u32 l3)
@@ -85,26 +133,58 @@ mcfast_ttl_dec(struct __sk_buff *skb, struct iphdr *ip, __u32 l3)
 				   old, new, sizeof(__u16));
 }
 
-static __always_inline void
-mcfast_group_mac(__u8 *mac, __be32 grp)
+static __always_inline int
+mcfast_fwd4(struct __sk_buff *skb, __u32 l3)
 {
-	__u32 g = bpf_ntohl(grp);
+	void *data = (void *)(long)skb->data;
+	void *data_end = (void *)(long)skb->data_end;
+	struct iphdr *ip = data + l3;
+	struct mcfast_route *route;
+	__u8 mac[ETH_ALEN];
+	__u32 g;
 
+	if ((void *)(ip + 1) > data_end || ip->version != 4)
+		return TC_ACT_UNSPEC;
+	route = mcfast_lookup(skb->ifindex, ip);
+	if (!route || ip->ttl <= route->ttl_min || skb->len - l3 > route->mtu)
+		return TC_ACT_UNSPEC;
+
+	g = bpf_ntohl(ip->daddr);
 	mac[0] = 0x01;
 	mac[1] = 0x00;
 	mac[2] = 0x5e;
 	mac[3] = (g >> 16) & 0x7f;
 	mac[4] = g >> 8;
 	mac[5] = g;
+	if (mcfast_ttl_dec(skb, ip, l3) || mcfast_l2(skb, l3, mac, ETH_P_IP))
+		return TC_ACT_SHOT;
+	return mcfast_xmit(skb, route);
 }
 
-static __always_inline bool
-mcfast_check(struct __sk_buff *skb, struct iphdr *ip, __u32 l3,
-	     struct mcfast_route *route)
+static __always_inline int
+mcfast_fwd6(struct __sk_buff *skb, __u32 l3)
 {
-	if (ip->version != 4 || ip->ttl <= route->ttl_min)
-		return false;
-	return skb->len - l3 <= route->mtu;
+	void *data = (void *)(long)skb->data;
+	void *data_end = (void *)(long)skb->data_end;
+	struct ipv6hdr *ip6 = data + l3;
+	struct mcfast_route *route;
+	__u8 mac[ETH_ALEN];
+
+	if ((void *)(ip6 + 1) > data_end || ip6->version != 6)
+		return TC_ACT_UNSPEC;
+	route = mcfast_lookup6(skb->ifindex, ip6);
+	if (!route || ip6->hop_limit <= route->ttl_min ||
+	    skb->len - l3 > route->mtu)
+		return TC_ACT_UNSPEC;
+
+	mac[0] = 0x33;
+	mac[1] = 0x33;
+	__builtin_memcpy(&mac[2], &ip6->daddr.in6_u.u6_addr8[12], 4);
+	/* No header checksum in IPv6. */
+	ip6->hop_limit--;
+	if (mcfast_l2(skb, l3, mac, ETH_P_IPV6))
+		return TC_ACT_SHOT;
+	return mcfast_xmit(skb, route);
 }
 
 /* Ethernet ingress, e.g. an IPoE WAN. */
@@ -114,46 +194,25 @@ int mcfast_eth(struct __sk_buff *skb)
 	void *data = (void *)(long)skb->data;
 	void *data_end = (void *)(long)skb->data_end;
 	struct ethhdr *eth = data;
-	struct iphdr *ip = data + ETH_HLEN;
-	struct mcfast_route *route;
 
-	if ((void *)(ip + 1) > data_end || eth->h_proto != bpf_htons(ETH_P_IP))
+	if ((void *)(eth + 1) > data_end)
 		return TC_ACT_UNSPEC;
-	route = mcfast_lookup(skb->ifindex, ip);
-	if (!route || !mcfast_check(skb, ip, ETH_HLEN, route))
-		return TC_ACT_UNSPEC;
-
-	mcfast_group_mac(eth->h_dest, ip->daddr);
-	if (mcfast_ttl_dec(skb, ip, ETH_HLEN))
-		return TC_ACT_SHOT;
-	return mcfast_xmit(skb, route);
+	if (eth->h_proto == bpf_htons(ETH_P_IP))
+		return mcfast_fwd4(skb, ETH_HLEN);
+	if (eth->h_proto == bpf_htons(ETH_P_IPV6))
+		return mcfast_fwd6(skb, ETH_HLEN);
+	return TC_ACT_UNSPEC;
 }
 
 /* Ingress without a link-layer header, e.g. a PPPoE session device. */
 SEC("tcx/ingress")
 int mcfast_ip(struct __sk_buff *skb)
 {
-	void *data = (void *)(long)skb->data;
-	void *data_end = (void *)(long)skb->data_end;
-	struct iphdr *ip = data;
-	struct mcfast_route *route;
-	struct ethhdr eth = {
-		.h_proto = bpf_htons(ETH_P_IP),
-	};
-
-	if ((void *)(ip + 1) > data_end ||
-	    skb->protocol != bpf_htons(ETH_P_IP))
-		return TC_ACT_UNSPEC;
-	route = mcfast_lookup(skb->ifindex, ip);
-	if (!route || !mcfast_check(skb, ip, 0, route))
-		return TC_ACT_UNSPEC;
-
-	mcfast_group_mac(eth.h_dest, ip->daddr);
-	if (mcfast_ttl_dec(skb, ip, 0) ||
-	    bpf_skb_change_head(skb, ETH_HLEN, 0) ||
-	    bpf_skb_store_bytes(skb, 0, &eth, sizeof(eth), 0))
-		return TC_ACT_SHOT;
-	return mcfast_xmit(skb, route);
+	if (skb->protocol == bpf_htons(ETH_P_IP))
+		return mcfast_fwd4(skb, 0);
+	if (skb->protocol == bpf_htons(ETH_P_IPV6))
+		return mcfast_fwd6(skb, 0);
+	return TC_ACT_UNSPEC;
 }
 
 char _license[] SEC("license") = "GPL";
