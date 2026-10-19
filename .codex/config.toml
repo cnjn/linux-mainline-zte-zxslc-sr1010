@@ -1,5 +1,12 @@
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "live"
+model_verbosity = "medium"
 [mcp_servers.idalib-mcp]
 command = "idalib-mcp"
 args = ["--stdio"]
 tool_timeout_sec = 1800
 enabled = true
+
+[sandbox_workspace_write]
+network_access = true
