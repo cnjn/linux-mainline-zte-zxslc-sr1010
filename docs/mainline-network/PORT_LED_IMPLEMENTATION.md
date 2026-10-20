@@ -1,20 +1,25 @@
 # SR1010 网口 LED 实现索引
 
-更新：2026-09-13。五个网口的连接指示灯已实现，并完成逐口实物插拔验收。
-最终证据和边界见 [PORT_LED_ACCEPTANCE.md](PORT_LED_ACCEPTANCE.md)。
+更新：2026-10-20。按用户确认的机壳编号修正了 LAN 接口及 LED 编号。
+既有插座的交换端口与 GPIO 配对保持不变，新编号尚未进行新镜像逐口插拔验收。
+2026-09-13 的历史实物证据和边界见 [PORT_LED_ACCEPTANCE.md](PORT_LED_ACCEPTANCE.md)。
 
 ## 硬件接线
 
 原厂板级表和实物高低电平测试共同确认，五个插座灯使用 SoC GPIO，
 全部低电平点亮：
 
-| 插座 | GPIO | 主线接口 |
-| --- | --- | --- |
-| WAN | 26（gpio1[10]） | eth0 |
-| LAN1 | 69（gpio4[5]） | lan1 |
-| LAN2 | 68（gpio4[4]） | lan2 |
-| LAN3 | 13（gpio0[13]） | lan3 |
-| LAN4 | 2（gpio0[2]） | lan4 |
+| 插座 | 交换芯片端口 | GPIO | 主线接口 |
+| --- | --- | --- | --- |
+| WAN | 独立 WAN MAC | 26（gpio1[10]） | eth0 |
+| LAN1 | 4 | 2（gpio0[2]） | lan1 |
+| LAN2 | 5 | 13（gpio0[13]） | lan2 |
+| LAN3 | 6 | 68（gpio4[4]） | lan3 |
+| LAN4 | 7 | 69（gpio4[5]） | lan4 |
+
+旧版编号与当前物理编号相反：旧 lan1/lan2/lan3/lan4 对应新
+lan4/lan3/lan2/lan1。保留旧网络配置升级时，需要迁移物理接口引用。
+OpenWrt 的 SR1010 DTS 包含公共主线 DTS，因此也继承此次修正。
 
 ## 代码位置
 

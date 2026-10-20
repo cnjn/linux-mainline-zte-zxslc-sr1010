@@ -7,8 +7,8 @@ import runpy
 
 ROOT = Path(__file__).resolve().parents[3]
 BOARD = runpy.run_path(str(ROOT / 'port/mainline/network-acceptance/nic-rx-accept.py'))['board']
-PORTS = {'wan': ('eth0', 26), 'lan1': ('lan1', 69), 'lan2': ('lan2', 68),
-         'lan3': ('lan3', 13), 'lan4': ('lan4', 2)}
+PORTS = {'wan': ('eth0', 26), 'lan1': ('lan1', 2), 'lan2': ('lan2', 13),
+         'lan3': ('lan3', 68), 'lan4': ('lan4', 69)}
 
 
 def main():
